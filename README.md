@@ -12,3 +12,8 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 `nimble release` to create a release build
 
+## Running locally
+
+1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
+2. Execute nimdow on the new display: `DISPLAY=:1 ./nimdow`
+
