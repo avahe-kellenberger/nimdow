@@ -1,6 +1,6 @@
 import
   x11/xlib,
-  xeventpoller
+  event/xeventpoller
 
 var
   display: TXDisplay
