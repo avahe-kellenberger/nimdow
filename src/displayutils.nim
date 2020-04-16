@@ -28,11 +28,11 @@ proc grabKey*(display: xlib.PDisplay, key: string, modifiers: varargs[int32]): v
     x.GrabModeAsync
   )
 
-proc grabButton*(display: xlib.PDisplay, bool, button: int32, modifiers: varargs[int32]): void =
+proc grabButton*(display: xlib.PDisplay, button: int32, modifiers: varargs[int32]): void =
   ## Invokes XGrabKey with the given XString and modifiers on the given display.
   discard XGrabButton(
     display,
-    x.Button1,
+    button,
     bitor(modifiers),
     xlib.DefaultRootWindow(display),
     true,
