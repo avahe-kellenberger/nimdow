@@ -15,10 +15,16 @@ proc add*(theType: cint, listener: XEventListener): void =
 
 proc remove*(theType: cint, listener: XEventListener): void =
   ## Removes a listener.
+  if theType notin listenerMap:
+    return
+
   listenerMap[theType].excl(listener)
 
 proc dispatch*(e: TXEvent): void =
   ## Dispatches an event to all listeners with the same TXEvent.theType
+  if e.theType notin listenerMap:
+    return
+
   let listeners = listenerMap[e.theType]
   for listener in listeners:
     listener(e)
