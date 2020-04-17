@@ -19,7 +19,7 @@ when isMainModule:
   eventManager = newXEventManager()
 
   let listener: XEventListener = (e: TXEvent) => echo repr(e)
-  eventManager.addListener(listener, x.KeyPress, x.KeyRelease)
+  eventManager.addListener(listener, x.KeyPressMask, x.KeyReleaseMask)
 
   eventManager.hookXEvents(display)
 
