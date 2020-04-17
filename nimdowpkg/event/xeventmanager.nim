@@ -3,47 +3,50 @@ import
   tables,
   sets
 
-type XEventListener* = proc(e: xlib.TXEvent): void
-
-type XEventManager* = ref object of RootObj 
-  listenerMap: Table[cint, HashSet[XEventListener]]
-  eventPoller: iterator(display: xlib.PDisplay): xlib.TXEvent
+type
+  XEventListener* = proc(e: xlib.TXEvent)
+  XEventManager* = ref object
+    listenerMap: Table[int, HashSet[XEventListener]]
 
 proc newXEventManager*(): XEventManager =
-  return XEventManager(listenerMap: initTable[cint, HashSet[XEventListener]]())
+  XEventManager(listenerMap: initTable[int, HashSet[XEventListener]]())
 
-proc add*(this: XEventManager, theType: cint, listener: XEventListener): void =
+proc bitor(bits: varargs[int]): int =
+  for bit in bits:
+    result = result or bit
+  return result
+
+proc addListener*(this: XEventManager, listener: XEventListener, types: varargs[int]) =
   ## Adds a listener for the given x11/x event type.
-  if theType notin this.listenerMap: (
+  let theType = bitor(types)
+  if theType notin this.listenerMap:
     this.listenerMap[theType] = initHashSet[XEventListener]()
-  )
+
   this.listenerMap[theType].incl(listener)
 
-proc remove*(this: XEventManager, theType: cint, listener: XEventListener): void =
+proc removeListener*(this: XEventManager, listener: XEventListener, theTypes: varargs[int]) =
   ## Removes a listener.
+  let theType = bitor(theTypes)
   if theType in this.listenerMap:
     this.listenerMap[theType].excl(listener)
 
-proc dispatch*(this: XEventManager, e: TXEvent): void =
+proc dispatchEvent*(this: XEventManager, e: TXEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
+  
+  # We are not listening for this event type - exit.
   if e.theType notin this.listenerMap:
     return
+
   let listeners = this.listenerMap[e.theType]
   for listener in listeners:
     listener(e)
 
-iterator nextXEvent(display: xlib.PDisplay): xlib.TXEvent {.closure.} =
-  ## Polls for `TXEvent`s
+proc hookXEvents*(this: XEventManager, display: xlib.PDisplay) =
+  ## Infinitely listens for and dispatches libx.TXEvents.
+  ## This proc does not return.
+  # TODO: This should probably be threaded.
   var event: xlib.PXEvent 
   # XNextEvent returns 0 unless there is an error.
   while xlib.XNextEvent(display, event) == 0:
-    yield event[]
-
-proc hookXEvents*(this: XEventManager, display: xlib.PDisplay): void =
-  ## Infinitely listens for and dispatches libx.TXEvents.
-  ## This proc does not return.
-  this.eventPoller = nextXEvent
-  # TODO: This should probably be threaded.
-  for event in this.eventPoller(display):
-    this.dispatch(event)
+    this.dispatchEvent(event[])
 
