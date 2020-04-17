@@ -4,7 +4,7 @@ import
   sets
 
 type
-  XEventListener* = proc(e: xlib.TXEvent)
+  XEventListener* = proc(e: TXEvent)
   XEventManager* = ref object
     listenerMap: Table[int, HashSet[XEventListener]]
 
@@ -41,12 +41,11 @@ proc dispatchEvent*(this: XEventManager, e: TXEvent) =
   for listener in listeners:
     listener(e)
 
-proc hookXEvents*(this: XEventManager, display: xlib.PDisplay) =
+proc hookXEvents*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
-  ## This proc does not return.
-  # TODO: This should probably be threaded.
-  var event: xlib.PXEvent 
+  ## This proc will not return unless there is an error.
+  var event: PXEvent 
   # XNextEvent returns 0 unless there is an error.
-  while xlib.XNextEvent(display, event) == 0:
+  while XNextEvent(display, event) == 0:
     this.dispatchEvent(event[])
 
