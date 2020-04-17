@@ -1,18 +1,26 @@
 import
+  sugar,
+  x11/x,
   x11/xlib,
-  event/xeventpoller
+  event/xeventmanager
 
 var
-  display: TXDisplay
+  display: PDisplay
+  eventManager: XEventManager
 
-proc initXWIndowInfo(): xlib.TXDisplay =
+proc initXWIndowInfo(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
   if tempDisplay == nil:
     quit "Failed to open display"
-  return tempDisplay[]
+  return tempDisplay
 
 when isMainModule:
   display = initXWIndowInfo()
-  for event in xeventpoller.nextXEvent(display.addr):
-    echo repr(event)
+  eventManager = newXEventManager()
+
+  let listener: XEventListener = (e: TXEvent) => echo repr(e)
+  eventManager.add(x.KeyPress, listener)
+
+  eventManager.hookXEvents(display)
+
 

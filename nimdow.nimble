@@ -1,5 +1,4 @@
 # Package
-
 version       = "0.0.1"
 author        = "avahe-kellenberger"
 description   = "A window manager written in nim"
@@ -8,9 +7,11 @@ srcDir        = "nimdowpkg"
 installExt    = @["nim"]
 bin           = @["nimdow"]
 
+# Deps
 requires "nim >= 1.0"
 requires "x11"
 
+# Tasks
 task build, "Create a development build":
   exec "nim c -r src/nimdow.nim"
 
