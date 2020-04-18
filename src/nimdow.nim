@@ -37,10 +37,13 @@ when isMainModule:
     StructureNotifyMask or
     PropertyChangeMask
 
-  # TODO: Dwm uses the below method, but according to https://tronche.com/gui/x/xlib/event-handling/selecting.html
-  # we should only have to choose one to register for events (based on the supplied windowAttribs.eventMask)
-  discard XChangeWindowAttributes(display, rootWindow, CWEventMask or CWCursor, addr(windowAttribs))
-  discard XSelectInput(display, rootWindow, windowAttribs.eventMask);
+  # Listen for events on the root window
+  discard XChangeWindowAttributes(
+    display,
+    rootWindow,
+    CWEventMask or CWCursor,
+    addr(windowAttribs)
+  )
 
   eventManager = newXEventManager()
   setupListeners(eventManager)
