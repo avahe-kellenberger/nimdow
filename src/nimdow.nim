@@ -35,7 +35,9 @@ when isMainModule:
     EnterWindowMask or
     LeaveWindowMask or
     StructureNotifyMask or
-    PropertyChangeMask
+    PropertyChangeMask or
+    KeyPressMask or
+    KeyReleaseMask
 
   # Listen for events on the root window
   discard XChangeWindowAttributes(
