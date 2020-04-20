@@ -1,0 +1,3 @@
+[testAction]
+key = "j"
+modifiers = [ "control", "shift" ]
