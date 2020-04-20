@@ -14,12 +14,21 @@ proc initXWindowInfo(): PDisplay =
     quit "Failed to open display"
   return tempDisplay
 
+proc cleanMask(mask: int): int = 
+  ## Creates a uniform mask that can be used with
+  ## masks defined in x11/x.nim and TXKeyEvent.state
+  mask and (not LockMask) and
+  (ShiftMask or ControlMask or Mod1Mask or Mod2Mask or Mod3Mask or Mod4Mask or Mod5Mask)
+
 proc setupListeners(eventManager: XEventManager) =
   # Example listener
   let listener: XEventListener = proc(e: TXEvent) =
-    echo("Key event - ", e.theType)
-    echo(e.xkey.keycode)
-  eventManager.addListener(listener, KeyPress, KeyRelease)
+    let keycode = cuint(XKeysymToKeycode(display, XStringToKeysym("d")))
+    if keycode == e.xkey.keycode and
+      cleanMask(ControlMask) == cleanMask(int(e.xkey.state)):
+        echo "Pressed Control + d!"
+
+  eventManager.addListener(listener, KeyPress)
 
 when isMainModule:
   display = initXWindowInfo()
