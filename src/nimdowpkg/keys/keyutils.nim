@@ -23,5 +23,5 @@ func cleanMask*(mask: int): int =
   (ShiftMask or ControlMask or Mod1Mask or Mod2Mask or Mod3Mask or Mod4Mask or Mod5Mask)
 
 func toKeycode*(key: string, display: PDisplay): int =
-  return int(XKeysymToKeycode(display, XStringToKeysym("d")))
+  int(XKeysymToKeycode(display, XStringToKeysym(key)))
 
