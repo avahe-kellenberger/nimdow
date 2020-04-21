@@ -3,14 +3,17 @@ import
   parsetoml,
   tables,
   "../keys/keyutils",
-  "../event/xeventmanager"
+  "../event/xeventmanager",
+  "../windowmanger"
 
-type KeyCombo* =
-  tuple[keycode: int, modifiers: int] 
+# Mapping of config keys to functions.
+const ProcTable: Table[string, proc] = {
+  "testAction": testAction,
+  "testAction2": testAction2
+}.toTable
 
-# TODO: value of this table should be "proc".
-# Need to find a way to map a string repr of a proc to the proc itself.
-var ConfigTable* = tables.initTable[KeyCombo, string]()
+type KeyCombo* = tuple[keycode: int, modifiers: int] 
+var ConfigTable* = tables.initTable[KeyCombo, proc()]()
 
 proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:
@@ -49,7 +52,10 @@ proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): Key
 
 proc populateAction(display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombo = configTable.getKeyCombo(display, action)
-  ConfigTable[keyCombo] = action
+  if not ProcTable.hasKey(action):
+    raise newException(Exception, "Invalid key configuration: " &
+                       repr(action) & " not found")
+  ConfigTable[keyCombo] = ProcTable[action]
 
 proc loadConfigfile(configPath: string): TomlTable =
   ## Reads the user's configuration file into a table.
@@ -74,6 +80,6 @@ proc hookConfig*(eventManager: XEventManager) =
     let mask: int = cleanMask(cint(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if ConfigTable.hasKey(keyCombo):
-      echo ConfigTable[keyCombo]
+      ConfigTable[keyCombo]()
   eventManager.addListener(listener, KeyPress)
 
