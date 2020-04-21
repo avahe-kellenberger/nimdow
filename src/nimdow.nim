@@ -46,5 +46,6 @@ when isMainModule:
 
   eventManager = newXEventManager()
   display.populateConfigTable()
-  eventManager.hookXEvents(display)
+  eventManager.hookConfig()
+  eventManager.startEventListenerLoop(display)
 

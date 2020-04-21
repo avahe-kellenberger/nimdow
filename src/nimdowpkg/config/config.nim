@@ -1,8 +1,9 @@
 import 
-  x11 / xlib,
+  x11 / [x,  xlib],
   parsetoml,
   tables,
-  "../keys/keyutils"
+  "../keys/keyutils",
+  "../event/xeventmanager"
 
 type KeyCombo* =
   tuple[keycode: int, modifiers: int] 
@@ -67,4 +68,12 @@ proc populateConfigTable*(display: PDisplay) =
   let configTable = loadConfigfile(configPath)
   display.populateAction("testAction", configTable)
   display.populateAction("testAction2", configTable)
+
+proc hookConfig*(eventManager: XEventManager) =
+  let listener: XEventListener = proc(e: TXEvent) =
+    let mask: int = cleanMask(cint(e.xkey.state))
+    let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
+    if ConfigTable.hasKey(keyCombo):
+      echo ConfigTable[keyCombo]
+  eventManager.addListener(listener, KeyPress)
 

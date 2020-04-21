@@ -36,7 +36,7 @@ proc dispatchEvent*(this: XEventManager, e: TXEvent) =
   for listener in listeners:
     listener(e)
 
-proc hookXEvents*(this: XEventManager, display: PDisplay) =
+proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
   ## This proc will not return unless there is an error.
 
