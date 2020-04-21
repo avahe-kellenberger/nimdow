@@ -2,6 +2,8 @@ import
   x11 / [x, xlib],
   tables
 
+converter toCint(x: TKeyCode): cint = x.cint
+
 ## A table of key modifier names to their respective masks.
 const ModifierTable* = {
   "control": ControlMask,
@@ -16,12 +18,12 @@ const ModifierTable* = {
   "mod5": Mod5Mask,
 }.toTable
 
-func cleanMask*(mask: int): int =
+func cleanMask*(mask: cint): cint =
   ## Creates a uniform mask that can be used with
   ## masks defined in x11/x.nim and TXKeyEvent.state
   mask and (not LockMask) and
   (ShiftMask or ControlMask or Mod1Mask or Mod2Mask or Mod3Mask or Mod4Mask or Mod5Mask)
 
-func toKeycode*(key: string, display: PDisplay): int =
-  int(XKeysymToKeycode(display, XStringToKeysym(key)))
+func toKeycode*(key: string, display: PDisplay): cint =
+  XKeysymToKeycode(display, XStringToKeysym(key))
 

@@ -1,7 +1,10 @@
 import
   x11 / [x, xlib],
-  nimdowpkg/event/xeventmanager,
-  nimdowpkg/keys/keyutils
+  nimdowpkg /
+    [ 
+      event / xeventmanager,
+      config / config
+    ]
 
 var
   display: PDisplay
@@ -14,16 +17,6 @@ proc initXWindowInfo(): PDisplay =
   if tempDisplay == nil:
     quit "Failed to open display"
   return tempDisplay
-
-proc setupListeners(eventManager: XEventManager) =
-  # Example listener
-  let listener: XEventListener = proc(e: TXEvent) =
-    let keycode = cuint(XKeysymToKeycode(display, XStringToKeysym("d")))
-    if keycode == e.xkey.keycode and
-      cleanMask(ControlMask) == cleanMask(int(e.xkey.state)):
-        echo "Pressed Control + d!"
-
-  eventManager.addListener(listener, KeyPress)
 
 when isMainModule:
   display = initXWindowInfo()
@@ -52,6 +45,6 @@ when isMainModule:
   )
 
   eventManager = newXEventManager()
-  setupListeners(eventManager)
+  display.populateConfigTable()
   eventManager.hookXEvents(display)
 

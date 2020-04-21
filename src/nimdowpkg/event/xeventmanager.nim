@@ -6,20 +6,20 @@ import
 type
   XEventListener* = proc(e: TXEvent)
   XEventManager* = ref object
-    listenerMap: Table[int, HashSet[XEventListener]]
+    listenerMap: Table[cint, HashSet[XEventListener]]
     event: TXEvent
 
 proc newXEventManager*(): XEventManager =
-  XEventManager(listenerMap: initTable[int, HashSet[XEventListener]]())
+  XEventManager(listenerMap: initTable[cint, HashSet[XEventListener]]())
 
-proc addListener*(this: XEventManager, listener: XEventListener, types: varargs[int]) =
+proc addListener*(this: XEventManager, listener: XEventListener, types: varargs[cint]) =
   ## Adds a listener for the given x11/x event type.
   for theType in types:
     if theType notin this.listenerMap:
       this.listenerMap[theType] = initHashSet[XEventListener]()
     this.listenerMap[theType].incl(listener)
 
-proc removeListener*(this: XEventManager, listener: XEventListener, types: varargs[int]) =
+proc removeListener*(this: XEventManager, listener: XEventListener, types: varargs[cint]) =
   ## Removes a listener.
   for theType in types:
     if theType in this.listenerMap:
