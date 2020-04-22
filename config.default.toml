@@ -1,0 +1,7 @@
+[testAction]
+key = "j"
+modifiers = [ "control", "shift" ]
+
+[testAction2]
+key = "k"
+modifiers = [ "control", "shift", "super" ]

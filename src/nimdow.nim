@@ -1,6 +1,9 @@
 import
-  x11 / [x, xlib],
-  nimdowpkg/event/xeventmanager
+  x11/x,
+  x11/xlib,
+  nimdowpkg/event/xeventmanager,
+  nimdowpkg/config/config,
+  nimdowpkg/windowmanger as windowmanager
 
 var
   display: PDisplay
@@ -13,13 +16,6 @@ proc initXWindowInfo(): PDisplay =
   if tempDisplay == nil:
     quit "Failed to open display"
   return tempDisplay
-
-proc setupListeners(eventManager: XEventManager) =
-  # Example listener
-  let listener: XEventListener = proc(e: TXEvent) =
-    echo("Key event - ", e.theType)
-    echo(e.xkey.keycode)
-  eventManager.addListener(listener, KeyPress, KeyRelease)
 
 when isMainModule:
   display = initXWindowInfo()
@@ -47,7 +43,9 @@ when isMainModule:
     addr(windowAttribs)
   )
 
+  windowmanager.setupActions()
+  config.populateConfigTable(display)
   eventManager = newXEventManager()
-  setupListeners(eventManager)
-  eventManager.hookXEvents(display)
+  config.hookConfig(eventManager)
+  eventManager.startEventListenerLoop(display)
 
