@@ -3,30 +3,71 @@ import
   parsetoml,
   tables,
   "../keys/keyutils",
-  "../event/xeventmanager",
-  "../windowmanger"
+  "../event/xeventmanager"
+
+type
+  KeyCombo* = tuple[keycode: int, modifiers: int]
+  WindowAction* = proc()
 
 # Mapping of config keys to functions.
-const ProcTable: Table[string, proc] = {
-  "testAction": testAction,
-  "testAction2": testAction2
-}.toTable
+var ProcTable = initTable[string, WindowAction]()
+var ConfigTable* = initTable[KeyCombo, WindowAction]()
 
-type KeyCombo* = tuple[keycode: int, modifiers: int] 
-var ConfigTable* = tables.initTable[KeyCombo, proc()]()
+proc configureAction*(actionName: string, actionInvokee: WindowAction)
+proc hookConfig*(eventManager: XEventManager)
+proc populateConfigTable*(display: PDisplay)
+proc findConfigPath(): string
+proc loadConfigfile(configPath: string): TomlTable
+proc populateAction(display: PDisplay, action: string, configTable: TomlTable)
+proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo
+proc getKeyForAction(configTable: TomlTable, action: string): string
+proc getModifiersForAction(configTable: TomlTable, action: string): seq[TomlValueRef]
+proc xorModifiers(modifiers: openarray[TomlValueRef]): int
+proc getModifierMask(modifier: TomlValueRef): int
 
-proc getModifierMask(modifier: TomlValueRef): int =
-  if modifier.kind != TomlValueKind.String:
+proc configureAction*(actionName: string, actionInvokee: WindowAction) =
+  ProcTable[actionName] = actionInvokee
+
+proc hookConfig*(eventManager: XEventManager) =
+  let listener: XEventListener = proc(e: TXEvent) =
+    let mask: int = cleanMask(int(e.xkey.state))
+    let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
+    if ConfigTable.hasKey(keyCombo):
+      ConfigTable[keyCombo]()
+  eventManager.addListener(listener, KeyPress)
+
+proc populateConfigTable*(display: PDisplay) =
+  ## Reads the user's configuration file and set the keybindings.
+  let configPath = findConfigPath()
+  let configTable = loadConfigfile(configPath)
+  for action in configTable.keys():
+    display.populateAction(action, configTable)
+
+proc findConfigPath(): string =
+  # TODO: find this path dynamically
+  return "config.default.toml"
+
+proc loadConfigfile(configPath: string): TomlTable =
+  ## Reads the user's configuration file into a table.
+  let loadedConfig = parsetoml.parseFile(configPath)
+  if loadedConfig.kind != TomlValueKind.Table:
+    raise newException(Exception, "Invalid key configuration!")
+  return loadedConfig.tableVal[]
+
+proc populateAction(display: PDisplay, action: string, configTable: TomlTable) =
+  let keyCombo = configTable.getKeyCombo(display, action)
+  if not ProcTable.hasKey(action):
     raise newException(Exception, "Invalid key configuration: " &
-                       repr(modifier) & " is not a string")
-  if not ModifierTable.hasKey(modifier.stringVal):
-    raise newException(Exception, "Invalid key configuration: " & 
-                       repr(modifier) & " is not a a valid key modifier")
-  return ModifierTable[modifier.stringVal]
+                       repr(action) & " not found")
+  ConfigTable[keyCombo] = ProcTable[action]
 
-proc xorModifiers(modifiers: openarray[TomlValueRef]): int =
-  for tomlElement in modifiers:
-    result = result or getModifierMask(tomlElement)
+proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo =
+  ## Gets the KeyCombo associated with the given `action` from the table.
+  let key: string = configTable.getKeyForAction(action)
+  let modifierArray = configTable.getModifiersForAction(action)
+  let modifiers: int = xorModifiers(modifierArray)
+  let keycode: int = key.toKeycode(display)
+  return (keycode, modifiers)
 
 proc getKeyForAction(configTable: TomlTable, action: string): string =
   var keyConfig = configTable[action]["key"]
@@ -42,44 +83,16 @@ proc getModifiersForAction(configTable: TomlTable, action: string): seq[TomlValu
                        repr(modifiersConfig) & " is not an array")
   return modifiersConfig.arrayVal
 
-proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo =
-  ## Gets the KeyCombo associated with the given `action` from the table.
-  let key: string = configTable.getKeyForAction(action)
-  let modifierArray = configTable.getModifiersForAction(action)
-  let modifiers: int = xorModifiers(modifierArray)
-  let keycode: int = key.toKeycode(display)
-  return (keycode, modifiers)
+proc xorModifiers(modifiers: openarray[TomlValueRef]): int =
+  for tomlElement in modifiers:
+    result = result or getModifierMask(tomlElement)
 
-proc populateAction(display: PDisplay, action: string, configTable: TomlTable) =
-  let keyCombo = configTable.getKeyCombo(display, action)
-  if not ProcTable.hasKey(action):
+proc getModifierMask(modifier: TomlValueRef): int =
+  if modifier.kind != TomlValueKind.String:
     raise newException(Exception, "Invalid key configuration: " &
-                       repr(action) & " not found")
-  ConfigTable[keyCombo] = ProcTable[action]
-
-proc loadConfigfile(configPath: string): TomlTable =
-  ## Reads the user's configuration file into a table.
-  let loadedConfig = parsetoml.parseFile(configPath)
-  if loadedConfig.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid key configuration!")
-  return loadedConfig.tableVal[]
-
-proc findConfigPath(): string =
-  # TODO: find this path dynamically
-  return "config.default.toml"
-
-proc populateConfigTable*(display: PDisplay) =
-  ## Reads the user's configuration file and set the keybindings.
-  let configPath = findConfigPath()
-  let configTable = loadConfigfile(configPath)
-  display.populateAction("testAction", configTable)
-  display.populateAction("testAction2", configTable)
-
-proc hookConfig*(eventManager: XEventManager) =
-  let listener: XEventListener = proc(e: TXEvent) =
-    let mask: int = cleanMask(cint(e.xkey.state))
-    let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
-    if ConfigTable.hasKey(keyCombo):
-      ConfigTable[keyCombo]()
-  eventManager.addListener(listener, KeyPress)
+                       repr(modifier) & " is not a string")
+  if not ModifierTable.hasKey(modifier.stringVal):
+    raise newException(Exception, "Invalid key configuration: " &
+                       repr(modifier) & " is not a a valid key modifier")
+  return ModifierTable[modifier.stringVal]
 

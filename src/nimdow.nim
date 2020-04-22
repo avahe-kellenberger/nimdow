@@ -1,10 +1,9 @@
 import
-  x11 / [x, xlib],
-  nimdowpkg /
-    [ 
-      event / xeventmanager,
-      config / config
-    ]
+  x11/x,
+  x11/xlib,
+  nimdowpkg/event/xeventmanager,
+  nimdowpkg/config/config,
+  nimdowpkg/windowmanger as windowmanager
 
 var
   display: PDisplay
@@ -44,8 +43,9 @@ when isMainModule:
     addr(windowAttribs)
   )
 
+  windowmanager.setupActions()
+  config.populateConfigTable(display)
   eventManager = newXEventManager()
-  display.populateConfigTable()
-  eventManager.hookConfig()
+  config.hookConfig(eventManager)
   eventManager.startEventListenerLoop(display)
 
