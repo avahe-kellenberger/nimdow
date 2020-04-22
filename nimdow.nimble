@@ -10,6 +10,7 @@ bin           = @["nimdow"]
 # Deps
 requires "nim >= 1.0"
 requires "x11"
+requires "parsetoml"
 
 # Tasks
 task debug, "Create a debug build":

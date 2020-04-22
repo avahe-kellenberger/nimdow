@@ -12,8 +12,6 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 `nimble release` to create a release build
 
-The above commands seem to fail for some reason, but compiling with nim itself works just fine. If you run into trouble, try `nim c src/nimdow.nim`
-
 ## Running locally
 
 1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
