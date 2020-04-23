@@ -9,13 +9,19 @@ var
   display: PDisplay
   rootWindow: TWindow
   windowAttribs: TXSetWindowAttributes
-  eventManager: XEventManager
 
 proc initXWindowInfo(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
   if tempDisplay == nil:
     quit "Failed to open display"
   return tempDisplay
+
+proc configureUserKeybindings(eventManager: XEventManager) =
+  windowmanager.configureActions()
+  config.populateConfigTable(display)
+  config.hookConfig(eventManager)
+  eventManager.startEventListenerLoop(display)
+
 
 when isMainModule:
   display = initXWindowInfo()
@@ -27,7 +33,8 @@ when isMainModule:
   windowAttribs.eventMask =
     SubstructureRedirectMask or
     SubstructureNotifyMask or
-    ButtonPressMask or PointerMotionMask or
+    ButtonPressMask or
+    PointerMotionMask or
     EnterWindowMask or
     LeaveWindowMask or
     StructureNotifyMask or
@@ -43,9 +50,7 @@ when isMainModule:
     addr(windowAttribs)
   )
 
-  windowmanager.setupActions()
-  config.populateConfigTable(display)
-  eventManager = newXEventManager()
-  config.hookConfig(eventManager)
+  let eventManager = newXEventManager()
+  eventManager.configureUserKeybindings()
   eventManager.startEventListenerLoop(display)
 
