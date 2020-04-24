@@ -27,7 +27,7 @@ proc removeListener*(this: XEventManager, listener: XEventListener, types: varar
 
 proc dispatchEvent*(this: XEventManager, e: TXEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
-  
+
   # We are not listening for this event type - exit.
   if e.theType notin this.listenerMap:
     return

@@ -3,12 +3,14 @@ import
   x11/xlib,
   nimdowpkg/event/xeventmanager,
   nimdowpkg/config/config,
-  nimdowpkg/windowmanger as windowmanager
+  nimdowpkg/windowmanager
+
+converter toTBool(x: bool): TBool = x.TBool
 
 var
   display: PDisplay
-  rootWindow: TWindow
   windowAttribs: TXSetWindowAttributes
+  nimdow: WindowManager
 
 proc initXWindowInfo(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
@@ -16,16 +18,17 @@ proc initXWindowInfo(): PDisplay =
     quit "Failed to open display"
   return tempDisplay
 
-proc configureUserKeybindings(eventManager: XEventManager) =
-  windowmanager.configureActions()
+proc configureUserKeybindings(eventManager: XEventManager, rootWindow: TWindow) =
+  # Order matters here.
+  # `configureConfigActions` must be invoked before populating the config table.
+  nimdow = newWindowManager(display, rootWindow)
+  nimdow.configureConfigActions()
   config.populateConfigTable(display)
   config.hookConfig(eventManager)
-  eventManager.startEventListenerLoop(display)
-
 
 when isMainModule:
   display = initXWindowInfo()
-  rootWindow = DefaultRootWindow(display)
+  let rootWindow = DefaultRootWindow(display)
 
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
@@ -49,8 +52,10 @@ when isMainModule:
     CWEventMask or CWCursor,
     addr(windowAttribs)
   )
+  discard XSync(display, false)
 
   let eventManager = newXEventManager()
-  eventManager.configureUserKeybindings()
+  eventManager.configureUserKeybindings(rootWindow)
+  nimdow.initWindowManager(eventManager)
   eventManager.startEventListenerLoop(display)
 
