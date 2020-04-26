@@ -38,8 +38,6 @@ when isMainModule:
     SubstructureNotifyMask or
     ButtonPressMask or
     PointerMotionMask or
-    EnterWindowMask or
-    LeaveWindowMask or
     StructureNotifyMask or
     PropertyChangeMask or
     KeyPressMask or
