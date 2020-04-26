@@ -3,67 +3,72 @@ import
   tables,
   x11 / [x, xlib],
   config/config,
+  event/xeventhandler,
   event/xeventmanager
 
-converter cUlongToCUint(x: culong): cuint = x.cuint
-converter intToCint(x: int): cint = x.cint
-converter intToCUint(x: int): cuint = x.cuint
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
-const borderColorFocused = 0x3355BB
-const borderColorUnfocused = 0x335544
-const borderWidth = 2
-
 type
   WindowManager* = ref object
-    display: PDisplay
-    rootWindow: TWindow
+    display*: PDisplay
+    rootWindow*: TWindow
+    xEventHandler: XEventHandler
 
+proc openDisplay(this: WindowManager): PDisplay
 proc configureConfigActions*(this: WindowManager)
+proc configureRootWindow(this: WindowManager): TWindow
 # Custom WM actions
 proc testAction*(this: WindowManager)
 proc destroySelectedWindow(this: WindowManager)
-# XEvent handlers
-proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.}
-proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent)
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
-proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
-proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
-proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
-proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent)
 
-proc newWindowManager*(display: PDisplay, rootWindow: TWindow): WindowManager =
-  WindowManager(display: display, rootWindow: rootWindow)
+proc newWindowManager*(eventManager: XEventManager): WindowManager =
+  result = WindowManager()
+  result.display = result.openDisplay()
+  result.rootWindow = result.configureRootWindow()
+  result.xEventHandler = newXEventHandler(result.display, result.rootWindow)
+  result.xEventHandler.initXEventHandler(eventManager)
 
-proc initWindowManager*(this: WindowManager, eventManager: XEventManager) =
-  discard XSetErrorHandler(errorHandler)
-  # TODO: Can clean this up with a template probably
-  eventManager.addListener((e: TXEvent) => onCreateNotify(this, e.xcreatewindow), CreateNotify)
-  eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
-  eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
-  eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
-  eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
-  eventManager.addListener((e: TXEvent) => onFocusOut(this, e.xfocus), FocusOut)
+proc openDisplay(this: WindowManager): PDisplay =
+  let tempDisplay = XOpenDisplay(nil)
+  if tempDisplay == nil:
+    quit "Failed to open display"
+  return tempDisplay
 
-  # Grab key combos defined in the user's config
-  for keyCombo in config.ConfigTable.keys():
-    discard XGrabKey(
-      this.display,
-      keyCombo.keycode,
-      keyCombo.modifiers,
-      this.rootWindow,
-      true,
-      GrabModeAsync,
-      GrabModeAsync
-    )
+proc configureRootWindow(this: WindowManager): TWindow =
+  result = DefaultRootWindow(this.display)
+  var windowAttribs: TXSetWindowAttributes
+  # Listen for events defined by eventMask.
+  # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
+  # Events bubble up the hierarchy to the root window.
+  windowAttribs.eventMask =
+    SubstructureRedirectMask or
+    SubstructureNotifyMask or
+    ButtonPressMask or
+    PointerMotionMask or
+    StructureNotifyMask or
+    PropertyChangeMask or
+    KeyPressMask or
+    KeyReleaseMask
+
+  # Listen for events on the root window
+  discard XChangeWindowAttributes(
+    this.display,
+    result,
+    CWEventMask or CWCursor,
+    addr(windowAttribs)
+  )
+  discard XSync(this.display, false)
 
 proc configureConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
   config.configureAction("testAction", () => testAction(this))
   config.configureAction("destroySelectedWindow", () => destroySelectedWindow(this))
 
-proc testAction*(this: WindowManager) =
+proc hookConfigKeys*(this: WindowManager) =
+  this.xEventHandler.hookConfigKeys()
+  
+proc testAction(this: WindowManager) =
   var selectedWin: TWindow
   var selectionState: cint
   discard XGetInputFocus(this.display, addr(selectedWin), addr(selectionState))
@@ -82,43 +87,4 @@ proc destroySelectedWindow(this: WindowManager) =
   event.xclient.data.l[0] = XInternAtom(this.display, "WM_DELETE_WINDOW", false).cint
   event.xclient.data.l[1] = CurrentTime
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
-
-proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
-  echo "Error: ", error.theType
-
-proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
-  discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
-  discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
-  discard XSelectInput(
-    this.display,
-    e.window,
-    SubstructureRedirectMask or
-    SubstructureNotifyMask or
-    EnterWindowMask or
-    FocusChangeMask
-  )
-
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
-  # Pass config defaults down (for now)
-  var changes: TXWindowChanges
-  changes.x = e.x
-  changes.y = e.y
-  changes.width = e.width
-  changes.height = e.height
-  changes.border_width = e.border_width
-  changes.sibling = e.above
-  changes.stack_mode = e.detail
-  discard XConfigureWindow(this.display, e.window, e.value_mask, addr(changes))
-
-proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
-  discard XMapWindow(this.display, e.window)
-
-proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
-  discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
-
-proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
-  discard XSetWindowBorder(this.display, e.window, borderColorFocused)
-
-proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent) =
-  discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
 
