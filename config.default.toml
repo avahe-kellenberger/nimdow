@@ -1,7 +1,7 @@
 [testAction]
 key = "j"
-modifiers = [ "control", "shift" ]
+modifiers = [ "control" ]
 
-[testAction2]
-key = "k"
-modifiers = [ "control", "shift", "super" ]
+[destroySelectedWindow]
+key = "q"
+modifiers = [ "super", "shift" ]
