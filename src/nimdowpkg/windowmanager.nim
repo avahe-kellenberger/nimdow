@@ -7,6 +7,7 @@ import
   config/config,
   event/xeventhandler,
   event/xeventmanager,
+  layouts/layout,
   layouts/masterstacklayout
 
 converter intToCint(x: int): cint = x.cint
@@ -42,9 +43,13 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
 
   result.tagTable = OrderedTable[Tag, OrderedSet[TWindow]]()
   for i in 1..9:
-    let tag: Tag = Tag(
-      id: i,
-      layout: MasterStackLayout(name: "masterstack", gapSize: 48, borderSize: 2)
+    let tag: Tag = newTag(
+      id = i,
+      layout = newMasterStackLayout(
+        gapSize = 48,
+        borderSize = 2,
+        masterSlots = 1
+      )
     )
     result.tagTable[tag] = initOrderedSet[TWindow]()
 
