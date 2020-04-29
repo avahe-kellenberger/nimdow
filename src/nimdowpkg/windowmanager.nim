@@ -48,7 +48,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
       layout = newMasterStackLayout(
         gapSize = 48,
         borderSize = 2,
-        masterSlots = 1
+        masterSlots = 2
       )
     )
     result.tagTable[tag] = initOrderedSet[TWindow]()
