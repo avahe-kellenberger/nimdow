@@ -25,6 +25,18 @@ proc layoutMultipleWindows(
   screenWidth: int,
   screenHeight: int
 )
+proc min(x, y: int): int
+proc max(x, y: int): int
+proc calculateWindowHeight(this: MasterStackLayout, windowsInColumn: int, screenHeight: int): int
+proc calcRoundingErr(this: MasterStackLayout, winCount, winHeight, screenHeight: int): int
+proc calcYPosition(
+  this: MasterStackLayout,
+  stackIndex,
+  winCount,
+  winHeight,
+  roundingError: int
+): int
+proc calcWindowWidth(this: MasterStackLayout, screenWidth: int): int
 
 proc newMasterStackLayout*(
   gapSize: int, 
@@ -32,7 +44,7 @@ proc newMasterStackLayout*(
   masterSlots: int
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
-  ## masterSlots: The number of windows allowed on the left half of the screen (typically 1).
+  ## masterSlots: The number of windows allowed on the left half of the screen (traditionally 1).
   MasterStackLayout(
     name: layoutName,
     gapSize: gapSize,
@@ -48,8 +60,8 @@ method doLayout*(
   ## Aligns the windows in a master/stack fashion.
   let screenWidth = XDisplayWidth(display, 0)
   let screenHeight = XDisplayHeight(display, 0)
-  let windowCount = windows.len
-  if windowCount == 1:
+  let winCount = windows.len
+  if winCount == 1:
     for window in windows:
       layoutSingleWindow(display, window, screenWidth, screenHeight)
   else:
@@ -72,6 +84,61 @@ proc layoutSingleWindow(
   # Hide border if it's the only window
   discard XSetWindowBorderWidth(display, window, 0)
 
+proc layoutMultipleWindows(
+  this: MasterStackLayout,
+  display: PDisplay,
+  windows: OrderedSet[TWindow],
+  screenWidth: int,
+  screenHeight: int
+) =
+  let windowCount = windows.len
+  let masterWinCount = min(windowCount, this.masterSlots)
+  # Ensure stack size isn't negative
+  let stackWinCount = max(0, windowCount - this.masterSlots)
+
+  var winWidth = this.calcWindowWidth(screenWidth)
+
+  let masterWinHeight = this.calculateWindowHeight(masterWinCount, screenHeight)
+  let stackWinHeight = this.calculateWindowHeight(stackWinCount, screenHeight)
+
+  let stackRoundingErr: int = this.calcRoundingErr(stackWinCount, stackWinHeight, screenHeight)
+  let masterRoundingErr: int = this.calcRoundingErr(masterWinCount, masterWinHeight, screenHeight)
+ 
+  let stackXPos = int(math.round(screenWidth / 2)) +
+                  int(math.round(this.gapSize / 2))
+
+  if windowCount == masterWinCount:
+    # If there are only master windows, take up all horizontal space.
+    winWidth *= 2
+
+  var
+    xPos: int
+    yPos: int
+    winHeight: int
+
+  for (i, window) in windows.pairs():
+    discard XSetWindowBorderWidth(display, window, this.borderSize)
+    if i < masterWinCount:
+      # Master layout
+      xPos = this.gapSize
+      yPos = this.calcYPosition(i, masterWinCount, masterWinHeight, masterRoundingErr)
+      winHeight = masterWinHeight
+    else:
+      # Stack layout
+      xPos = stackXPos
+      let stackIndex = i - masterWinCount
+      yPos = this.calcYPosition(stackIndex, stackWinCount, stackWinHeight, stackRoundingErr)
+      winHeight = stackWinHeight
+
+    discard XMoveResizeWindow(
+      display,
+      window,
+      xPos,
+      yPos,
+      winWidth,
+      winHeight
+    )
+
 proc min(x, y: int): int =
   if x < y: x else: y
 
@@ -86,74 +153,25 @@ proc calculateWindowHeight(this: MasterStackLayout, windowsInColumn: int, screen
        (windowsInColumn * (this.gapSize + this.borderSize * 2) + this.gapSize)) / windowsInColumn
     ).int
 
-#[proc calcRoundingErr(winCount, screenHeight, gapSize, borderSize: int): int =
-  let winHeight: int = calcWinHeight(gapSize, borderSize, winCount, screenHeight)
-  return (screenHeight - (gapSize + (winHeight + gapSize + borderSize * 2) * winCount))]#
+proc calcRoundingErr(this: MasterStackLayout, winCount, winHeight, screenHeight: int): int =
+  ## Calculates the overall rounding error created from diving an imperfect number of pixels.
+  ## E.g. A screen with a height of 1080px cannot be evenly divided by 7 windows.
+  return (screenHeight - (this.gapSize + (winHeight + this.gapSize + this.borderSize * 2) * winCount))
 
-proc layoutMultipleWindows(
+proc calcYPosition(
   this: MasterStackLayout,
-  display: PDisplay,
-  windows: OrderedSet[TWindow],
-  screenWidth: int,
-  screenHeight: int
-) =
-  let windowCount = windows.len
-  # Ensure stack size isn't negative
-  let stackSize = max(0, windowCount - this.masterSlots)
-  let windowWidth = int(math.round(screenWidth / 2)) -
-                    (this.borderSize * 2) -
-                    int(math.round(float(this.gapSize) * 1.5))
+  stackIndex,
+  winCount,
+  winHeight,
+  roundingError: int
+): int =
+  ## Calculates the y position of a window within a window stack.
+  result = stackIndex * (this.gapSize + winHeight + this.borderSize * 2) + this.gapSize
+  if stackIndex == winCount - 1:
+     result += roundingError
 
-  let masterWindowHeight = this.calculateWindowHeight(min(windowCount, this.masterSlots), screenHeight)
-  let stackWindowHeight = this.calculateWindowHeight(stackSize, screenHeight)
-
-  # NOTE: We are getting rounding errors larger than 1. Offset per window?
-  # We also need to offset the master area.
-  let stackRoundingErr: int =
-    screenHeight -
-    (this.gapSize + 
-       (stackWindowHeight + this.gapSize + this.borderSize * 2) *
-     stackSize)
-
-  let masterRoundingErr: int =
-    screenHeight -
-    (this.gapSize + 
-       (masterWindowHeight + this.gapSize + this.borderSize * 2) *
-     this.masterSlots)
- 
-  echo "Adding rounding error on ", stackSize, ": ", stackRoundingErr
-
-  let stackXPos = int(math.round(screenWidth / 2)) + int(math.round(this.gapSize / 2))
-
-  for (i, window) in windows.pairs():
-    discard XSetWindowBorderWidth(display, window, this.borderSize)
-    if i < this.masterSlots:
-      # Master layout
-      var yPos = i * (this.gapSize + masterWindowHeight + this.borderSize * 2) + this.gapSize
-      if i == this.masterSlots - 1:
-        yPos += masterRoundingErr
-      discard XMoveResizeWindow(
-        display,
-        window,
-        this.gapSize,
-        yPos,
-        windowWidth,
-        masterWindowHeight
-      )  
-    else:
-      # Stack layout
-      let stackIndex = i - this.masterSlots
-      var yPos = stackIndex * (this.gapSize + stackWindowHeight + this.borderSize * 2) + this.gapSize
-
-      if stackIndex == stackSize - 1:
-        # Offset the last window by the rounding error.
-        yPos += stackRoundingErr
-      discard XMoveResizeWindow(
-        display,
-        window,
-        stackXPos,
-        yPos,
-        windowWidth,
-        stackWindowHeight
-      )
+proc calcWindowWidth(this: MasterStackLayout, screenWidth: int): int =
+  int(math.round(screenWidth / 2)) -
+    (this.borderSize * 2) -
+    int(math.round(float(this.gapSize) * 1.5))
 
