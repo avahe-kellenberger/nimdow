@@ -72,14 +72,23 @@ proc layoutSingleWindow(
   # Hide border if it's the only window
   discard XSetWindowBorderWidth(display, window, 0)
 
+proc min(x, y: int): int =
+  if x < y: x else: y
+
 proc max(x, y: int): int =
   if x > y: x else: y
 
 proc calculateWindowHeight(this: MasterStackLayout, windowsInColumn: int, screenHeight: int): int =
+  ## Calculates the height of a window (not counting its borders).
   if windowsInColumn <= 0: 0 else:
     math.round(
-      (screenHeight - (windowsInColumn * this.gapSize)) / windowsInColumn
-    ).int - (this.borderSize * 2)
+      (screenHeight -
+       (windowsInColumn * (this.gapSize + this.borderSize * 2) + this.gapSize)) / windowsInColumn
+    ).int
+
+#[proc calcRoundingErr(winCount, screenHeight, gapSize, borderSize: int): int =
+  let winHeight: int = calcWinHeight(gapSize, borderSize, winCount, screenHeight)
+  return (screenHeight - (gapSize + (winHeight + gapSize + borderSize * 2) * winCount))]#
 
 proc layoutMultipleWindows(
   this: MasterStackLayout,
@@ -95,22 +104,34 @@ proc layoutMultipleWindows(
                     (this.borderSize * 2) -
                     int(math.round(float(this.gapSize) * 1.5))
 
-  let masterWindowHeight = this.calculateWindowHeight(this.masterSlots, screenHeight)
+  let masterWindowHeight = this.calculateWindowHeight(min(windowCount, this.masterSlots), screenHeight)
   let stackWindowHeight = this.calculateWindowHeight(stackSize, screenHeight)
 
   # NOTE: We are getting rounding errors larger than 1. Offset per window?
   # We also need to offset the master area.
-  let roundingErr: int = screenHeight - (this.gapSize + (stackWindowHeight + this.gapSize) * stackSize)
-  echo "Adding rounding error on ", stackSize, ": ", roundingErr
+  let stackRoundingErr: int =
+    screenHeight -
+    (this.gapSize + 
+       (stackWindowHeight + this.gapSize + this.borderSize * 2) *
+     stackSize)
+
+  let masterRoundingErr: int =
+    screenHeight -
+    (this.gapSize + 
+       (masterWindowHeight + this.gapSize + this.borderSize * 2) *
+     this.masterSlots)
+ 
+  echo "Adding rounding error on ", stackSize, ": ", stackRoundingErr
+
+  let stackXPos = int(math.round(screenWidth / 2)) + int(math.round(this.gapSize / 2))
 
   for (i, window) in windows.pairs():
     discard XSetWindowBorderWidth(display, window, this.borderSize)
     if i < this.masterSlots:
       # Master layout
-      let yPos = masterWindowHeight * i +
-                 (this.gapSize * i)
-
-      # Layout left window
+      var yPos = i * (this.gapSize + masterWindowHeight + this.borderSize * 2) + this.gapSize
+      if i == this.masterSlots - 1:
+        yPos += masterRoundingErr
       discard XMoveResizeWindow(
         display,
         window,
@@ -122,18 +143,15 @@ proc layoutMultipleWindows(
     else:
       # Stack layout
       let stackIndex = i - this.masterSlots
-      var
-        xPos = int(math.round(screenWidth / 2)) +
-               int(math.round(this.gapSize / 2))
-        yPos = stackWindowHeight * stackIndex +
-               (this.gapSize * stackIndex + 1)
+      var yPos = stackIndex * (this.gapSize + stackWindowHeight + this.borderSize * 2) + this.gapSize
 
-      if stackIndex == stackSize:
-        yPos += roundingErr
+      if stackIndex == stackSize - 1:
+        # Offset the last window by the rounding error.
+        yPos += stackRoundingErr
       discard XMoveResizeWindow(
         display,
         window,
-        xPos,
+        stackXPos,
         yPos,
         windowWidth,
         stackWindowHeight
