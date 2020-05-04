@@ -1,11 +1,11 @@
 import
   sugar,
+  options,
   tables,
   sets,
   x11 / [x, xlib],
   tag,
   config/config,
-  event/xeventhandler,
   event/xeventmanager,
   layouts/layout,
   layouts/masterstacklayout
@@ -15,31 +15,47 @@ converter intToCUint(x: int): cuint = x.cuint
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
+# TODO: Should load these from settings
+const borderColorFocused = 0x3355BB
+const borderColorUnfocused = 0x335544
+const borderWidth = 2
+
 type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: TWindow
-    xEventHandler: XEventHandler
+    eventManager: XEventManager
     tagTable: OrderedTable[Tag, OrderedSet[TWindow]]
     selectedTag: Tag
 
-proc openDisplay(this: WindowManager): PDisplay
+proc initListeners(this: WindowManager)
+proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
+proc firstItem[T](s: OrderedSet[T]): T
 proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent)
-proc removeWindowFromTagTable(this: WindowManager, e: TXUnmapEvent)
-proc layout(this: WindowManager)
+proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
+proc doLayout(this: WindowManager)
 # Custom WM actions
 proc testAction*(this: WindowManager)
 proc destroySelectedWindow(this: WindowManager)
+# XEvents
+proc hookConfigKeys*(this: WindowManager)
+proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.}
+proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent)
+proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
+proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
+proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
+proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent)
 
 proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result = WindowManager()
-  result.display = result.openDisplay()
+  result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
-  result.xEventHandler = newXEventHandler(result.display, result.rootWindow)
-  result.xEventHandler.initXEventHandler(eventManager)
+  result.eventManager = eventManager
+
+  result.initListeners()
 
   result.tagTable = OrderedTable[Tag, OrderedSet[TWindow]]()
   for i in 1..9:
@@ -59,30 +75,71 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
     break
   result.configureWindowMappingListeners(eventManager)
 
+proc initListeners(this: WindowManager) =
+  ## Hooks into various XEvents
+  discard XSetErrorHandler(errorHandler)
+  this.eventManager.addListener((e: TXEvent) => onCreateNotify(this, e.xcreatewindow), CreateNotify)
+  this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
+  this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
+  this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
+  this.eventManager.addListener((e: TXEvent) => onFocusOut(this, e.xfocus), FocusOut)
+
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager) =
-  eventManager.addListener((e: TXEvent) => addWindowToSelectedTags(this, e.xmap), MapNotify)
-  eventManager.addListener((e: TXEvent) => removeWindowFromTagTable(this, e.xunmap), UnmapNotify)
+  eventManager.addListener(
+    (e: TXEvent) => addWindowToSelectedTags(this, e.xmap), MapNotify)
+  eventManager.addListener(
+    (e: TXEvent) => removeWindowFromTagTable(this, e.xunmap.window), UnmapNotify)
+  eventManager.addListener(
+    (e: TXEvent) => removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
+
+proc firstItem[T](s: OrderedSet[T]): T =
+  for item in s:
+    return item
 
 proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent) =
   this.tagTable[this.selectedTag].incl(e.window)
-  this.layout()
+  this.doLayout()
+  discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
+  this.selectedTag.setSelectedWindow(e.window)
 
-proc removeWindowFromTagTable(this: WindowManager, e: TXUnmapEvent) =
+proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   let numWindowsInSelectedTag = this.tagTable[this.selectedTag].len
-  for windows in this.tagTable.mvalues():
-    windows.excl(e.window)
+  for (tag, windows) in this.tagTable.mpairs():
+    windows.excl(window)
+
+    # If removed window is same as previouslySelectedWin, assign it to the first window on the tag.
+    if not tag.previouslySelectedWin.isNone and window == tag.previouslySelectedWin.get:
+      tag.previouslySelectedWin = firstItem(windows).option
+    # Set currently selected window as previouslySelectedWin
+    tag.selectedWin = tag.previouslySelectedWin
+
   # Check if the number of windows on the current tag has changed
   if numWindowsInSelectedTag != this.tagTable[this.selectedTag].len:
-    this.layout()
+    this.doLayout()
+    if this.tagTable[this.selectedTag].len > 0:
+      discard XSetInputFocus(
+        this.display,
+        this.selectedTag.selectedWin.get,
+        RevertToNone,
+        CurrentTime
+      )
+    else:
+      # If the last window in a tag was deleted, select the root window.
+      discard XSetInputFocus(
+        this.display,
+        this.rootWindow,
+        RevertToNone,
+        CurrentTime
+      )
 
-proc layout(this: WindowManager) =
+proc doLayout(this: WindowManager) =
   ## Revalidates the current layout of the viewed tag(s).
   this.selectedTag.layout.doLayout(
     this.display,
     this.tagTable[this.selectedTag]
   )
 
-proc openDisplay(this: WindowManager): PDisplay =
+proc openDisplay(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
   if tempDisplay == nil:
     quit "Failed to open display"
@@ -118,7 +175,17 @@ proc configureConfigActions*(this: WindowManager) =
   config.configureAction("destroySelectedWindow", () => destroySelectedWindow(this))
 
 proc hookConfigKeys*(this: WindowManager) =
-  this.xEventHandler.hookConfigKeys()
+  # Grab key combos defined in the user's config
+  for keyCombo in config.ConfigTable.keys():
+    discard XGrabKey(
+      this.display,
+      keyCombo.keycode,
+      keyCombo.modifiers,
+      this.rootWindow,
+      true,
+      GrabModeAsync,
+      GrabModeAsync
+    )
 
 ####################
 ## Custom Actions ##
@@ -143,4 +210,37 @@ proc destroySelectedWindow(this: WindowManager) =
   event.xclient.data.l[0] = XInternAtom(this.display, "WM_DELETE_WINDOW", false).cint
   event.xclient.data.l[1] = CurrentTime
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
+  discard XDestroyWindow(this.display, selectedWin)
+
+#####################
+## XEvent Handling ##
+#####################
+
+proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
+  echo "Error: ", error.theType
+
+proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
+  discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
+  discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
+  discard XSelectInput(
+    this.display,
+    e.window,
+    SubstructureRedirectMask or
+    SubstructureNotifyMask or
+    EnterWindowMask or
+    FocusChangeMask
+  )
+
+proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
+  discard XMapWindow(this.display, e.window)
+
+proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
+  discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
+
+proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
+  discard XSetWindowBorder(this.display, e.window, borderColorFocused)
+  this.selectedTag.setSelectedWindow(e.window)
+
+proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent) =
+  discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
 
