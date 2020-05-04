@@ -1,5 +1,6 @@
 import
   sugar,
+  options,
   tables,
   sets,
   x11 / [x, xlib],
@@ -11,7 +12,6 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
-converter cUlongToCUint(x: culong): cuint = x.cuint
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
@@ -33,6 +33,7 @@ proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
+proc firstItem[T](s: OrderedSet[T]): T
 proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
@@ -43,7 +44,6 @@ proc destroySelectedWindow(this: WindowManager)
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent)
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
@@ -79,7 +79,6 @@ proc initListeners(this: WindowManager) =
   ## Hooks into various XEvents
   discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: TXEvent) => onCreateNotify(this, e.xcreatewindow), CreateNotify)
-  this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
@@ -93,18 +92,45 @@ proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventMa
   eventManager.addListener(
     (e: TXEvent) => removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
 
+proc firstItem[T](s: OrderedSet[T]): T =
+  for item in s:
+    return item
+
 proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent) =
   this.tagTable[this.selectedTag].incl(e.window)
   this.doLayout()
+  discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
+  this.selectedTag.setSelectedWindow(e.window)
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   let numWindowsInSelectedTag = this.tagTable[this.selectedTag].len
-  for windows in this.tagTable.mvalues():
-    # TODO: Find previous window (same index or index - 1?) and select it.
+  for (tag, windows) in this.tagTable.mpairs():
     windows.excl(window)
+
+    # If removed window is same as previouslySelectedWin, assign it to the first window on the tag.
+    if not tag.previouslySelectedWin.isNone and window == tag.previouslySelectedWin.get:
+      tag.previouslySelectedWin = firstItem(windows).option
+    # Set currently selected window as previouslySelectedWin
+    tag.selectedWin = tag.previouslySelectedWin
+
   # Check if the number of windows on the current tag has changed
   if numWindowsInSelectedTag != this.tagTable[this.selectedTag].len:
     this.doLayout()
+    if this.tagTable[this.selectedTag].len > 0:
+      discard XSetInputFocus(
+        this.display,
+        this.selectedTag.selectedWin.get,
+        RevertToNone,
+        CurrentTime
+      )
+    else:
+      # If the last window in a tag was deleted, select the root window.
+      discard XSetInputFocus(
+        this.display,
+        this.rootWindow,
+        RevertToNone,
+        CurrentTime
+      )
 
 proc doLayout(this: WindowManager) =
   ## Revalidates the current layout of the viewed tag(s).
@@ -196,7 +222,6 @@ proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
 proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
   discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
   discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
-  # TODO: We need to track these calls to populate tag info (selectedWin and previouslySelectedWin)
   discard XSelectInput(
     this.display,
     e.window,
@@ -206,18 +231,6 @@ proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
     FocusChangeMask
   )
 
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
-  # Pass config defaults down (for now)
-  var changes: TXWindowChanges
-  changes.x = e.x
-  changes.y = e.y
-  changes.width = e.width
-  changes.height = e.height
-  changes.border_width = e.border_width
-  changes.sibling = e.above
-  changes.stack_mode = e.detail
-  discard XConfigureWindow(this.display, e.window, e.value_mask, addr(changes))
-
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   discard XMapWindow(this.display, e.window)
 
@@ -226,6 +239,7 @@ proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   discard XSetWindowBorder(this.display, e.window, borderColorFocused)
+  this.selectedTag.setSelectedWindow(e.window)
 
 proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent) =
   discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
