@@ -13,6 +13,7 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
+converter cintToCUint(x: cint): cuint = x.cuint
 converter clongToCUlong(x: clong): culong = x.culong
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
@@ -29,7 +30,7 @@ type
     eventManager: XEventManager
     tagTable: OrderedTable[Tag, OrderedSet[TWindow]]
     selectedTag: Tag
-    atoms: array[2, TAtom]
+    atoms: array[3, TAtom]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -37,7 +38,7 @@ proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
 proc firstItem[T](s: OrderedSet[T]): T
-proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent)
+proc addWindowToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
@@ -91,24 +92,29 @@ proc initListeners(this: WindowManager) =
 
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager) =
   eventManager.addListener(
-    (e: TXEvent) => addWindowToSelectedTags(this, e.xmap), MapNotify)
+    proc(e: TXEvent) =
+      if e.xmap.override_redirect:
+        return
+      addWindowToSelectedTags(this, e.xmap.window),
+    MapNotify
+  )
   eventManager.addListener(
-    (e: TXEvent) => removeWindowFromTagTable(this, e.xunmap.window), UnmapNotify)
+    proc (e: TXEvent) = removeWindowFromTagTable(this, e.xunmap.window), UnmapNotify)
   eventManager.addListener(
-    (e: TXEvent) => removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
+    proc (e: TXEvent) = removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
 
 proc firstItem[T](s: OrderedSet[T]): T =
   for item in s:
     return item
 
-proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent) =
-  if e.override_redirect:
-    return
+proc addWindowToSelectedTags(this: WindowManager, window: TWindow) =
+  #if e.override_redirect:
+    #return
 
-  this.tagTable[this.selectedTag].incl(e.window)
+  this.tagTable[this.selectedTag].incl(window)
   this.doLayout()
-  discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
-  this.selectedTag.setSelectedWindow(e.window)
+  discard XSetInputFocus(this.display, window, RevertToNone, CurrentTime)
+  this.selectedTag.setSelectedWindow(window)
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   let numWindowsInSelectedTag = this.tagTable[this.selectedTag].len
@@ -231,12 +237,31 @@ proc getAtom(this: WindowManager, id: XAtomID): TAtom =
 proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "Error: ", error.theType
 
+proc toggleFullscreen(this: WindowManager, window: TWindow) =
+  if window in this.tagTable[this.selectedTag]:
+    this.removeWindowFromTagTable(window)
+    discard XSetWindowBorderWidth(this.display, window, 0)
+    discard XMoveResizeWindow(
+      this.display,
+      window,
+      0,
+      0,
+      XDisplayWidth(this.display, 0),
+      XDisplayHeight(this.display, 0),
+    )
+  else:
+    this.addWindowToSelectedTags(window)
+
+  # Ensure the window has focus
+  discard XSetInputFocus(this.display, window, RevertToNone, CurrentTime)
+
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
-  if e.message_type == this.getAtom(XAtomID.NetWMState):
-    echo "Got client message for NetWMState"
-    if e.data.l[1] == this.getAtom(XAtomID.NetWMFullScreen) or
-      e.data.l[2] == this.getAtom(XAtomID.NetWMFullScreen):
-        echo "Setting window to full screen!"
+  if e.message_type == this.getAtom(NetWMState):
+    # 267 from firefox?
+    let fullscreenAtom = this.getAtom(NetWMFullScreen)
+    if e.data.l[1] == fullscreenAtom or
+      e.data.l[2] == fullscreenAtom:
+        this.toggleFullscreen(e.window)
 
 proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
   if e.override_redirect:
