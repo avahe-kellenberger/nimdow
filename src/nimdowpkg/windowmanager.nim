@@ -4,6 +4,7 @@ import
   tables,
   sets,
   x11 / [x, xlib],
+  xatoms,
   tag,
   config/config,
   event/xeventmanager,
@@ -12,6 +13,7 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
+converter clongToCUlong(x: clong): culong = x.culong
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
@@ -27,6 +29,7 @@ type
     eventManager: XEventManager
     tagTable: OrderedTable[Tag, OrderedSet[TWindow]]
     selectedTag: Tag
+    atoms: array[2, TAtom]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -43,6 +46,7 @@ proc destroySelectedWindow(this: WindowManager)
 # XEvents
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.}
+proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
@@ -54,30 +58,31 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
-
+  result.atoms = xatoms.createXAtoms(result.display)
   result.initListeners()
 
-  result.tagTable = OrderedTable[Tag, OrderedSet[TWindow]]()
-  for i in 1..9:
-    let tag: Tag = newTag(
-      id = i,
-      layout = newMasterStackLayout(
-        gapSize = 48,
-        borderSize = 2,
-        masterSlots = 1
+  block tags:
+    result.tagTable = OrderedTable[Tag, OrderedSet[TWindow]]()
+    for i in 1..9:
+      let tag: Tag = newTag(
+        id = i,
+        layout = newMasterStackLayout(
+          gapSize = 48,
+          borderSize = 2,
+          masterSlots = 1
+        )
       )
-    )
-    result.tagTable[tag] = initOrderedSet[TWindow]()
-
-  # View first tag by default
-  for tag in result.tagTable.keys():
-    result.selectedTag = tag
-    break
-  result.configureWindowMappingListeners(eventManager)
+      result.tagTable[tag] = initOrderedSet[TWindow]()
+    # View first tag by default
+    for tag in result.tagTable.keys():
+      result.selectedTag = tag
+      break
+    result.configureWindowMappingListeners(eventManager)
 
 proc initListeners(this: WindowManager) =
   ## Hooks into various XEvents
   discard XSetErrorHandler(errorHandler)
+  this.eventManager.addListener((e: TXEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: TXEvent) => onCreateNotify(this, e.xcreatewindow), CreateNotify)
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
@@ -97,6 +102,9 @@ proc firstItem[T](s: OrderedSet[T]): T =
     return item
 
 proc addWindowToSelectedTags(this: WindowManager, e: TXMapEvent) =
+  if e.override_redirect:
+    return
+
   this.tagTable[this.selectedTag].incl(e.window)
   this.doLayout()
   discard XSetInputFocus(this.display, e.window, RevertToNone, CurrentTime)
@@ -160,6 +168,7 @@ proc configureRootWindow(this: WindowManager): TWindow =
     PropertyChangeMask or
     KeyPressMask or
     KeyReleaseMask
+
   # Listen for events on the root window
   discard XChangeWindowAttributes(
     this.display,
@@ -216,10 +225,24 @@ proc destroySelectedWindow(this: WindowManager) =
 ## XEvent Handling ##
 #####################
 
+proc getAtom(this: WindowManager, id: XAtomID): TAtom =
+  this.atoms[ord(id)]
+
 proc errorHandler(disp: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "Error: ", error.theType
 
+proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
+  if e.message_type == this.getAtom(XAtomID.NetWMState):
+    echo "Got client message for NetWMState"
+    if e.data.l[1] == this.getAtom(XAtomID.NetWMFullScreen) or
+      e.data.l[2] == this.getAtom(XAtomID.NetWMFullScreen):
+        echo "Setting window to full screen!"
+
 proc onCreateNotify(this: WindowManager, e: TXCreateWindowEvent) =
+  if e.override_redirect:
+    # Advised by xlib docs to ignore windows when this attribute is true
+    return
+
   discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
   discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
   discard XSelectInput(
