@@ -378,7 +378,8 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
     discard XMapWindow(this.display, e.window)
 
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
-  discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
+  if e.window != this.rootWindow:
+    discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   if e.window != this.rootWindow:
