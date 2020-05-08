@@ -56,10 +56,10 @@ proc loadConfigfile(configPath: string): TomlTable =
 
 proc populateAction(display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombo = configTable.getKeyCombo(display, action)
-  if not ProcTable.hasKey(action):
-    raise newException(Exception, "Invalid key configuration: " &
-                       repr(action) & " not found")
-  ConfigTable[keyCombo] = ProcTable[action]
+  if ProcTable.hasKey(action):
+    ConfigTable[keyCombo] = ProcTable[action]
+  else:
+    echo "Invalid key config action: \"", action, "\" does not exist"
 
 proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo =
   ## Gets the KeyCombo associated with the given `action` from the table.

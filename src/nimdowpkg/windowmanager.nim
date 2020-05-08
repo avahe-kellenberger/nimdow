@@ -48,6 +48,7 @@ proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
 proc testAction*(this: WindowManager)
+proc toggleFullscreen(this: WindowManager, window: TWindow)
 proc destroySelectedWindow(this: WindowManager)
 # XEvents
 proc hookConfigKeys*(this: WindowManager)
@@ -229,8 +230,13 @@ proc configureRootWindow(this: WindowManager): TWindow =
 
 proc configureConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config.configureAction("testAction", () => testAction(this))
-  config.configureAction("destroySelectedWindow", () => destroySelectedWindow(this))
+  config.configureAction("testAction", () => this.testAction())
+  config.configureAction("toggleFullscreen",
+   proc() =
+     if this.selectedTag.selectedWin.isSome:
+       this.toggleFullscreen(this.selectedTag.selectedWin.get)
+     )
+  config.configureAction("destroySelectedWindow", () => this.destroySelectedWindow())
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
@@ -286,6 +292,8 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "\t", errorMessage, "\n"
 
 proc toggleFullscreen(this: WindowManager, window: TWindow) =
+  if window == this.rootWindow:
+    return
   if window in this.tagTable[this.selectedTag]:
     this.removeWindowFromTagTable(window)
     discard XSetWindowBorderWidth(this.display, window, 0)
