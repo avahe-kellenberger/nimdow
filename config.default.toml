@@ -2,6 +2,10 @@
 key = "j"
 modifiers = [ "control" ]
 
+[toggleFullscreen]
+key = "f"
+modifiers = [ "super" ]
+
 [destroySelectedWindow]
 key = "q"
 modifiers = [ "super", "shift" ]
