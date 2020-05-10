@@ -33,7 +33,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
   - [x] Close window
   - [x] Toggle fullscreen
   - [ ] Switch layout to master/stack
-  - [ ] Switch layout to monocole
+  - [ ] Switch layout to monocle
   - [ ] Navigate windows
   - [ ] Navigate tags
 
