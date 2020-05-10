@@ -1,6 +1,7 @@
 import
-  x11 / [x, xlib],
-  sets
+  sets,
+  x11/xlib,
+  "../client"
 
 type Layout* = ref object of RootObj
   name*: string
@@ -10,6 +11,6 @@ type Layout* = ref object of RootObj
 proc newLayout*(name: string, gapSize: int, borderSize: int): Layout =
   Layout(name: name, gapSize: gapSize, borderSize: borderSize)
 
-method doLayout*(this: Layout, display: PDisplay, windows: OrderedSet[TWindow]) {.base.} =
+method arrange*(this: Layout, display: PDisplay, clients: OrderedSet[Client]) {.base.} =
   echo "Not implemented for base class"
 

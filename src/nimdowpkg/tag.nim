@@ -1,26 +1,27 @@
 import
   options,
   hashes,
-  x11/x,
-  layouts/layout
+  layouts/layout,
+  client
 
 type Tag* = ref object
   id*: int
   layout*: Layout
-  selectedWin*: Option[TWindow]
-  previouslySelectedWin*: Option[TWindow]
+  selectedClient*: Option[Client]
+  previouslySelectedClient*: Option[Client]
 
 proc newTag*(id: int, layout: Layout): Tag =
   Tag(
     id: id,
     layout: layout,
-    selectedWin: none(TWindow),
-    previouslySelectedWin: none(TWindow)
+    selectedClient: none(Client),
+    previouslySelectedClient: none(Client)
   )
 
-proc setSelectedWindow*(this: Tag, window: TWindow) =
-  this.previouslySelectedWin = this.selectedWin
-  this.selectedWin = window.option
+proc setSelectedClient*(this: Tag, client: Client) =
+  if this.selectedClient.isNone or client != this.selectedClient.get():
+    this.previouslySelectedClient = this.selectedClient
+    this.selectedClient = client.option
 
 proc hash*(this: Tag): Hash = !$Hash(this.id) 
 

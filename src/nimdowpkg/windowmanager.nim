@@ -4,6 +4,7 @@ import
   tables,
   sets,
   x11 / [x, xlib, xatom],
+  client,
   xatoms,
   tag,
   config/config,
@@ -29,7 +30,7 @@ type
     rootWindow*: TWindow
     eventManager: XEventManager
     # Tags
-    tagTable: OrderedTable[Tag, OrderedSet[TWindow]]
+    tagTable: OrderedTable[Tag, OrderedSet[Client]]
     selectedTag: Tag
     # Atoms
     wmAtoms: array[ord(WMLast), TAtom]
@@ -43,12 +44,12 @@ proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
 proc firstItem[T](s: OrderedSet[T]): T
 proc isInTagTable(this: WindowManager, window: TWindow): bool
-proc addWindowToSelectedTags(this: WindowManager, window: TWindow)
+proc addClientToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
 proc testAction*(this: WindowManager)
-proc toggleFullscreen(this: WindowManager, window: TWindow)
+proc toggleFullscreen(this: WindowManager, client: var Client)
 proc destroySelectedWindow(this: WindowManager)
 # XEvents
 proc hookConfigKeys*(this: WindowManager)
@@ -58,7 +59,6 @@ proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
-proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent)
 
 proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result = WindowManager()
@@ -71,7 +71,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result.initListeners()
 
   block tags:
-    result.tagTable = OrderedTable[Tag, OrderedSet[TWindow]]()
+    result.tagTable = OrderedTable[Tag, OrderedSet[Client]]()
     for i in 1..9:
       let tag: Tag = newTag(
         id = i,
@@ -81,7 +81,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
           masterSlots = 1
         )
       )
-      result.tagTable[tag] = initOrderedSet[TWindow]()
+      result.tagTable[tag] = initOrderedSet[Client]()
     # View first tag by default
     for tag in result.tagTable.keys():
       result.selectedTag = tag
@@ -109,13 +109,13 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
-  this.eventManager.addListener((e: TXEvent) => onFocusOut(this, e.xfocus), FocusOut)
 
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager) =
   eventManager.addListener(
-    proc(e: TXEvent) =
+    (proc(e: TXEvent) =
       if not e.xmap.override_redirect:
-        addWindowToSelectedTags(this, e.xmap.window),
+        addClientToSelectedTags(this, e.xmap.window)
+    ),
     MapNotify
   )
   eventManager.addListener(
@@ -131,47 +131,50 @@ proc firstItem[T](s: OrderedSet[T]): T =
 
 proc focusWindow(this: WindowManager, window: TWindow) =
   discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
-  this.selectedTag.setSelectedWindow(window)
 
 proc isInTagTable(this: WindowManager, window: TWindow): bool =
-  for windows in this.tagTable.values():
-    if window in windows:
-      return true
+  for clients in this.tagTable.values():
+    for client in clients:
+      if client.window == window:
+        return true
   return false
 
-proc addWindowToSelectedTags(this: WindowManager, window: TWindow) =
-  this.tagTable[this.selectedTag].incl(window)
-  this.doLayout()
-  this.focusWindow(window)
+proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
+  if this.tagTable[this.selectedTag].find(window).isNone:
+    let client = newClient(window)
+    this.tagTable[this.selectedTag].incl(client)
+    this.doLayout()
+    this.focusWindow(client.window)
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
-  let numWindowsInSelectedTag = this.tagTable[this.selectedTag].len
-  for (tag, windows) in this.tagTable.mpairs():
-    windows.excl(window)
+  for (tag, clients) in this.tagTable.mpairs():
+    let clientOption = clients.find(window)
+    if clientOption.isSome:
+      let client = clientOption.get()
+      this.tagTable[tag].excl(client)
+      # If the previouslySelectedClient is destroyed, select the first window (or none).
+      if tag.previouslySelectedClient.isSome and client == tag.previouslySelectedClient.get:
+        tag.previouslySelectedClient = firstItem(clients).option
+      # Set currently selected window as previouslySelectedClient
+      tag.selectedClient = tag.previouslySelectedClient
 
-    # If removed window is same as previouslySelectedWin, assign it to the first window on the tag.
-    if not tag.previouslySelectedWin.isNone and window == tag.previouslySelectedWin.get:
-      tag.previouslySelectedWin = firstItem(windows).option
-    # Set currently selected window as previouslySelectedWin
-    tag.selectedWin = tag.previouslySelectedWin
+  this.doLayout()
 
-  # Check if the number of windows on the current tag has changed
-  if numWindowsInSelectedTag != this.tagTable[this.selectedTag].len:
-    this.doLayout()
-    if this.tagTable[this.selectedTag].len > 0:
-      this.focusWindow(this.selectedTag.selectedWin.get)
-    else:
-      # If the last window in a tag was deleted, select the root window.
-      discard XSetInputFocus(
-        this.display,
-        this.rootWindow,
-        RevertToPointerRoot,
-        CurrentTime
-      )
+  # Focus the proper window
+  if this.tagTable[this.selectedTag].len > 0 and this.selectedTag.selectedClient.isSome:
+      this.focusWindow(this.selectedTag.selectedClient.get.window)
+  else:
+    # If the last window in a tag was deleted, select the root window.
+    discard XSetInputFocus(
+      this.display,
+      this.rootWindow,
+      RevertToPointerRoot,
+      CurrentTime
+    )
 
 proc doLayout(this: WindowManager) =
   ## Revalidates the current layout of the viewed tag(s).
-  this.selectedTag.layout.doLayout(
+  this.selectedTag.layout.arrange(
     this.display,
     this.tagTable[this.selectedTag]
   )
@@ -184,13 +187,12 @@ proc openDisplay(): PDisplay =
 
 proc configureRootWindow(this: WindowManager): TWindow =
   result = DefaultRootWindow(this.display)
-
   let supported = XInternAtom(this.display, "_NET_SUPPORTED", false)
   let dataType = XInternAtom(this.display, "ATOM", false)
-  var atomsNames: array[2, TAtom]
-  atomsNames[0] = XInternAtom(this.display, "_NET_WM_STATE", false)
-  atomsNames[1] = XInternAtom(this.display, "_NET_WM_STATE_FULLSCREEN", false)
-
+  var atomsNames = [
+    XInternAtom(this.display, "_NET_WM_STATE", false),
+    XInternAtom(this.display, "_NET_WM_STATE_FULLSCREEN", false)
+  ]
   discard XChangeProperty(
     this.display,
     result,
@@ -205,18 +207,7 @@ proc configureRootWindow(this: WindowManager): TWindow =
   var windowAttribs: TXSetWindowAttributes
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
-  # Events bubble up the hierarchy to the root window.
-  windowAttribs.event_mask =
-    StructureNotifyMask or
-    SubstructureRedirectMask or
-    SubstructureNotifyMask or
-    ButtonPressMask or
-    PointerMotionMask or
-    EnterWindowMask or
-    LeaveWindowMask or
-    PropertyChangeMask or
-    KeyPressMask or
-    KeyReleaseMask
+  windowAttribs.event_mask = SubstructureRedirectMask # TODO: Try out awesomewm masks
 
   # Listen for events on the root window
   discard XChangeWindowAttributes(
@@ -233,8 +224,8 @@ proc configureConfigActions*(this: WindowManager) =
   config.configureAction("testAction", () => this.testAction())
   config.configureAction("toggleFullscreen",
    proc() =
-     if this.selectedTag.selectedWin.isSome:
-       this.toggleFullscreen(this.selectedTag.selectedWin.get)
+     if this.selectedTag.selectedClient.isSome:
+       this.toggleFullscreen(this.selectedTag.selectedClient.get)
      )
   config.configureAction("destroySelectedWindow", () => this.destroySelectedWindow())
 
@@ -280,6 +271,7 @@ proc getNetAtom(this: WindowManager, id: NetAtom): TAtom =
   this.netAtoms[ord(id)]
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
+  echo repr(error.resourceid)
   var errorMessage: string = newString(1024)
   discard XGetErrorText(
     display,
@@ -289,39 +281,13 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   )
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
-  echo "\t", errorMessage, "\n"
+  echo errorMessage
 
-proc toggleFullscreen(this: WindowManager, window: TWindow) =
-  if window == this.rootWindow:
-    return
-  if window in this.tagTable[this.selectedTag]:
-    this.removeWindowFromTagTable(window)
-    discard XSetWindowBorderWidth(this.display, window, 0)
-    discard XMoveResizeWindow(
-      this.display,
-      window,
-      0,
-      0,
-      XDisplayWidth(this.display, 0),
-      XDisplayHeight(this.display, 0),
-    )
-
-    var arr = [this.getNetAtom(NetWMFullScreen)]   
+proc toggleFullscreen(this: WindowManager, client: var Client) =
+  if client.isFullscreen:
     discard XChangeProperty(
       this.display,
-      window,
-      this.getNetAtom(NetWMState),
-      XA_ATOM,
-      32,
-      PropModeReplace,
-      cast[Pcuchar](arr.addr),
-      1
-    )
-    discard XRaiseWindow(this.display, window)
-  else:
-    discard XChangeProperty(
-      this.display,
-      window,
+      client.window,
       this.getNetAtom(NetWMState),
       XA_ATOM,
       32,
@@ -329,20 +295,45 @@ proc toggleFullscreen(this: WindowManager, window: TWindow) =
       cast[Pcuchar]([]),
       0
     )
-    this.addWindowToSelectedTags(window)
+    this.addClientToSelectedTags(client.window)
 
-  # Ensure the window has focus
-  discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
-  discard XChangeProperty(
-    this.display,
-    this.rootWindow,
-    this.getNetAtom(NetActiveWindow),
-    XA_WINDOW,
-    32,
-    PropModeReplace,
-    cast[Pcuchar](unsafeAddr(window)),
-    1
-  )
+    # Ensure the window has focus
+    this.focusWindow(client.window)
+    discard XChangeProperty(
+      this.display,
+      this.rootWindow,
+      this.getNetAtom(NetActiveWindow),
+      XA_WINDOW,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](unsafeAddr(client.window)),
+      1
+    )
+    this.doLayout()
+  else:
+    discard XSetWindowBorderWidth(this.display, client.window, 0)
+    discard XMoveResizeWindow(
+      this.display,
+      client.window,
+      0,
+      0,
+      XDisplayWidth(this.display, 0),
+      XDisplayHeight(this.display, 0),
+    )
+    var arr = [this.getNetAtom(NetWMFullScreen)]   
+    discard XChangeProperty(
+      this.display,
+      client.window,
+      this.getNetAtom(NetWMState),
+      XA_ATOM,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](arr.addr),
+      1
+    )
+    discard XRaiseWindow(this.display, client.window)
+
+  client.isFullscreen = not client.isFullscreen
 
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
   if this.isInTagTable(e.window):
@@ -358,11 +349,15 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
+  var clientOption = this.tagTable[this.selectedTag].find(e.window)
+  if clientOption.isNone:
+    return
+
   if e.message_type == this.getNetAtom(NetWMState):
     let fullscreenAtom = this.getNetAtom(NetWMFullScreen)
     if e.data.l[1] == fullscreenAtom or
       e.data.l[2] == fullscreenAtom:
-        this.toggleFullscreen(e.window)
+        this.toggleFullscreen(clientOption.get())
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes
@@ -384,19 +379,30 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
       FocusChangeMask
     )
     discard XMapWindow(this.display, e.window)
-
+  
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
-  if e.window != this.rootWindow:
-    discard XSetWindowBorder(this.display, e.window, borderColorFocused)
-    this.selectedTag.setSelectedWindow(e.window)
+  if e.window == this.rootWindow:
+    return
 
-proc onFocusOut(this: WindowManager, e: TXFocusChangeEvent) =
-  if e.window in this.tagTable[this.selectedTag]:
-    # Ensure the window is still valid or in our currently viewed tag(s).
-    # This proc could be invoked after a window is destroyed.
-    discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
+  let clientOption = this.tagTable[this.selectedTag].find(e.window)
+  if clientOption.isSome:
+    let client = clientOption.get()
+    this.selectedTag.setSelectedClient(client)
+    discard XSetWindowBorder(
+      this.display,
+      client.window,
+      borderColorFocused
+    )
+    if this.selectedTag.previouslySelectedClient.isSome:
+      let previous = this.selectedTag.previouslySelectedClient.get()
+      if previous.window != client.window:
+        discard XSetWindowBorder(
+          this.display,
+          previous.window,
+          borderColorUnfocused
+        )
 
