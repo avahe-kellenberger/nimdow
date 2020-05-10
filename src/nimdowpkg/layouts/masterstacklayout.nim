@@ -38,6 +38,7 @@ proc calcYPosition(
   roundingError: int
 ): int
 proc calcClientWidth(this: MasterStackLayout, screenWidth: int): int
+proc getClientsToBeArranged(clients: OrderedSet[Client]): OrderedSet[Client]
 
 proc newMasterStackLayout*(
   gapSize: int, 
@@ -61,12 +62,13 @@ method arrange*(
   ## Aligns the clients in a master/stack fashion.
   let screenWidth = XDisplayWidth(display, 0)
   let screenHeight = XDisplayHeight(display, 0)
-  let clientCount = clients.len
+  let clientsToBeArranged = getClientsToBeArranged(clients)
+  let clientCount = clientsToBeArranged.len
   if clientCount == 1:
-    for client in clients:
+    for client in clientsToBeArranged:
       layoutSingleClient(display, client, screenWidth, screenHeight)
   else:
-    this.layoutMultipleClients(display, clients, screenWidth, screenHeight)
+    this.layoutMultipleClients(display, clientsToBeArranged, screenWidth, screenHeight)
 
 proc layoutSingleClient(
   display: PDisplay,
@@ -175,4 +177,11 @@ proc calcClientWidth(this: MasterStackLayout, screenWidth: int): int =
   int(math.round(screenWidth / 2)) -
     (this.borderSize * 2) -
     int(math.round(float(this.gapSize) * 1.5))
+
+proc getClientsToBeArranged(clients: OrderedSet[Client]): OrderedSet[Client] =
+  ## Finds all clients that should be arranged in the layout.
+  ## Some windows are excluded, such as fullscreen windows.
+  for client in clients:
+    if not client.isFullscreen:
+      result.incl(client)
 
