@@ -1,15 +1,24 @@
+# Window Controls
+
 [focusPrevious]
-key = "k"
+keys = [ "k" ]
 modifiers = [ "super" ]
 
 [focusNext]
-key = "j"
+keys = [ "j" ]
 modifiers = [ "super" ]
 
 [toggleFullscreen]
-key = "f"
+keys = [ "f" ]
 modifiers = [ "super" ]
 
 [destroySelectedWindow]
-key = "q"
+keys = [ "q" ]
 modifiers = [ "super", "shift" ]
+
+# Tag Navigation
+
+[goToTag]
+keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+modifiers = [ "super" ]
+

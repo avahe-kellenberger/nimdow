@@ -27,3 +27,7 @@ func cleanMask*(mask: int): int =
 func toKeycode*(key: string, display: PDisplay): int =
   XKeysymToKeycode(display, XStringToKeysym(key))
 
+func toString*(key: TKeyCode, display: PDisplay): string =
+  let keySym = XKeycodeToKeysym(display, key, cint(0))
+  return $XKeysymToString(keySym)
+

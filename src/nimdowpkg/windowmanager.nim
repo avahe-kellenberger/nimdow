@@ -3,18 +3,21 @@ import
   options,
   tables,
   sets,
+  strutils,
   x11 / [x, xlib, xatom],
   client,
   xatoms,
   tag,
   config/config,
   event/xeventmanager,
+  keys/keyutils,
   layouts/layout,
   layouts/masterstacklayout
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
 converter cintToCUint(x: cint): cuint = x.cuint
+converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
@@ -49,6 +52,7 @@ proc addClientToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
+proc goToTag(this: WindowManager, keycode: int)
 proc focusNextClient(this: WindowManager)
 proc focusPreviousClient(this: WindowManager)
 proc toggleFullscreen(this: WindowManager, client: var Client)
@@ -223,19 +227,19 @@ proc configureRootWindow(this: WindowManager): TWindow =
     CWEventMask or CWCursor,
     addr(windowAttribs)
   )
-
   discard XSync(this.display, false)
 
 proc configureConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config.configureAction("focusNext", () => this.focusNextClient())
-  config.configureAction("focusPrevious", () => this.focusPreviousClient())
+  config.configureAction("goToTag", (keycode: int) => this.goToTag(keycode))
+  config.configureAction("focusNext", (keycode: int) => this.focusNextClient())
+  config.configureAction("focusPrevious", (keycode: int) => this.focusPreviousClient())
   config.configureAction("toggleFullscreen",
-   proc() =
-     if this.selectedTag.selectedClient.isSome:
-       this.toggleFullscreen(this.selectedTag.selectedClient.get)
-     )
-  config.configureAction("destroySelectedWindow", () => this.destroySelectedWindow())
+    proc(keycode: int) =
+      if this.selectedTag.selectedClient.isSome:
+        this.toggleFullscreen(this.selectedTag.selectedClient.get)
+  )
+  config.configureAction("destroySelectedWindow", (keycode: int) => this.destroySelectedWindow())
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
@@ -253,6 +257,24 @@ proc hookConfigKeys*(this: WindowManager) =
 ####################
 ## Custom Actions ##
 ####################
+
+proc goToTag(this: WindowManager, keycode: int) =
+  try:
+    let tagNumber = parseInt(keycode.toString(this.display))
+    if tagNumber < 0:
+      echo "Tag number cannot be negative"
+      return
+
+    var i = tagNumber
+    for tag in this.tagTable.keys():
+      i -= 1
+      if i == 0:
+        echo "Switching to tag ", tagNumber
+        # TODO: Add code to change tags.
+        # Windows not on the current tag need to be hidden or unmapped.
+        return
+  except:
+    echo "Invalid tag number from config"
 
 proc focusPreviousClient(this: WindowManager) =
   if this.tagTable[this.selectedTag].len <= 1 or
