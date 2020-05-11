@@ -126,9 +126,6 @@ proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventMa
   )
   eventManager.addListener(
     proc (e: TXEvent) =
-      removeWindowFromTagTable(this, e.xunmap.window), UnmapNotify)
-  eventManager.addListener(
-    proc (e: TXEvent) =
       removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
 
 proc firstItem[T](s: OrderedSet[T]): T =
@@ -258,6 +255,24 @@ proc hookConfigKeys*(this: WindowManager) =
 ## Custom Actions ##
 ####################
 
+proc viewTag(this: WindowManager, tag: Tag) =
+  ## Views a single tag.
+  if tag == this.selectedTag:
+    return
+
+  # Windows not on the current tag need to be hidden or unmapped.
+  for client in this.tagTable[this.selectedTag]:
+    discard XUnmapWindow(this.display, client.window)
+
+  this.selectedTag = tag
+
+  for client in this.tagTable[this.selectedTag]:
+    discard XMapWindow(this.display, client.window)
+
+  # Select the "selected" client for the newly viewed tag
+  if this.selectedTag.selectedClient.isSome:
+    this.focusWindow(this.selectedTag.selectedClient.get().window)
+
 proc goToTag(this: WindowManager, keycode: int) =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
@@ -269,9 +284,7 @@ proc goToTag(this: WindowManager, keycode: int) =
     for tag in this.tagTable.keys():
       i -= 1
       if i == 0:
-        echo "Switching to tag ", tagNumber
-        # TODO: Add code to change tags.
-        # Windows not on the current tag need to be hidden or unmapped.
+        this.viewTag(tag)
         return
   except:
     echo "Invalid tag number from config"
