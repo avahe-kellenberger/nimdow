@@ -309,7 +309,6 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
       cast[Pcuchar](unsafeAddr(client.window)),
       1
     )
-    this.doLayout()
   else:
     discard XSetWindowBorderWidth(this.display, client.window, 0)
     discard XMoveResizeWindow(
@@ -334,6 +333,7 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
     discard XRaiseWindow(this.display, client.window)
 
   client.isFullscreen = not client.isFullscreen
+  this.doLayout()
 
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
   if this.isInTagTable(e.window):
