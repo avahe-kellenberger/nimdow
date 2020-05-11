@@ -35,7 +35,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
   - [ ] Switch layout to master/stack
   - [ ] Switch layout to monocle
   - [x] Navigate windows
-  - [ ] Navigate tags
+  - [x] Navigate tags
 
 
 ## Version 1.0
