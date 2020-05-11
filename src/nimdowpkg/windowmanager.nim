@@ -43,12 +43,14 @@ proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
 proc firstItem[T](s: OrderedSet[T]): T
+proc lastItem[T](s: OrderedSet[T]): T
 proc isInTagTable(this: WindowManager, window: TWindow): bool
 proc addClientToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
-proc testAction*(this: WindowManager)
+proc focusNextClient(this: WindowManager)
+proc focusPreviousClient(this: WindowManager)
 proc toggleFullscreen(this: WindowManager, client: var Client)
 proc destroySelectedWindow(this: WindowManager)
 # XEvents
@@ -128,6 +130,11 @@ proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventMa
 proc firstItem[T](s: OrderedSet[T]): T =
   for item in s:
     return item
+
+proc lastItem[T](s: OrderedSet[T]): T =
+  for i, item in s:
+    if i == s.len - 1:
+      return item
 
 proc focusWindow(this: WindowManager, window: TWindow) =
   discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
@@ -221,7 +228,8 @@ proc configureRootWindow(this: WindowManager): TWindow =
 
 proc configureConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config.configureAction("testAction", () => this.testAction())
+  config.configureAction("focusNext", () => this.focusNextClient())
+  config.configureAction("focusPrevious", () => this.focusPreviousClient())
   config.configureAction("toggleFullscreen",
    proc() =
      if this.selectedTag.selectedClient.isSome:
@@ -246,8 +254,40 @@ proc hookConfigKeys*(this: WindowManager) =
 ## Custom Actions ##
 ####################
 
-proc testAction(this: WindowManager) =
-  echo "Num windows: ", this.tagTable[this.selectedTag].len
+proc focusPreviousClient(this: WindowManager) =
+  if this.tagTable[this.selectedTag].len <= 1 or
+    this.selectedTag.selectedClient.isNone:
+    return
+
+  let selected = this.selectedTag.selectedClient.get()
+  var previous = this.selectedTag.selectedClient.get()
+  for i, client in this.tagTable[this.selectedTag]:
+    if client == selected:
+      if i == 0:
+        # If focusing the first client, select the last client in the tag.
+        let lastClient = this.tagTable[this.selectedTag].lastItem()
+        this.focusWindow(lastClient.window)
+      else:
+        this.focusWindow(previous.window)
+      return
+    previous = client
+
+proc focusNextClient(this: WindowManager) =
+  if this.selectedTag.selectedClient.isNone:
+    return
+
+  var isNext = false
+  for client in this.tagTable[this.selectedTag]:
+    if isNext:
+      this.focusWindow(client.window)
+      return
+    if client == this.selectedTag.selectedClient.get():
+      isNext = true
+  
+  if isNext:
+    for client in this.tagTable[this.selectedTag]:
+      this.focusWindow(client.window)
+      return
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
@@ -385,7 +425,8 @@ proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
-  if e.window == this.rootWindow:
+  if e.detail == NotifyPointer or
+    e.window == this.rootWindow:
     return
 
   let clientOption = this.tagTable[this.selectedTag].find(e.window)

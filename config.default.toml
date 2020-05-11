@@ -1,6 +1,10 @@
-[testAction]
+[focusPrevious]
+key = "k"
+modifiers = [ "super" ]
+
+[focusNext]
 key = "j"
-modifiers = [ "control" ]
+modifiers = [ "super" ]
 
 [toggleFullscreen]
 key = "f"
