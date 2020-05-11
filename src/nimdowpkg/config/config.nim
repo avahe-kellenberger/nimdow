@@ -7,7 +7,7 @@ import
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
-  WindowAction* = proc()
+  WindowAction* = proc(keycode: int): void
 
 # Mapping of config keys to functions.
 var ProcTable = initTable[string, WindowAction]()
@@ -19,8 +19,8 @@ proc populateConfigTable*(display: PDisplay)
 proc findConfigPath(): string
 proc loadConfigfile(configPath: string): TomlTable
 proc populateAction(display: PDisplay, action: string, configTable: TomlTable)
-proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo
-proc getKeyForAction(configTable: TomlTable, action: string): string
+proc getKeyCombos(configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
+proc getKeysForAction(configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(configTable: TomlTable, action: string): seq[TomlValueRef]
 proc xorModifiers(modifiers: openarray[TomlValueRef]): int
 proc getModifierMask(modifier: TomlValueRef): int
@@ -33,7 +33,7 @@ proc hookConfig*(eventManager: XEventManager) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if ConfigTable.hasKey(keyCombo):
-      ConfigTable[keyCombo]()
+      ConfigTable[keyCombo](keyCombo.keycode)
   eventManager.addListener(listener, KeyPress)
 
 proc populateConfigTable*(display: PDisplay) =
@@ -55,26 +55,33 @@ proc loadConfigfile(configPath: string): TomlTable =
   return loadedConfig.tableVal[]
 
 proc populateAction(display: PDisplay, action: string, configTable: TomlTable) =
-  let keyCombo = configTable.getKeyCombo(display, action)
-  if ProcTable.hasKey(action):
-    ConfigTable[keyCombo] = ProcTable[action]
-  else:
-    echo "Invalid key config action: \"", action, "\" does not exist"
+  let keyCombos = configTable.getKeyCombos(display, action)
+  for keyCombo in keyCombos:
+    if ProcTable.hasKey(action):
+      ConfigTable[keyCombo] = ProcTable[action]
+    else:
+      echo "Invalid key config action: \"", action, "\" does not exist"
 
-proc getKeyCombo(configTable: TomlTable, display: PDisplay, action: string): KeyCombo =
-  ## Gets the KeyCombo associated with the given `action` from the table.
-  let key: string = configTable.getKeyForAction(action)
+proc getKeyCombos(configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
+  ## Gets the KeyCombos associated with the given `action` from the table.
   let modifierArray = configTable.getModifiersForAction(action)
   let modifiers: int = xorModifiers(modifierArray)
-  let keycode: int = key.toKeycode(display)
-  return (keycode, modifiers)
+  let keys: seq[string] = configTable.getKeysForAction(action)
+  for key in keys:
+    let keycode: int = key.toKeycode(display)
+    result.add((keycode, modifiers))
 
-proc getKeyForAction(configTable: TomlTable, action: string): string =
-  var keyConfig = configTable[action]["key"]
-  if keyConfig.kind != TomlValueKind.String:
-    raise newException(Exception, "Invalid key configuration: " &
-                       repr(keyConfig) & " is not a string")
-  return keyConfig.stringVal
+proc getKeysForAction(configTable: TomlTable, action: string): seq[string] =
+  var tomlKeys = configTable[action]["keys"]
+  if tomlKeys.kind != TomlValueKind.Array:
+    raise newException(Exception, "Invalid key config for action: " & action &
+                       "\n\"keys\" must be an array of strings")
+
+  for tomlKey in tomlKeys.arrayVal:
+    if tomlKey.kind != TomlValueKind.String:
+      raise newException(Exception, "Invalid key configuration: " &
+                         repr(tomlKey) & " is not a string")
+    result.add(tomlKey.stringVal)
 
 proc getModifiersForAction(configTable: TomlTable, action: string): seq[TomlValueRef] =
   var modifiersConfig = configTable[action]["modifiers"]
