@@ -2,7 +2,6 @@ import
   sugar,
   options,
   tables,
-  sets,
   strutils,
   x11 / [x, xlib, xatom],
   client,
@@ -23,9 +22,9 @@ converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
 # TODO: Should load these from settings
-const borderColorFocused = 0x3355BB
-const borderColorUnfocused = 0x335544
-const borderWidth = 2
+const borderColorFocused = 0x519f50
+const borderColorUnfocused = 0x1c1b19
+const borderWidth = 1
 
 type
   WindowManager* = ref object
@@ -33,7 +32,7 @@ type
     rootWindow*: TWindow
     eventManager: XEventManager
     # Tags
-    tagTable: OrderedTable[Tag, OrderedSet[Client]]
+    tagTable: OrderedTable[Tag, seq[Client]]
     selectedTag: Tag
     # Atoms
     wmAtoms: array[ord(WMLast), TAtom]
@@ -45,8 +44,6 @@ proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
-proc firstItem[T](s: OrderedSet[T]): T
-proc lastItem[T](s: OrderedSet[T]): T
 proc isInTagTable(this: WindowManager, window: TWindow): bool
 proc addClientToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
@@ -55,6 +52,8 @@ proc doLayout(this: WindowManager)
 proc goToTag(this: WindowManager, keycode: int)
 proc focusNextClient(this: WindowManager)
 proc focusPreviousClient(this: WindowManager)
+proc moveClientPrevious(this: WindowManager)
+proc moveClientNext(this: WindowManager)
 proc toggleFullscreen(this: WindowManager, client: var Client)
 proc destroySelectedWindow(this: WindowManager)
 # XEvents
@@ -77,7 +76,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result.initListeners()
 
   block tags:
-    result.tagTable = OrderedTable[Tag, OrderedSet[Client]]()
+    result.tagTable = OrderedTable[Tag, seq[Client]]()
     for i in 1..9:
       let tag: Tag = newTag(
         id = i,
@@ -87,7 +86,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
           masterSlots = 1
         )
       )
-      result.tagTable[tag] = initOrderedSet[Client]()
+      result.tagTable[tag] = @[]
     # View first tag by default
     for tag in result.tagTable.keys():
       result.selectedTag = tag
@@ -128,15 +127,6 @@ proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventMa
     proc (e: TXEvent) =
       removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
 
-proc firstItem[T](s: OrderedSet[T]): T =
-  for item in s:
-    return item
-
-proc lastItem[T](s: OrderedSet[T]): T =
-  for i, item in s:
-    if i == s.len - 1:
-      return item
-
 proc focusWindow(this: WindowManager, window: TWindow) =
   discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
 
@@ -148,21 +138,22 @@ proc isInTagTable(this: WindowManager, window: TWindow): bool =
   return false
 
 proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
-  if this.tagTable[this.selectedTag].find(window).isNone:
+  if this.tagTable[this.selectedTag].indexOf(window) < 0:
     let client = newClient(window)
-    this.tagTable[this.selectedTag].incl(client)
+    this.tagTable[this.selectedTag].add(client)
     this.doLayout()
     this.focusWindow(client.window)
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   for (tag, clients) in this.tagTable.mpairs():
-    let clientOption = clients.find(window)
-    if clientOption.isSome:
-      let client = clientOption.get()
-      this.tagTable[tag].excl(client)
+    let clientIndex = clients.indexOf(window)
+    if clientIndex >= 0:
+      let client = clients[clientIndex]
+      clients.delete(clientIndex)
       # If the previouslySelectedClient is destroyed, select the first window (or none).
       if tag.previouslySelectedClient.isSome and client == tag.previouslySelectedClient.get:
-        tag.previouslySelectedClient = firstItem(clients).option
+        tag.previouslySelectedClient = if clients.len == 0: none(Client) else: clients[0].option
+
       # Set currently selected window as previouslySelectedClient
       tag.selectedClient = tag.previouslySelectedClient
 
@@ -231,6 +222,8 @@ proc configureConfigActions*(this: WindowManager) =
   config.configureAction("goToTag", (keycode: int) => this.goToTag(keycode))
   config.configureAction("focusNext", (keycode: int) => this.focusNextClient())
   config.configureAction("focusPrevious", (keycode: int) => this.focusPreviousClient())
+  config.configureAction("moveWindowPrevious", (keycode: int) => this.moveClientPrevious())
+  config.configureAction("moveWindowNext", (keycode: int) => this.moveClientNext())
   config.configureAction("toggleFullscreen",
     proc(keycode: int) =
       if this.selectedTag.selectedClient.isSome:
@@ -300,7 +293,7 @@ proc focusPreviousClient(this: WindowManager) =
     if client == selected:
       if i == 0:
         # If focusing the first client, select the last client in the tag.
-        let lastClient = this.tagTable[this.selectedTag].lastItem()
+        let lastClient = this.tagTable[this.selectedTag][^1]
         this.focusWindow(lastClient.window)
       else:
         this.focusWindow(previous.window)
@@ -323,6 +316,18 @@ proc focusNextClient(this: WindowManager) =
     for client in this.tagTable[this.selectedTag]:
       this.focusWindow(client.window)
       return
+# TODO:
+proc moveClientPrevious(this: WindowManager) =
+  let clientOption = this.selectedTag.selectedClient
+  if clientOption.isNone:
+    return
+
+  let selectedClient = clientOption.get()
+  for client in this.tagTable[this.selectedTag]:
+    echo selectedClient.window
+
+proc moveClientNext(this: WindowManager) =
+  discard
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
@@ -424,15 +429,16 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
-  var clientOption = this.tagTable[this.selectedTag].find(e.window)
-  if clientOption.isNone:
+  var clientIndex = this.tagTable[this.selectedTag].indexOf(e.window)
+  if clientIndex < 0:
     return
 
   if e.message_type == this.getNetAtom(NetWMState):
     let fullscreenAtom = this.getNetAtom(NetWMFullScreen)
     if e.data.l[1] == fullscreenAtom or
       e.data.l[2] == fullscreenAtom:
-        this.toggleFullscreen(clientOption.get())
+        var client = this.tagTable[this.selectedTag][clientIndex]
+        this.toggleFullscreen(client)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes
@@ -454,7 +460,7 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
       FocusChangeMask
     )
     discard XMapWindow(this.display, e.window)
-  
+
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
@@ -464,9 +470,9 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
     e.window == this.rootWindow:
     return
 
-  let clientOption = this.tagTable[this.selectedTag].find(e.window)
-  if clientOption.isSome:
-    let client = clientOption.get()
+  let clientIndex = this.tagTable[this.selectedTag].indexOf(e.window)
+  if clientIndex >= 0:
+    let client = this.tagTable[this.selectedTag][clientIndex]
     this.selectedTag.setSelectedClient(client)
     discard XSetWindowBorder(
       this.display,
