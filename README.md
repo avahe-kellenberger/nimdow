@@ -37,7 +37,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
   - [x] Navigate windows
   - [x] Navigate tags
   - [x] Move windows in stack
-  - [ ] Move windows between tags
+  - [x] Move windows between tags
   - [ ] Add/remove window per tag
 
 ## Version 1.0

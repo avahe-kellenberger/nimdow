@@ -16,6 +16,10 @@ modifiers = [ "super", "shift" ]
 keys = [ "j" ]
 modifiers = [ "super", "shift" ]
 
+[moveWindowToTag]
+keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+modifiers = [ "super", "shift" ]
+
 [toggleFullscreen]
 keys = [ "f" ]
 modifiers = [ "super" ]

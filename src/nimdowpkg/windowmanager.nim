@@ -49,11 +49,13 @@ proc addClientToSelectedTags(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
 # Custom WM actions
-proc goToTag(this: WindowManager, keycode: int)
+proc viewTag(this: WindowManager, tag: Tag)
+proc keycodeToTag(this: WindowManager, keycode: int): Tag
 proc focusNextClient(this: WindowManager)
 proc focusPreviousClient(this: WindowManager)
 proc moveClientPrevious(this: WindowManager)
 proc moveClientNext(this: WindowManager)
+proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag)
 proc toggleFullscreen(this: WindowManager, client: var Client)
 proc destroySelectedWindow(this: WindowManager)
 # XEvents
@@ -226,11 +228,20 @@ proc configureRootWindow(this: WindowManager): TWindow =
 
 proc configureConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config.configureAction("goToTag", (keycode: int) => this.goToTag(keycode))
+  config.configureAction("goToTag", (keycode: int) => this.viewTag(this.keycodeToTag(keycode)))
   config.configureAction("focusNext", (keycode: int) => this.focusNextClient())
   config.configureAction("focusPrevious", (keycode: int) => this.focusPreviousClient())
   config.configureAction("moveWindowPrevious", (keycode: int) => this.moveClientPrevious())
   config.configureAction("moveWindowNext", (keycode: int) => this.moveClientNext())
+  config.configureAction("moveWindowToTag",
+    proc(keycode: int) = 
+      if this.selectedTag.selectedClient.isSome:
+        this.moveClientToTag(
+          this.selectedTag.selectedClient.get(),
+          this.keycodeToTag(keycode)
+        )
+  )
+
   config.configureAction("toggleFullscreen",
     proc(keycode: int) =
       if this.selectedTag.selectedClient.isSome:
@@ -269,25 +280,26 @@ proc viewTag(this: WindowManager, tag: Tag) =
   for client in this.selectedClients:
     discard XMapWindow(this.display, client.window)
 
+  this.doLayout()
+
   # Select the "selected" client for the newly viewed tag
   if this.selectedTag.selectedClient.isSome:
     this.focusWindow(this.selectedTag.selectedClient.get().window)
 
-proc goToTag(this: WindowManager, keycode: int) =
+proc keycodeToTag(this: WindowManager, keycode: int): Tag =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 0:
-      echo "Tag number cannot be negative"
-      return
+      raise newException(Exception, "Tag number cannot be negative")
 
     var i = tagNumber
     for tag in this.tagTable.keys():
       i -= 1
       if i == 0:
-        this.viewTag(tag)
-        return
+        return tag
   except:
-    echo "Invalid tag number from config"
+    echo "Invalid tag number from config:"
+    echo getCurrentExceptionMsg()
 
 proc focusPreviousClient(this: WindowManager) =
   if this.selectedClients.len <= 1 or
@@ -366,6 +378,25 @@ proc moveClientNext(this: WindowManager) =
   this.selectedClients[selectedClientIndex] = swapClient
   this.selectedClients[swapIndex] = selectedClient
   this.doLayout()
+
+proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag) =
+  for tag, clients in this.tagTable.mpairs():
+    if tag == destinationTag:
+      if not clients.contains(client):
+        clients.add(client)
+        tag.setSelectedClient(client)
+        discard XUnmapWindow(this.display, client.window)
+    else:
+      let clientIndex = clients.find(client)
+      if clientIndex >= 0:
+        clients.delete(clientIndex)
+        if tag.previouslySelectedClient.isSome():
+          tag.setSelectedClient(tag.previouslySelectedClient.get())
+          # Ensure our current tag has a window selected if one exists.
+          if tag == this.selectedTag:
+            if this.selectedTag.selectedClient.isSome():
+              this.focusWindow(this.selectedTag.selectedClient.get().window)
+              this.doLayout()
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
