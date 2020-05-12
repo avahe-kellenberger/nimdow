@@ -1,7 +1,8 @@
 import 
-  x11 / [x,  xlib],
+  os,
   parsetoml,
   tables,
+  x11 / [x,  xlib],
   "../keys/keyutils",
   "../event/xeventmanager"
 
@@ -44,8 +45,10 @@ proc populateConfigTable*(display: PDisplay) =
     display.populateAction(action, configTable)
 
 proc findConfigPath(): string =
-  # TODO: find this path dynamically
-  return "config.default.toml"
+  let configHome = os.getConfigDir()
+  result = configHome & "nimdow/config.toml"
+  if not fileExists(result):
+    raise newException(Exception, result & " does not exist")
 
 proc loadConfigfile(configPath: string): TomlTable =
   ## Reads the user's configuration file into a table.
