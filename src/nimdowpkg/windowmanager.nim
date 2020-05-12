@@ -138,7 +138,7 @@ proc isInTagTable(this: WindowManager, window: TWindow): bool =
   return false
 
 proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
-  if this.tagTable[this.selectedTag].indexOf(window) < 0:
+  if this.tagTable[this.selectedTag].find(window) < 0:
     let client = newClient(window)
     this.tagTable[this.selectedTag].add(client)
     this.doLayout()
@@ -146,7 +146,7 @@ proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   for (tag, clients) in this.tagTable.mpairs():
-    let clientIndex = clients.indexOf(window)
+    let clientIndex = clients.find(window)
     if clientIndex >= 0:
       let client = clients[clientIndex]
       clients.delete(clientIndex)
@@ -316,18 +316,51 @@ proc focusNextClient(this: WindowManager) =
     for client in this.tagTable[this.selectedTag]:
       this.focusWindow(client.window)
       return
-# TODO:
+
 proc moveClientPrevious(this: WindowManager) =
   let clientOption = this.selectedTag.selectedClient
   if clientOption.isNone:
     return
 
+  var clients = this.tagTable[this.selectedTag]
+  if clients.len < 2:
+    return
+
   let selectedClient = clientOption.get()
-  for client in this.tagTable[this.selectedTag]:
-    echo selectedClient.window
+  let selectedClientIndex = clients.find(selectedClient)
+  if selectedClientIndex < 0:
+    return
+
+  var swapIndex: int = (selectedClientIndex - 1) mod clients.len
+  if swapIndex == -1:
+    swapIndex = clients.len - 1
+  let swapClient = this.tagTable[this.selectedTag][swapIndex]
+
+  this.tagTable[this.selectedTag][selectedClientIndex] = swapClient
+  this.tagTable[this.selectedTag][swapIndex] = selectedClient
+
+  this.doLayout()
 
 proc moveClientNext(this: WindowManager) =
-  discard
+  let clientOption = this.selectedTag.selectedClient
+  if clientOption.isNone:
+    return
+
+  if this.tagTable[this.selectedTag].len < 2:
+    return
+
+  let selectedClient = clientOption.get()
+  let selectedClientIndex = this.tagTable[this.selectedTag].find(selectedClient)
+  if selectedClientIndex < 0:
+    return
+
+  let swapIndex = (selectedClientIndex + 1) mod this.tagTable[this.selectedTag].len
+  let swapClient = this.tagTable[this.selectedTag][swapIndex]
+
+  this.tagTable[this.selectedTag][selectedClientIndex] = swapClient
+  this.tagTable[this.selectedTag][swapIndex] = selectedClient
+
+  this.doLayout()
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
@@ -429,7 +462,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
-  var clientIndex = this.tagTable[this.selectedTag].indexOf(e.window)
+  var clientIndex = this.tagTable[this.selectedTag].find(e.window)
   if clientIndex < 0:
     return
 
@@ -470,7 +503,7 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
     e.window == this.rootWindow:
     return
 
-  let clientIndex = this.tagTable[this.selectedTag].indexOf(e.window)
+  let clientIndex = this.tagTable[this.selectedTag].find(e.window)
   if clientIndex >= 0:
     let client = this.tagTable[this.selectedTag][clientIndex]
     this.selectedTag.setSelectedClient(client)

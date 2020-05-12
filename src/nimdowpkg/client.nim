@@ -1,6 +1,5 @@
 import
   x11/x,
-  options,
   hashes
 
 type
@@ -11,7 +10,7 @@ type
 proc newClient*(window: TWindow): Client =
   Client(window: window, isFullscreen: false)
 
-func indexOf*(clients: seq[Client], window: TWindow): int =
+func find*(clients: seq[Client], window: TWindow): int =
   for i, client in clients:
     if client.window == window:
       return i

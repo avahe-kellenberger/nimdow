@@ -8,6 +8,14 @@ modifiers = [ "super" ]
 keys = [ "j" ]
 modifiers = [ "super" ]
 
+[moveWindowPrevious]
+keys = [ "k" ]
+modifiers = [ "super", "shift" ]
+
+[moveWindowNext]
+keys = [ "j" ]
+modifiers = [ "super", "shift" ]
+
 [toggleFullscreen]
 keys = [ "f" ]
 modifiers = [ "super" ]
