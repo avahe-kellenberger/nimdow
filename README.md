@@ -14,6 +14,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 ## Running locally
 
+0. Create a copy or symlink of the config file in `$XDG_CONFIG_HOME/nimdow/config.toml`
 1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
 2. Execute nimdow on the new display: `DISPLAY=:1 ./nimdow`
 

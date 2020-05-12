@@ -44,18 +44,11 @@ proc populateConfigTable*(display: PDisplay) =
   for action in configTable.keys():
     display.populateAction(action, configTable)
 
-proc findDefaultConfig(): string =
-  echo "Using default config"
-  return absolutePath("config.default.toml")
-
 proc findConfigPath(): string =
-  var configHome = os.getEnv("XDG_CONFIG_HOME")
-  if configHome.len > 0:
-    result = configHome & "/nimdow/config.toml"
-    if fileExists(result):
-      return result
-    echo "XDG_CONFIG_HOME not found"
-  result = findDefaultConfig()
+  let configHome = os.getConfigDir()
+  result = configHome & "nimdow/config.toml"
+  if not fileExists(result):
+    raise newException(Exception, result & " does not exist")
 
 proc loadConfigfile(configPath: string): TomlTable =
   ## Reads the user's configuration file into a table.
