@@ -1,7 +1,5 @@
 import
   x11/x,
-  sets,
-  options,
   hashes
 
 type
@@ -12,10 +10,10 @@ type
 proc newClient*(window: TWindow): Client =
   Client(window: window, isFullscreen: false)
 
-func find*(clients: OrderedSet[Client], window: TWindow): Option[Client] =
-  for client in clients:
+func find*(clients: seq[Client], window: TWindow): int =
+  for i, client in clients:
     if client.window == window:
-      return some(client)
-  return none(Client)
+      return i
+  return -1
 
 proc hash*(this: Client): Hash = !$Hash(this.window) 

@@ -1,6 +1,5 @@
 import
   x11/xlib,
-  sets,
   math,
   layout,
   "../client"
@@ -22,7 +21,7 @@ proc layoutSingleClient(
 proc layoutMultipleClients(
   this: MasterStackLayout,
   display: PDisplay,
-  clients: OrderedSet[Client],
+  clients: seq[Client],
   screenWidth: int,
   screenHeight: int
 )
@@ -38,7 +37,7 @@ proc calcYPosition(
   roundingError: int
 ): int
 proc calcClientWidth(this: MasterStackLayout, screenWidth: int): int
-proc getClientsToBeArranged(clients: OrderedSet[Client]): OrderedSet[Client]
+proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
 
 proc newMasterStackLayout*(
   gapSize: int, 
@@ -57,7 +56,7 @@ proc newMasterStackLayout*(
 method arrange*(
     this: MasterStackLayout,
     display: PDisplay,
-    clients: OrderedSet[Client]
+    clients: seq[Client]
   ) =
   ## Aligns the clients in a master/stack fashion.
   let screenWidth = XDisplayWidth(display, 0)
@@ -90,7 +89,7 @@ proc layoutSingleClient(
 proc layoutMultipleClients(
   this: MasterStackLayout,
   display: PDisplay,
-  clients: OrderedSet[Client],
+  clients: seq[Client],
   screenWidth: int,
   screenHeight: int
 ) =
@@ -178,10 +177,10 @@ proc calcClientWidth(this: MasterStackLayout, screenWidth: int): int =
     (this.borderSize * 2) -
     int(math.round(float(this.gapSize) * 1.5))
 
-proc getClientsToBeArranged(clients: OrderedSet[Client]): OrderedSet[Client] =
+proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
   ## Finds all clients that should be arranged in the layout.
   ## Some windows are excluded, such as fullscreen windows.
   for client in clients:
     if not client.isFullscreen:
-      result.incl(client)
+      result.add(client)
 
