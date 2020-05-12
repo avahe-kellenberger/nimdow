@@ -1,5 +1,4 @@
 import
-  sets,
   x11/xlib,
   "../client"
 
