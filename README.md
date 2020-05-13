@@ -25,7 +25,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 - [x] Multiple tags (single tag viewed at one time)
 - [x] Fullscreen windows
 - [ ] Multihead support
-- [ ] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
+- [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
 - [ ] Status bar integration (probably 3rd party status bar)
 - [ ] Layouts:
   - [x] Master/stack
