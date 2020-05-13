@@ -21,6 +21,8 @@ converter clongToCUlong(x: clong): culong = x.culong
 converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
+const wmName = "nimdow"
+
 # TODO: Should load these from settings
 const borderColorFocused = 0x519f50
 const borderColorUnfocused = 0x1c1b19
@@ -98,15 +100,42 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   let utf8string = XInternAtom(result.display, "UTF8_STRING", false)
   # Supporting window for NetWMCheck
   let wmcheckwin = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
-  discard XChangeProperty(result.display, wmcheckwin, result.netAtoms[ord(NetWMCheck)], XA_WINDOW, 32,
-                          PropModeReplace, cast[Pcuchar](wmcheckwin.unsafeAddr), 1)
-  discard XChangeProperty(result.display, wmcheckwin, result.netAtoms[ord(NetWMName)], utf8string, 8,
-                          PropModeReplace, cast[Pcuchar]("nimdow"), 3)
-  discard XChangeProperty(result.display, result.rootWindow, result.netAtoms[ord(NetWMCheck)], XA_WINDOW, 32,
-                          PropModeReplace, cast[Pcuchar](wmcheckwin.unsafeAddr), 1)
+  discard XChangeProperty(result.display,
+                          wmcheckwin,
+                          result.netAtoms[ord(NetWMCheck)],
+                          XA_WINDOW,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](wmcheckwin.unsafeAddr),
+                          1)
+
+  discard XChangeProperty(result.display,
+                          wmcheckwin,
+                          result.netAtoms[ord(NetWMName)],
+                          utf8string,
+                          8,
+                          PropModeReplace,
+                          cast[Pcuchar](wmName),
+                          len(wmName))
+
+  discard XChangeProperty(result.display,
+                          result.rootWindow,
+                          result.netAtoms[ord(NetWMCheck)],
+                          XA_WINDOW,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](wmcheckwin.unsafeAddr),
+                          1)
   # EWMH support per view
-  discard XChangeProperty(result.display, result.rootWindow, result.netAtoms[ord(NetSupported)], XA_ATOM, 32,
-                          PropModeReplace, cast[Pcuchar](result.netAtoms.unsafeAddr), ord(NetLast))
+  discard XChangeProperty(result.display,
+                          result.rootWindow,
+                          result.netAtoms[ord(NetSupported)],
+                          XA_ATOM,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](result.netAtoms.unsafeAddr),
+                          ord(NetLast))
+
   discard XDeleteProperty(result.display, result.rootWindow, result.netAtoms[ord(NetClientList)]);
 
 template selectedClients(this: WindowManager): untyped =
@@ -388,15 +417,17 @@ proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag) =
         discard XUnmapWindow(this.display, client.window)
     else:
       let clientIndex = clients.find(client)
-      if clientIndex >= 0:
-        clients.delete(clientIndex)
-        if tag.previouslySelectedClient.isSome():
-          tag.setSelectedClient(tag.previouslySelectedClient.get())
-          # Ensure our current tag has a window selected if one exists.
-          if tag == this.selectedTag:
-            if this.selectedTag.selectedClient.isSome():
-              this.focusWindow(this.selectedTag.selectedClient.get().window)
-              this.doLayout()
+      if clientIndex < 0:
+        continue
+      clients.delete(clientIndex)
+      tag.clearSelectedClient(client)
+      if tag.previouslySelectedClient.isNone():
+        continue
+      tag.setSelectedClient(tag.previouslySelectedClient.get())
+      # Ensure our current tag has a window selected if one exists.
+      if tag == this.selectedTag and this.selectedTag.selectedClient.isSome():
+          this.focusWindow(this.selectedTag.selectedClient.get().window)
+          this.doLayout()
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
