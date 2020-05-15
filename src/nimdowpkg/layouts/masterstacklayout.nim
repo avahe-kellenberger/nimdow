@@ -181,6 +181,6 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
   ## Finds all clients that should be arranged in the layout.
   ## Some windows are excluded, such as fullscreen windows.
   for client in clients:
-    if not client.isFullscreen:
+    if not client.isFullscreen and not client.isFloating:
       result.add(client)
 

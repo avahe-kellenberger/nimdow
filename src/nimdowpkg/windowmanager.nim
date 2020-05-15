@@ -3,7 +3,7 @@ import
   options,
   tables,
   strutils,
-  x11 / [x, xlib, xatom],
+  x11 / [x, xlib, xutil, xatom],
   client,
   xatoms,
   tag,
@@ -26,7 +26,7 @@ const wmName = "nimdow"
 # TODO: Should load these from settings
 const borderColorFocused = 0x519f50
 const borderColorUnfocused = 0x1c1b19
-const borderWidth = 1
+# const borderWidth = 1
 
 type
   WindowManager* = ref object
@@ -40,15 +40,18 @@ type
     wmAtoms: array[ord(WMLast), TAtom]
     netAtoms: array[ord(NetLast), TAtom]
     xAtoms: array[ord(XLast), TAtom]
+    abnormalWindowTypes: array[9, TAtom]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
-proc isInTagTable(this: WindowManager, window: TWindow): bool
-proc addClientToSelectedTags(this: WindowManager, window: TWindow)
+proc getNetAtom(this: WindowManager, id: NetAtom): TAtom
+#proc isInTagTable(this: WindowManager, window: TWindow): bool
+proc addClientToSelectedTags(this: WindowManager, client: Client)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
+proc findClient(this: WindowManager, window: TWindow): Option[Client]
 proc doLayout(this: WindowManager)
 # Custom WM actions
 proc viewTag(this: WindowManager, tag: Tag)
@@ -64,6 +67,7 @@ proc destroySelectedWindow(this: WindowManager)
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
+proc onPropertyNotify(this: WindowManager, e: TXPropertyEvent)
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
@@ -138,6 +142,17 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
 
   discard XDeleteProperty(result.display, result.rootWindow, result.netAtoms[ord(NetClientList)]);
 
+  result.abnormalWindowTypes[0] = result.getNetAtom(NetWMWindowTypeDialog)
+  result.abnormalWindowTypes[1] = result.getNetAtom(NetWMWindowTypeUtility)
+  result.abnormalWindowTypes[2] = result.getNetAtom(NetWMWindowTypeToolbar)
+  result.abnormalWindowTypes[3] = result.getNetAtom(NetWMWindowTypeSplash)
+  result.abnormalWindowTypes[4] = result.getNetAtom(NetWMWindowTypeMenu)
+  result.abnormalWindowTypes[5] = result.getNetAtom(NetWMWindowTypeDropdownMenu)
+  result.abnormalWindowTypes[6] = result.getNetAtom(NetWMWindowTypePopupMenu)
+  result.abnormalWindowTypes[6] = result.getNetAtom(NetWMWindowTypeTooltip)
+  result.abnormalWindowTypes[7] = result.getNetAtom(NetWMWindowTypeNotification)
+  result.abnormalWindowTypes[8] = result.getNetAtom(NetWMWindowTypeDock)
+
 template selectedClients(this: WindowManager): untyped =
   ## Grabs the currently selected tags.
   ## This is used like an alias; if one uses the following:
@@ -148,19 +163,22 @@ template selectedClients(this: WindowManager): untyped =
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
+  this.eventManager.addListener((e: TXEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
   this.eventManager.addListener((e: TXEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
 
 proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager) =
-  eventManager.addListener(
+  #[eventManager.addListener(
     (proc(e: TXEvent) =
       if not e.xmap.override_redirect:
         addClientToSelectedTags(this, e.xmap.window)
+      else:
+        echo "override_redirect: ", e.xmap.window
     ),
     MapNotify
-  )
+  )]#
   eventManager.addListener(
     proc (e: TXEvent) =
       removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
@@ -168,19 +186,17 @@ proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventMa
 proc focusWindow(this: WindowManager, window: TWindow) =
   discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
 
-proc isInTagTable(this: WindowManager, window: TWindow): bool =
-  for clients in this.tagTable.values():
-    for client in clients:
-      if client.window == window:
-        return true
-  return false
+# proc isInTagTable(this: WindowManager, window: TWindow): bool =
+#   for clients in this.tagTable.values():
+#     for client in clients:
+#       if client.window == window:
+#         return true
+#   return false
 
-proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
-  if this.selectedClients.find(window) < 0:
-    let client = newClient(window)
-    this.selectedClients.add(client)
-    this.doLayout()
-    this.focusWindow(client.window)
+proc addClientToSelectedTags(this: WindowManager, client: Client) =
+  this.selectedClients.add(client)
+  this.doLayout()
+  this.focusWindow(client.window)
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   for (tag, clients) in this.tagTable.mpairs():
@@ -208,6 +224,13 @@ proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
       RevertToPointerRoot,
       CurrentTime
     )
+
+proc findClient(this: WindowManager, window: TWindow): Option[Client] =
+  for tag, clients in this.tagTable.pairs():
+    let clientIndex = clients.find(window)
+    if clientIndex >= 0:
+      return clients[clientIndex].option
+  return none(Client)
 
 proc doLayout(this: WindowManager) =
   ## Revalidates the current layout of the viewed tag(s).
@@ -354,6 +377,9 @@ proc focusNextClient(this: WindowManager) =
 
   var isNext = false
   for client in this.selectedClients:
+    if client.isFloating:
+      continue
+
     if isNext:
       this.focusWindow(client.window)
       return
@@ -450,8 +476,14 @@ proc destroySelectedWindow(this: WindowManager) =
 proc getNetAtom(this: WindowManager, id: NetAtom): TAtom =
   this.netAtoms[ord(id)]
 
+proc getWMAtom(this: WindowManager, id: WMAtom): TAtom =
+  this.wmAtoms[ord(id)]
+
+proc getXAtom(this: WindowManager, id: XAtom): TAtom =
+  this.xAtoms[ord(id)]
+
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
-  echo repr(error.resourceid)
+  echo "Error: "
   var errorMessage: string = newString(1024)
   discard XGetErrorText(
     display,
@@ -461,7 +493,7 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   )
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
-  echo errorMessage
+  echo "\t", errorMessage
 
 proc toggleFullscreen(this: WindowManager, client: var Client) =
   if client.isFullscreen:
@@ -475,7 +507,7 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
-    this.addClientToSelectedTags(client.window)
+    #this.addClientToSelectedTags(client)
 
     # Ensure the window has focus
     this.focusWindow(client.window)
@@ -515,19 +547,63 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
   client.isFullscreen = not client.isFullscreen
   this.doLayout()
 
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
-  if this.isInTagTable(e.window):
-    var changes: TXWindowChanges
-    changes.x = e.x
-    changes.y = e.y
-    changes.width = e.width
-    changes.height = e.height
-    changes.border_width = e.border_width
-    changes.sibling = e.above;
-    changes.stack_mode = e.detail;
-    discard XConfigureWindow(this.display, e.window, cuint(e.value_mask), addr(changes));
-    discard XSync(this.display, false)
+template copyMaskMember(
+  event: TXConfigureRequestEvent,
+  changeMember: untyped,
+  mask: int,
+  maskMember: int,
+  eventMember: untyped
+) =
+  if (event.value_mask and maskMember) != 0:
+    mask = mask or maskMember
+    changeMember = event.eventMember
 
+proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
+  var mask: int
+  var changes: TXWindowChanges
+  copyMaskMember(e, changes.x, mask, 0, x)
+  copyMaskMember(e, changes.y, mask, 1, y)
+  copyMaskMember(e, changes.width, mask, 2, width)
+  copyMaskMember(e, changes.height, mask, 3, height)
+  copyMaskMember(e, changes.border_width, mask, 4, border_width)
+  copyMaskMember(e, changes.sibling, mask, 5, above)
+  copyMaskMember(e, changes.stack_mode, mask, 6, detail)
+
+  discard XConfigureWindow(this.display, e.window, cuint(mask), addr(changes));
+  discard XSync(this.display, false)
+
+  discard XMoveResizeWindow(
+    this.display,
+    e.window,
+    changes.x,
+    changes.y,
+    changes.width,
+    changes.height
+  )
+
+proc onPropertyNotify(this: WindowManager, e: TXPropertyEvent) =
+  if e.state == PropertyDelete:
+    return
+  
+  # TODO:
+  # Getting a WM_STATE event about Gimp's splash window.
+  # It must indicate the window is being destroyed,
+  # and we need to remove it from tags if it is.
+  echo "PropertyNotify: "
+  case e.atom:
+    of XA_WM_TRANSIENT_FOR:
+      echo "transient!"
+    of XA_WM_NORMAL_HINTS:
+      echo "Need to update size hints"
+    of XA_WM_HINTS:
+      echo "Normal hints"
+    else:
+      if e.atom != None:
+        echo XGetAtomName(this.display, e.atom)
+
+  if e.atom == this.getNetAtom(NetWMWindowType):
+      echo "Need to update window type!"
+  
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
   var clientIndex = this.selectedClients.find(e.window)
   if clientIndex < 0:
@@ -540,26 +616,127 @@ proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
         var client = this.selectedClients[clientIndex]
         this.toggleFullscreen(client)
 
+proc getAtomProperty(this: WindowManager, window: TWindow, property: TAtom): TAtom =
+  var
+    actualTypeReturn: TAtom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    propReturn: ptr array[2, cint]
+
+  let getPropResult = XGetWindowProperty(
+    this.display,
+    window,
+    property,
+    0,
+    sizeof(TAtom) div 4,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn.addr)
+  )
+  if getPropResult == Success and propReturn != nil:
+    return TAtom(propReturn[0])
+  if actualTypeReturn == this.getXAtom(XembedInfo) and numItemsReturn == 2:
+    return TAtom(propReturn[1])
+  return None
+
+proc updateWindowType(this: WindowManager, client: var Client) =
+  let
+    state = this.getAtomProperty(client.window, this.getNetAtom(NetWMState))
+    windowType = this.getAtomProperty(client.window, this.getNetAtom(NetWMWindowType))
+
+  echo "\nWindow: ", client.window
+  echo "\tState: ", state
+  echo "\t\t", if windowType == None: "0" else: $XGetAtomName(this.display, windowType)
+  echo "\twindowType: ", windowType
+
+  if state == this.getNetAtom(NetWMFullScreen) and not client.isFullscreen:
+    this.toggleFullscreen(client)
+
+  if not client.isFloating and windowType in this.abnormalWindowTypes:
+    client.isFloating = true
+
+proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+  var
+    transientWindow: TWindow
+    client = newClient(window)
+    windowChanges: TXWindowChanges
+
+  block transient:
+    var temp = this.findClient(window)
+    # 0 is false in C, everything else is true.
+    if not XGetTransientForHint(this.display, window, addr(transientWindow)) == 0 and temp.isSome:
+      client.isFloating = temp.get.isFloating
+
+  windowChanges.border_width = client.borderWidth
+  discard XConfigureWindow(this.display, window, CWBorderWidth, addr(windowChanges))
+  discard XSetWindowBorder(this.display, window, borderColorUnfocused)
+
+  this.updateWindowType(client)
+  
+  discard XSelectInput(this.display,
+                       window,
+                       StructureNotifyMask or
+                       PropertyChangeMask or
+                       # TODO: ResizeRedirectMask not needed?
+                       ResizeRedirectMask or
+                       EnterWindowMask or
+                       FocusChangeMask
+                      )
+  # TODO: Revise
+  if not client.isFloating:
+    client.isFloating = transientWindow != None
+
+  if client.isFloating:
+    discard XRaiseWindow(this.display, client.window)
+
+  discard XChangeProperty(this.display,
+                         this.rootWindow,
+                         this.getNetAtom(NetClientList),
+                         XA_WINDOW,
+                         32,
+                         PropModeAppend,
+                         cast[Pcuchar](client.window.unsafeAddr),
+                         1)
+
+  discard XMoveResizeWindow(this.display,
+                            client.window,
+                            windowAttr.x,
+                            windowAttr.y,
+                            windowAttr.width,
+                            windowAttr.height)
+
+  let data: array[2, int] = [ NormalState, None ]
+  discard XChangeProperty(this.display,
+                          client.window,
+                          this.getWMAtom(WMState),
+                          this.getWMAtom(WMState),
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](data.unsafeAddr),
+                          data.len)
+
+  this.selectedClients.add(client)
+  discard XMapWindow(this.display, client.window)
+  this.doLayout()
+
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
+  echo "before..."
   var windowAttr: TXWindowAttributes
+  # TODO: Error thrown here for gimp splash screen (BadValue)
   if XGetWindowAttributes(this.display, e.window, addr(windowAttr)) == 0:
+    echo "No attributes"
     return
+  echo "...after"
   if windowAttr.override_redirect:
+    echo "override_redirect"
     return
 
-  if not this.isInTagTable(e.window):
-    discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
-    discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
-    discard XSelectInput(
-      this.display,
-      e.window,
-      StructureNotifyMask or
-      PropertyChangeMask or
-      ResizeRedirectMask or
-      EnterWindowMask or
-      FocusChangeMask
-    )
-    discard XMapWindow(this.display, e.window)
+  this.manage(e.window, windowAttr)
 
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:

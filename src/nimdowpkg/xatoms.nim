@@ -9,8 +9,11 @@ type
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-    NetWMName, NetWMState, NetWMCheck, NetWMFullScreen,
-    NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetLast
+    NetWMName, NetWMState, NetWMCheck, NetWMFullScreen, NetClientList,
+    NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
+    NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
+    NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
+    NetWMWindowTypeNotification, NetWMWindowTypeDock, NetLast
   XAtom* = enum
     Manager, Xembed, XembedInfo, XLast
 
@@ -34,9 +37,19 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
     XInternAtom(display, "_NET_WM_STATE", false),
     XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", false),
     XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", false),
+    XInternAtom(display, "_NET_CLIENT_LIST", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", false),
-    XInternAtom(display, "_NET_CLIENT_LIST", false)
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLBAR", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_SPLASH", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLTIP", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_NOTIFICATION", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", false)
   ]
 
 proc getXAtoms*(display: PDisplay): array[ord(XLast), TAtom] =

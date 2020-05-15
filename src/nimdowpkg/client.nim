@@ -5,10 +5,17 @@ import
 type
   Client* = ref object
     window*: TWindow
+    borderWidth*: int
     isFullscreen*: bool
+    isFloating*: bool
 
 proc newClient*(window: TWindow): Client =
-  Client(window: window, isFullscreen: false)
+  Client(
+    window: window,
+    borderWidth: 0,
+    isFullscreen: false,
+    isFloating: false
+  )
 
 func find*(clients: seq[Client], window: TWindow): int =
   for i, client in clients:
