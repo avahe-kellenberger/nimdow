@@ -9,7 +9,7 @@ type
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-    NetWMName, NetWMState, NetWMCheck, NetWMFullScreen, NetClientList,
+    NetWMName, NetWMState, NetWMCheck, NetWMStateFullScreen, NetClientList,
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
     NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
     NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,

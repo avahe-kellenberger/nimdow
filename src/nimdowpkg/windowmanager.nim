@@ -40,7 +40,6 @@ type
     wmAtoms: array[ord(WMLast), TAtom]
     netAtoms: array[ord(NetLast), TAtom]
     xAtoms: array[ord(XLast), TAtom]
-    abnormalWindowTypes: array[9, TAtom]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -141,17 +140,6 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
 
   discard XDeleteProperty(result.display, result.rootWindow, result.netAtoms[ord(NetClientList)]);
 
-  result.abnormalWindowTypes[0] = result.getNetAtom(NetWMWindowTypeDialog)
-  result.abnormalWindowTypes[1] = result.getNetAtom(NetWMWindowTypeUtility)
-  result.abnormalWindowTypes[2] = result.getNetAtom(NetWMWindowTypeToolbar)
-  result.abnormalWindowTypes[3] = result.getNetAtom(NetWMWindowTypeSplash)
-  result.abnormalWindowTypes[4] = result.getNetAtom(NetWMWindowTypeMenu)
-  result.abnormalWindowTypes[5] = result.getNetAtom(NetWMWindowTypeDropdownMenu)
-  result.abnormalWindowTypes[6] = result.getNetAtom(NetWMWindowTypePopupMenu)
-  result.abnormalWindowTypes[6] = result.getNetAtom(NetWMWindowTypeTooltip)
-  result.abnormalWindowTypes[7] = result.getNetAtom(NetWMWindowTypeNotification)
-  result.abnormalWindowTypes[8] = result.getNetAtom(NetWMWindowTypeDock)
-
 template currTagClients(this: WindowManager): untyped =
   ## Grabs the windows on the current tag.
   ## This is used like an alias, e.g.:
@@ -240,8 +228,8 @@ proc configureRootWindow(this: WindowManager): TWindow =
   let supported = XInternAtom(this.display, "_NET_SUPPORTED", false)
   let dataType = XInternAtom(this.display, "ATOM", false)
   var atomsNames = [
-    XInternAtom(this.display, "_NET_WM_STATE", false),
-    XInternAtom(this.display, "_NET_WM_STATE_FULLSCREEN", false)
+    this.getNetAtom(NetWMState),
+    this.getNetAtom(NetWMStateFullscreen)
   ]
   discard XChangeProperty(
     this.display,
@@ -488,7 +476,7 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
       XDisplayWidth(this.display, 0),
       XDisplayHeight(this.display, 0),
     )
-    var arr = [this.getNetAtom(NetWMFullScreen)]   
+    var arr = [this.getNetAtom(NetWMStateFullScreen)]   
     discard XChangeProperty(
       this.display,
       client.window,
@@ -567,7 +555,7 @@ proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
     return
 
   if e.message_type == this.getNetAtom(NetWMState):
-    let fullscreenAtom = this.getNetAtom(NetWMFullScreen)
+    let fullscreenAtom = this.getNetAtom(NetWMStateFullScreen)
     if e.data.l[1] == fullscreenAtom or
       e.data.l[2] == fullscreenAtom:
         var client = this.currTagClients[clientIndex]
@@ -611,7 +599,7 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   echo "\t\t", if windowType == None: "0" else: $XGetAtomName(this.display, windowType)
   echo "\twindowType: ", windowType
 
-  if state == this.getNetAtom(NetWMFullScreen) and not client.isFullscreen:
+  if state == this.getNetAtom(NetWMStateFullScreen) and not client.isFullscreen:
     this.toggleFullscreen(client)
 
   if client.isNormal and
