@@ -13,4 +13,7 @@ sleep 1s
 export DISPLAY=:1
 sxhkd &
 xrdb $HOME/.Xresources &
-./nimdow
+./nimdow &
+
+polybar -c ~/.config/polybar/i3-config i3 &
+nm-applet &

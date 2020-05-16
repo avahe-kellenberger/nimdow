@@ -41,7 +41,7 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
 
 proc newMasterStackLayout*(
   gapSize: int, 
-  borderSize: int, 
+  borderWidth: int, 
   masterSlots: int
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
@@ -49,7 +49,7 @@ proc newMasterStackLayout*(
   MasterStackLayout(
     name: layoutName,
     gapSize: gapSize,
-    borderSize: borderSize,
+    borderWidth: borderWidth,
     masterSlots: masterSlots
   )
 
@@ -119,7 +119,7 @@ proc layoutMultipleClients(
     clientHeight: int
 
   for (i, client) in clients.pairs():
-    discard XSetWindowBorderWidth(display, client.window, this.borderSize)
+    discard XSetWindowBorderWidth(display, client.window, this.borderWidth)
     if i < masterClientCount:
       # Master layout
       xPos = this.gapSize
@@ -152,13 +152,13 @@ proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: int, screen
   if clientsInColumn <= 0: 0 else:
     math.round(
       (screenHeight -
-       (clientsInColumn * (this.gapSize + this.borderSize * 2) + this.gapSize)) / clientsInColumn
+       (clientsInColumn * (this.gapSize + this.borderWidth * 2) + this.gapSize)) / clientsInColumn
     ).int
 
 proc calcRoundingErr(this: MasterStackLayout, clientCount, clientHeight, screenHeight: int): int =
   ## Calculates the overall rounding error created from diving an imperfect number of pixels.
   ## E.g. A screen with a height of 1080px cannot be evenly divided by 7 clients.
-  return (screenHeight - (this.gapSize + (clientHeight + this.gapSize + this.borderSize * 2) * clientCount))
+  return (screenHeight - (this.gapSize + (clientHeight + this.gapSize + this.borderWidth * 2) * clientCount))
 
 proc calcYPosition(
   this: MasterStackLayout,
@@ -168,13 +168,13 @@ proc calcYPosition(
   roundingError: int
 ): int =
   ## Calculates the y position of a client within a client stack.
-  result = stackIndex * (this.gapSize + clientHeight + this.borderSize * 2) + this.gapSize
+  result = stackIndex * (this.gapSize + clientHeight + this.borderWidth * 2) + this.gapSize
   if stackIndex == clientCount - 1:
      result += roundingError
 
 proc calcClientWidth(this: MasterStackLayout, screenWidth: int): int =
   int(math.round(screenWidth / 2)) -
-    (this.borderSize * 2) -
+    (this.borderWidth * 2) -
     int(math.round(float(this.gapSize) * 1.5))
 
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
