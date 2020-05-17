@@ -9,6 +9,8 @@ type
     isFullscreen*: bool
     isFloating*: bool
 
+proc hash*(this: Client): Hash
+
 proc newClient*(window: TWindow): Client =
   Client(
     window: window,
@@ -30,7 +32,7 @@ func find*(clients: seq[Client], window: TWindow): int =
       return i
   return -1
 
-proc findNextNormal*(clients: openArray[Client], i: int): int =
+proc findNextNormal*(clients: openArray[Client], i: int = 0): int =
   ## Finds the next normal client index from index `i`, iterating forward.
   ## This search will loop the array.
   for j in countup(i + 1, clients.high):

@@ -33,5 +33,8 @@ proc clearSelectedClient*(this: Tag, client: Client) =
   if this.previouslySelectedClient.isSome() and this.previouslySelectedClient.get() == client:
     this.previouslySelectedClient = none(Client)
 
+  if this.selectedClient.isNone and this.previouslySelectedClient.isSome:
+    this.setSelectedClient(this.previouslySelectedClient.get)
+
 proc hash*(this: Tag): Hash = !$Hash(this.id) 
 
