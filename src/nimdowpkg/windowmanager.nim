@@ -344,11 +344,13 @@ proc viewTag(this: WindowManager, tag: Tag) =
   for client in (setCurrent - setNext).items:
     discard XUnmapWindow(this.display, client.window)
 
+  this.selectedTag = tag
+  this.doLayout()
+
   for client in (setNext - setCurrent).items:
     discard XMapWindow(this.display, client.window)
 
-  this.selectedTag = tag
-  this.doLayout()
+  discard XSync(this.display, false)
 
   # Select the "selected" client for the newly viewed tag
   if this.selectedTag.selectedClient.isSome:
