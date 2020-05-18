@@ -3,13 +3,19 @@ import
   hashes
 
 type
-  Client* = ref object
+  BaseClient* = ref object of RootObj
     window*: TWindow
+  Client* = ref object of BaseClient
     borderWidth*: int
     isFullscreen*: bool
     isFloating*: bool
+  Dock* = ref object of BaseClient
+    x*: int
+    y*: int
+    width*: uint
+    height*: uint
 
-proc hash*(this: Client): Hash
+proc hash*(this: BaseClient): Hash
 
 proc newClient*(window: TWindow): Client =
   Client(
@@ -54,5 +60,4 @@ proc findPreviousNormal*(clients: openArray[Client], i: int): int =
       return j
   return -1
 
-proc hash*(this: Client): Hash = !$Hash(this.window) 
-
+proc hash*(this: BaseClient): Hash = !$Hash(this.window) 

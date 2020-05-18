@@ -9,7 +9,8 @@ type
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-    NetWMName, NetWMState, NetWMCheck, NetWMStateFullScreen, NetClientList,
+    NetWMName, NetWMState, NetSupportingWMCheck, NetWMStateFullScreen, NetClientList,
+    NetWMStrutPartial, 
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
     NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
     NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
@@ -38,6 +39,7 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
     XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", false),
     XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", false),
     XInternAtom(display, "_NET_CLIENT_LIST", false),
+    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", false),
