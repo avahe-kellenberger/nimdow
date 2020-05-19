@@ -1,4 +1,4 @@
-;==========================================================
+;8==========================================================
 ;
 ;
 ;   ██████╗  ██████╗ ██╗  ██╗   ██╗██████╗  █████╗ ██████╗
@@ -56,26 +56,26 @@ label-urgent-background = ${colors.background}
 [bar/nimdow]
 monitor = ${env:MONITOR:} 
 width = 100%
-height = 28
+height = 20
 radius = 0
 fixed-center = true
 
 background = ${colors.background}
 foreground = ${colors.foreground}
 
-line-size = 2
+line-size = 1
 line-color = #f00000
 
 border-size = 0
 border-color = #00000000
 
 padding-left = 0
-padding-right = 0
+padding-right = 2
 
 module-margin-left = 0
-module-margin-right = 4
+module-margin-right = 3
 
-font-0 = monospace:size=9:anialias=false;
+font-0 = monospace:size=8:anialias=false;
 font-1 = JoyPixels:size=1:anialias=false;
 
 modules-left = ewmh
@@ -115,7 +115,7 @@ format-prefix-underline = ${colors.secondary}
 label-layout = %layout%
 label-layout-underline = ${colors.secondary}
 
-label-indicator-padding = 2
+label-indicator-padding = 1
 label-indicator-margin = 1
 label-indicator-background = ${colors.secondary}
 label-indicator-underline = ${colors.secondary}

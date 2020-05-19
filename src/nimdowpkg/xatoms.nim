@@ -5,7 +5,7 @@ converter boolToTBool(x: bool): TBool = TBool(x)
 
 type
   WMAtom* = enum
-    WMProtocols, WMDalete, WMState, WMTakeFocus, WMLast
+    WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,

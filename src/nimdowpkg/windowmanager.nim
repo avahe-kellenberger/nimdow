@@ -46,7 +46,7 @@ type
     xAtoms: array[ord(XLast), TAtom]
 
 proc initListeners(this: WindowManager)
-proc updateCurrentDesktop(this: WindowManager)
+proc updateCurrentDesktopProperty(this: WindowManager)
 proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
@@ -70,7 +70,6 @@ proc destroySelectedWindow(this: WindowManager)
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
-proc onPropertyNotify(this: WindowManager, e: TXPropertyEvent)
 proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T]
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
@@ -204,7 +203,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
                             cast[Pcuchar](data.unsafeAddr),
                             2)
 
-  result.updateCurrentDesktop()
+  result.updateCurrentDesktopProperty()
 
 
 template currTagClients(this: WindowManager): untyped =
@@ -217,7 +216,6 @@ template currTagClients(this: WindowManager): untyped =
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
-  this.eventManager.addListener((e: TXEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
   this.eventManager.addListener((e: TXEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
@@ -228,7 +226,7 @@ proc initListeners(this: WindowManager) =
       DestroyNotify
   )
 
-proc updateCurrentDesktop(this: WindowManager) =
+proc updateCurrentDesktopProperty(this: WindowManager) =
   var data: array[1, clong] = [this.selectedTag.id]
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -273,6 +271,39 @@ proc ensureWindowFocus(this: WindowManager) =
           CurrentTime
         )
 
+proc addWindowToClientList(this: WindowManager, window: TWindow) =
+  ## Adds the window to _NET_CLIENT_LIST
+  discard XChangeProperty(this.display,
+                          this.rootWindow,
+                          this.getAtom(NetClientList),
+                          XA_WINDOW,
+                          32,
+                          PropModeAppend,
+                          cast[Pcuchar](window.unsafeAddr),
+                          1)
+
+proc updateClientList(this: WindowManager) =
+  discard XDeleteProperty(this.display, this.rootWindow, this.getAtom(NetClientList))
+  for clients in this.taggedClients.values:
+    for client in clients:
+      this.addWindowToClientList(client.window)
+  for window in this.docks.keys:
+    this.addWindowToClientList(window)
+
+proc setActiveWindowProperty(this: WindowManager, window: TWindow) =
+  discard XChangeProperty(
+      this.display,
+      this.rootWindow,
+      this.getAtom(NetActiveWindow),
+      XA_WINDOW,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](window.unsafeAddr),
+      1)
+
+proc deleteActiveWindowProperty(this: WindowManager) =
+  discard XDeleteProperty(this.display, this.rootWindow, this.getAtom(NetActiveWindow))
+
 proc removeWindow(this: WindowManager, window: TWindow) =
   var dock: Dock
   if this.docks.pop(window, dock):
@@ -280,13 +311,16 @@ proc removeWindow(this: WindowManager, window: TWindow) =
     this.doLayout()
   else:
     this.removeWindowFromTagTable(window)
-    
+    this.deleteActiveWindowProperty()
+  
+  this.updateClientList()
+
 proc removeWindowFromTag(this: WindowManager, tag: Tag, clientIndex: int) =
   let client = this.taggedClients[tag][clientIndex]
   this.taggedClients[tag].delete(clientIndex)
   tag.clearSelectedClient(client)
   # If the previouslySelectedClient is destroyed, select the first window (or none).
-  if tag.previouslySelectedClient.isSome and client == tag.previouslySelectedClient.get:
+  if tag.isPreviouslySelectedClient(client):
     if this.taggedClients[tag].len == 0:
       tag.previouslySelectedClient = none(Client)
     else:
@@ -348,7 +382,7 @@ proc configureConfigActions*(this: WindowManager) =
     proc(keycode: int) = 
       if this.selectedTag.selectedClient.isSome:
         this.moveClientToTag(
-          this.selectedTag.selectedClient.get(),
+          this.selectedTag.selectedClient.get,
           this.keycodeToTag(keycode)
         )
   )
@@ -382,7 +416,7 @@ proc viewTag(this: WindowManager, tag: Tag) =
   if tag == this.selectedTag:
     return
 
-  # TODO: Worth using sets here?
+  # TODO: See issue #31
   # Wish we could use OrderedSets,
   # but we cannot easily get by index
   # or even use a `next` proc.
@@ -399,14 +433,19 @@ proc viewTag(this: WindowManager, tag: Tag) =
 
   for client in (setNext - setCurrent).items:
     discard XMapWindow(this.display, client.window)
+    # Ensure correct border color is set for each window
+    let color = if this.selectedTag.isSelectedClient(client): borderColorFocused else: borderColorUnfocused
+    discard XSetWindowBorder(this.display, client.window, color)
 
   discard XSync(this.display, false)
 
   # Select the "selected" client for the newly viewed tag
   if this.selectedTag.selectedClient.isSome:
-    this.focusWindow(this.selectedTag.selectedClient.get().window)
+    this.focusWindow(this.selectedTag.selectedClient.get.window)
+  else:
+    this.deleteActiveWindowProperty()
 
-  this.updateCurrentDesktop()
+  this.updateCurrentDesktopProperty()
 
 proc keycodeToTag(this: WindowManager, keycode: int): Tag =
   try:
@@ -472,8 +511,7 @@ proc moveClientNext(this: WindowManager) =
   this.moveClient(client.findNextNormal)
 
 proc updateWindowTagAtom(this: WindowManager, window: TWindow, destinationTag: Tag) =
-  # TODO: Seems to not be working with polybar for some reason - need to investigate further.
-  let data: array[1, clong] = [destinationTag.id.clong]
+  let data: clong = destinationTag.id.clong
   discard XChangeProperty(this.display,
                           window,
                           this.getAtom(NetWMDesktop),
@@ -484,7 +522,8 @@ proc updateWindowTagAtom(this: WindowManager, window: TWindow, destinationTag: T
                           1)
 
 proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag) =
-  for tag, clients in this.taggedClients.mpairs():
+  for tag, clients in this.taggedClients.mpairs:
+    # This assumes the client is being moved from the current tag to another tag. 
     if tag == destinationTag:
       if not clients.contains(client):
         clients.add(client)
@@ -501,6 +540,9 @@ proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag) =
         this.doLayout()
         this.ensureWindowFocus()
 
+  if this.currTagClients.len == 0:
+    this.deleteActiveWindowProperty()
+
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
   var selectionState: cint
@@ -510,7 +552,7 @@ proc destroySelectedWindow(this: WindowManager) =
   event.xclient.window = selectedWin
   event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", true)
   event.xclient.format = 32
-  event.xclient.data.l[0] = XInternAtom(this.display, "WM_DELETE_WINDOW", false).cint
+  event.xclient.data.l[0] = this.getAtom(WMDelete).cint
   event.xclient.data.l[1] = CurrentTime
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
   discard XDestroyWindow(this.display, selectedWin)
@@ -613,29 +655,6 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     changes.height
   )
 
-proc onPropertyNotify(this: WindowManager, e: TXPropertyEvent) =
-  if e.atom == this.getAtom(NetWMStrutPartial):
-    discard
-    # "Property: NetWMStrutPartial - Need to allocate space for a dock"
-
-  if e.state == PropertyDelete:
-    discard
-
-  case e.atom:
-    of XA_WM_TRANSIENT_FOR:
-      discard
-    of XA_WM_NORMAL_HINTS:
-      discard
-    of XA_WM_HINTS:
-      discard
-    else:
-      if e.atom != None:
-        discard
-
-  if e.atom == this.getAtom(NetWMWindowType):
-    # TODO: Update window type
-    discard
-  
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
   if e.message_type == this.getAtom(NetWMStrutPartial):
     discard
@@ -705,6 +724,7 @@ proc updateWindowType(this: WindowManager, window: TWindow, windowAttr: TXWindow
     # Client Section
     var client = newClient(window)
     this.currTagClients.add(client)
+    this.updateWindowTagAtom(client.window, this.selectedTag)
 
     if state == this.getAtom(NetWMStateFullScreen):
       this.toggleFullscreen(client)
@@ -734,14 +754,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   discard XRaiseWindow(this.display, window)
 
-  discard XChangeProperty(this.display,
-                          this.rootWindow,
-                          this.getAtom(NetClientList),
-                          XA_WINDOW,
-                          32,
-                          PropModeAppend,
-                          cast[Pcuchar](window.unsafeAddr),
-                          1)
+  this.addWindowToClientList(window)
 
   discard XMoveResizeWindow(this.display,
                             window,
@@ -790,16 +803,7 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   if clientIndex < 0:
     return
   
-  discard XChangeProperty(
-      this.display,
-      this.rootWindow,
-      this.getAtom(NetActiveWindow),
-      XA_WINDOW,
-      32,
-      PropModeReplace,
-      cast[Pcuchar](e.window.unsafeAddr),
-      1
-    )
+  this.setActiveWindowProperty(e.window)
 
   let client = this.currTagClients[clientIndex]
   this.selectedTag.setSelectedClient(client)
@@ -809,7 +813,7 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
     borderColorFocused
   )
   if this.selectedTag.previouslySelectedClient.isSome:
-    let previous = this.selectedTag.previouslySelectedClient.get()
+    let previous = this.selectedTag.previouslySelectedClient.get
     if previous.window != client.window:
       discard XSetWindowBorder(
         this.display,
