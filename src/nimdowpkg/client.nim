@@ -30,8 +30,8 @@ proc isNormal*(this: Client): bool =
   ## This currently means the client is not floating.
   not this.isFloating
 
-func find*(clients: seq[Client], window: TWindow): int =
-  ## Finds a client's index by its relative window.
+func find*[T](clients: openArray[T], window: TWindow): int =
+  ## Finds a BaseClient's index by its relative window.
   ## If a client is not found, -1 is returned.
   for i, client in clients:
     if client.window == window:

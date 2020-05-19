@@ -14,7 +14,9 @@ type
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
     NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
     NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
-    NetWMWindowTypeNotification, NetWMWindowTypeDock, NetLast
+    NetWMWindowTypeNotification, NetWMWindowTypeDock,
+    NetWMDesktop, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetDesktopNames,
+    NetLast
   XAtom* = enum
     Manager, Xembed, XembedInfo, XLast
 
@@ -51,7 +53,12 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLTIP", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_NOTIFICATION", false),
-    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", false)
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", false),
+    XInternAtom(display, "_NET_WM_DESKTOP", false),
+    XInternAtom(display, "_NET_DESKTOP_VIEWPORT", false),
+    XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", false),
+    XInternAtom(display, "_NET_CURRENT_DESKTOP", false),
+    XInternAtom(display, "_NET_DESKTOP_NAMES", false)
   ]
 
 proc getXAtoms*(display: PDisplay): array[ord(XLast), TAtom] =

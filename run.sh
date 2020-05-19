@@ -15,5 +15,6 @@ sxhkd &
 xrdb $HOME/.Xresources &
 ./bin/nimdow &
 
-polybar -c ~/.config/polybar/i3-config i3 &
+polybar -c ./polybar/nimdow nimdow &
 nm-applet &
+
