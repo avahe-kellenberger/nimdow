@@ -6,6 +6,10 @@ A window manager written in [Nim](https://nim-lang.org/)
 
 I am using this project to learn Nim, x11, and to replace my build of **dwm** (written in C).
 
+## Screenshots
+
+![](https://user-images.githubusercontent.com/34498340/82363615-0ee58880-99dc-11ea-8290-fec33849095c.png)
+
 ## Building
 
 `nimble build` for a quick development build
