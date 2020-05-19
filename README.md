@@ -10,6 +10,16 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 ![](https://user-images.githubusercontent.com/34498340/82363615-0ee58880-99dc-11ea-8290-fec33849095c.png)
 
+## Polybar config
+
+If you would like to use Polybar with Nimdow, there is a config file [here](https://github.com/avahe-kellenberger/nimdow/tree/master/polybar).
+
+To start polybar:
+
+```sh
+$ polybar -c path/to/config nimdow
+```
+
 ## Building
 
 `nimble build` for a quick development build
