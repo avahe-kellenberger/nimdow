@@ -10,6 +10,21 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 ![](https://user-images.githubusercontent.com/34498340/82363615-0ee58880-99dc-11ea-8290-fec33849095c.png)
 
+## Installation
+
+### Building from source
+
+1. Ensure you have `nim` and `nimble` installed. My preferred method is to use `choosenim` to install these.
+2. Install the dependencies listed in `nimdow.nimble` (e.g. `nimble install x11`)
+3. Clone this repo
+4. Execute `nimble release` from the package directory to create a release build
+
+The built binary will be in `./bin/nimdow`
+
+### AUR
+
+If you are on an Arch Linux based system, use `nimdow-bin` in the AUR to install a pre-built binary.
+
 ## Polybar config
 
 If you would like to use Polybar with Nimdow, there is a config file [here](https://github.com/avahe-kellenberger/nimdow/tree/master/polybar).
@@ -20,21 +35,9 @@ To start polybar:
 $ polybar -c path/to/config nimdow
 ```
 
-## Building
+## Roadmap
 
-`nimble build` for a quick development build
-
-`nimble release` to create a release build
-
-## Running locally
-
-0. Create a copy or symlink of the config file in `$XDG_CONFIG_HOME/nimdow/config.toml`
-1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
-2. Execute nimdow on the new display: `DISPLAY=:1 ./nimdow`
-
-# Roadmap
-
-## Version 0.5
+### Version 0.5
 
 - [x] Multiple tags (single tag viewed at one time)
 - [x] Fullscreen windows
@@ -55,7 +58,7 @@ $ polybar -c path/to/config nimdow
   - [x] Move windows between tags
   - [ ] Add/remove window per tag
 
-## Version 1.0
+### Version 1.0
 
 - TBA (partial list, still in discussion)
 - [ ] Floating window support
@@ -65,4 +68,11 @@ $ polybar -c path/to/config nimdow
   - [ ] Move window between screens
   - [ ] Swap tags between screens
   - [ ] Reload Nimdow (to apply configuration changes)
+
+## Testing locally (for development)
+
+0. Create a copy or symlink of the config file in `$XDG_CONFIG_HOME/nimdow/config.toml`
+1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
+2. Execute nimdow on the new display: `DISPLAY=:1 ./nimdow`
+
 
