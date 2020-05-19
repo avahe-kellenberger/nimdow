@@ -2,8 +2,9 @@ import
   sugar,
   options,
   tables,
+  sets,
   strutils,
-  x11 / [x, xlib, xatom],
+  x11 / [x, xlib, xutil, xatom],
   client,
   xatoms,
   tag,
@@ -22,6 +23,7 @@ converter toTBool(x: bool): TBool = x.TBool
 converter toBool(x: TBool): bool = x.bool
 
 const wmName = "nimdow"
+const tagCount = 9
 
 # TODO: Should load these from settings
 const borderColorFocused = 0x519f50
@@ -34,22 +36,26 @@ type
     rootWindow*: TWindow
     eventManager: XEventManager
     # Tags
-    tagTable: OrderedTable[Tag, seq[Client]]
+    taggedClients: OrderedTable[Tag, seq[Client]]
     selectedTag: Tag
+    docks: Table[TWindow, Dock]
+    layoutOffset: LayoutOffset
     # Atoms
     wmAtoms: array[ord(WMLast), TAtom]
     netAtoms: array[ord(NetLast), TAtom]
     xAtoms: array[ord(XLast), TAtom]
 
 proc initListeners(this: WindowManager)
+proc updateCurrentDesktopProperty(this: WindowManager)
 proc openDisplay(): PDisplay
 proc configureConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): TWindow
-proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager)
-proc isInTagTable(this: WindowManager, window: TWindow): bool
-proc addClientToSelectedTags(this: WindowManager, window: TWindow)
+proc getAtom(this: WindowManager, id: NetAtom): TAtom
+proc getAtom(this: WindowManager, id: WMAtom): TAtom
+proc removeWindow(this: WindowManager, window: TWindow)
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow)
 proc doLayout(this: WindowManager)
+proc updateLayoutOffset(this: WindowManager)
 # Custom WM actions
 proc viewTag(this: WindowManager, tag: Tag)
 proc keycodeToTag(this: WindowManager, keycode: int): Tag
@@ -64,6 +70,7 @@ proc destroySelectedWindow(this: WindowManager)
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
+proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T]
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
@@ -74,76 +81,137 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
+  result.docks = initTable[TWindow, Dock]()
   result.wmAtoms = xatoms.getWMAtoms(result.display)
   result.netAtoms = xatoms.getNetAtoms(result.display)
   result.xAtoms = xatoms.getXAtoms(result.display)
   result.initListeners()
 
   block tags:
-    result.tagTable = OrderedTable[Tag, seq[Client]]()
-    for i in 1..9:
+    result.taggedClients = OrderedTable[Tag, seq[Client]]()
+    for i in 0..<tagCount:
       let tag: Tag = newTag(
         id = i,
         layout = newMasterStackLayout(
           gapSize = 48,
-          borderSize = 2,
+          borderWidth = borderWidth,
           masterSlots = 1
         )
       )
-      result.tagTable[tag] = @[]
+      result.taggedClients[tag] = @[]
     # View first tag by default
-    for tag in result.tagTable.keys():
+    for tag in result.taggedClients.keys():
       result.selectedTag = tag
       break
-    result.configureWindowMappingListeners(eventManager)
 
-  let utf8string = XInternAtom(result.display, "UTF8_STRING", false)
   # Supporting window for NetWMCheck
-  let wmcheckwin = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
+  let ewmhWindow = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
+
   discard XChangeProperty(result.display,
-                          wmcheckwin,
-                          result.netAtoms[ord(NetWMCheck)],
+                          result.rootWindow, 
+                          result.getAtom(NetSupportingWMCheck),
                           XA_WINDOW,
                           32,
                           PropModeReplace,
-                          cast[Pcuchar](wmcheckwin.unsafeAddr),
+                          cast[Pcuchar](ewmhWindow.unsafeAddr),
+                          1)  
+
+  discard XChangeProperty(result.display,
+                          ewmhWindow,
+                          result.getAtom(NetSupportingWMCheck),
+                          XA_WINDOW,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](ewmhWindow.unsafeAddr),
                           1)
 
   discard XChangeProperty(result.display,
-                          wmcheckwin,
-                          result.netAtoms[ord(NetWMName)],
-                          utf8string,
+                          ewmhWindow, 
+                          result.getAtom(NetWMName),
+                          XInternAtom(result.display, "UTF8_STRING", false),
                           8,
                           PropModeReplace,
                           cast[Pcuchar](wmName),
-                          len(wmName))
+                          wmName.len)
 
   discard XChangeProperty(result.display,
-                          result.rootWindow,
-                          result.netAtoms[ord(NetWMCheck)],
-                          XA_WINDOW,
-                          32,
+                          result.rootWindow, 
+                          result.getAtom(NetWMName),
+                          XInternAtom(result.display, "UTF8_STRING", false),
+                          8,
                           PropModeReplace,
-                          cast[Pcuchar](wmcheckwin.unsafeAddr),
-                          1)
-  # EWMH support per view
+                          cast[Pcuchar](wmName),
+                          wmName.len)
+
   discard XChangeProperty(result.display,
-                          result.rootWindow,
-                          result.netAtoms[ord(NetSupported)],
+                          result.rootWindow, 
+                          result.getAtom(NetSupported),
                           XA_ATOM,
                           32,
                           PropModeReplace,
                           cast[Pcuchar](result.netAtoms.unsafeAddr),
                           ord(NetLast))
 
-  discard XDeleteProperty(result.display, result.rootWindow, result.netAtoms[ord(NetClientList)]);
 
-template selectedClients(this: WindowManager): untyped =
-  ## Grabs the currently selected tags.
-  ## This is used like an alias; if one uses the following:
-  ## `let clients = this.tagTable[this.selectedTags]`
+  # We need to map this window to be able to set the input focus to it if no other window is available to be focused.
+  discard XMapWindow(result.display, ewmhWindow)
+  var changes: TXWindowChanges
+  changes.stack_mode = Below
+  discard XConfigureWindow(result.display, ewmhWindow, CWStackMode, addr(changes))
+
+  block setNumberOfDesktops:
+    let data: array[1, clong] = [9]
+    discard XChangeProperty(result.display,
+                            result.rootWindow,
+                            result.getAtom(NetNumberOfDesktops),
+                            XA_CARDINAL,
+                            32,
+                            PropModeReplace,
+                            cast[Pcuchar](data.unsafeAddr),
+                            1)
+
+  block setDesktopNames:
+    var tags: array[tagCount, cstring] =
+      ["1".cstring,
+       "2".cstring,
+       "3".cstring,
+       "4".cstring,
+       "5".cstring,
+       "6".cstring,
+       "7".cstring,
+       "8".cstring,
+       "9".cstring]
+    var text: TXTextProperty
+    discard Xutf8TextListToTextProperty(result.display,
+                                        cast[PPChar](tags[0].addr),
+                                        tagCount,
+                                        XUTF8StringStyle,
+                                        text.unsafeAddr)
+    XSetTextProperty(result.display,
+                     result.rootWindow,
+                     text.unsafeAddr,
+                     result.getAtom(NetDesktopNames))
+
+  block setDesktopViewport:
+    let data: array[2, clong] = [0, 0]
+    discard XChangeProperty(result.display,
+                            result.rootWindow,
+                            result.getAtom(NetDesktopViewport),
+                            XA_CARDINAL,
+                            32,
+                            PropModeReplace,
+                            cast[Pcuchar](data.unsafeAddr),
+                            2)
+
+  result.updateCurrentDesktopProperty()
+
+
+template currTagClients(this: WindowManager): untyped =
+  ## Grabs the windows on the current tag.
+  ## This is used like an alias, e.g.:
+  ## `let clients = this.taggedClients[this.selectedTags]`
   ## `clients` would be a copy of the collection.
-  this.tagTable[this.selectedTag]
+  this.taggedClients[this.selectedTag]
 
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
@@ -152,68 +220,132 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
-
-proc configureWindowMappingListeners(this: WindowManager, eventManager: XEventManager) =
-  eventManager.addListener(
-    (proc(e: TXEvent) =
-      if not e.xmap.override_redirect:
-        addClientToSelectedTags(this, e.xmap.window)
-    ),
-    MapNotify
+  this.eventManager.addListener(
+    (e: TXEvent) =>
+      removeWindow(this, e.xdestroywindow.window),
+      DestroyNotify
   )
-  eventManager.addListener(
-    proc (e: TXEvent) =
-      removeWindowFromTagTable(this, e.xdestroywindow.window), DestroyNotify)
+
+proc updateCurrentDesktopProperty(this: WindowManager) =
+  var data: array[1, clong] = [this.selectedTag.id]
+  discard XChangeProperty(this.display,
+                          this.rootWindow,
+                          this.getAtom(NetCurrentDesktop),
+                          XA_CARDINAL,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](data[0].addr),
+                          1)
 
 proc focusWindow(this: WindowManager, window: TWindow) =
-  discard XSetInputFocus(this.display, window, RevertToPointerRoot, CurrentTime)
+  discard XSetInputFocus(
+    this.display,
+    window,
+    RevertToPointerRoot,
+    CurrentTime
+  )
 
-proc isInTagTable(this: WindowManager, window: TWindow): bool =
-  for clients in this.tagTable.values():
-    for client in clients:
-      if client.window == window:
-        return true
-  return false
-
-proc addClientToSelectedTags(this: WindowManager, window: TWindow) =
-  if this.selectedClients.find(window) < 0:
-    let client = newClient(window)
-    this.selectedClients.add(client)
-    this.doLayout()
-    this.focusWindow(client.window)
-
-proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
-  for (tag, clients) in this.tagTable.mpairs():
-    let clientIndex = clients.find(window)
-    if clientIndex >= 0:
-      let client = clients[clientIndex]
-      clients.delete(clientIndex)
-      # If the previouslySelectedClient is destroyed, select the first window (or none).
-      if tag.previouslySelectedClient.isSome and client == tag.previouslySelectedClient.get:
-        tag.previouslySelectedClient = if clients.len == 0: none(Client) else: clients[0].option
-
-      # Set currently selected window as previouslySelectedClient
-      tag.selectedClient = tag.previouslySelectedClient
-
-  this.doLayout()
-
-  # Focus the proper window
-  if this.selectedClients.len > 0 and this.selectedTag.selectedClient.isSome:
-      this.focusWindow(this.selectedTag.selectedClient.get.window)
-  else:
-    # If the last window in a tag was deleted, select the root window.
+proc ensureWindowFocus(this: WindowManager) =
+  ## Ensures a window is selected on the current tag.
+  if this.currTagClients.len == 0:
     discard XSetInputFocus(
       this.display,
       this.rootWindow,
       RevertToPointerRoot,
       CurrentTime
     )
+  else:
+    if this.selectedTag.selectedClient.isSome:
+      this.focusWindow(this.selectedTag.selectedClient.get.window)
+    elif this.selectedTag.previouslySelectedClient.isSome:
+      this.focusWindow(this.selectedTag.selectedClient.get.window)
+    else:
+      let clientIndex = this.currTagClients.findNextNormal()
+      if clientIndex >= 0:
+        this.focusWindow(this.currTagClients[clientIndex].window)
+      else:
+        discard XSetInputFocus(
+          this.display,
+          this.rootWindow,
+          RevertToPointerRoot,
+          CurrentTime
+        )
+
+proc addWindowToClientList(this: WindowManager, window: TWindow) =
+  ## Adds the window to _NET_CLIENT_LIST
+  discard XChangeProperty(this.display,
+                          this.rootWindow,
+                          this.getAtom(NetClientList),
+                          XA_WINDOW,
+                          32,
+                          PropModeAppend,
+                          cast[Pcuchar](window.unsafeAddr),
+                          1)
+
+proc updateClientList(this: WindowManager) =
+  discard XDeleteProperty(this.display, this.rootWindow, this.getAtom(NetClientList))
+  for clients in this.taggedClients.values:
+    for client in clients:
+      this.addWindowToClientList(client.window)
+  for window in this.docks.keys:
+    this.addWindowToClientList(window)
+
+proc setActiveWindowProperty(this: WindowManager, window: TWindow) =
+  discard XChangeProperty(
+      this.display,
+      this.rootWindow,
+      this.getAtom(NetActiveWindow),
+      XA_WINDOW,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](window.unsafeAddr),
+      1)
+
+proc deleteActiveWindowProperty(this: WindowManager) =
+  discard XDeleteProperty(this.display, this.rootWindow, this.getAtom(NetActiveWindow))
+
+proc removeWindow(this: WindowManager, window: TWindow) =
+  var dock: Dock
+  if this.docks.pop(window, dock):
+    this.updateLayoutOffset()
+    this.doLayout()
+  else:
+    this.removeWindowFromTagTable(window)
+    this.deleteActiveWindowProperty()
+  
+  this.updateClientList()
+
+proc removeWindowFromTag(this: WindowManager, tag: Tag, clientIndex: int) =
+  let client = this.taggedClients[tag][clientIndex]
+  this.taggedClients[tag].delete(clientIndex)
+  tag.clearSelectedClient(client)
+  # If the previouslySelectedClient is destroyed, select the first window (or none).
+  if tag.isPreviouslySelectedClient(client):
+    if this.taggedClients[tag].len == 0:
+      tag.previouslySelectedClient = none(Client)
+    else:
+      # Find and assign the next normal client as "previouslySelectedClient"
+      let nextNormalIndex = this.taggedClients[tag].findNextNormal()
+      if nextNormalIndex >= 0:
+        tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
+
+  # Set currently selected window as previouslySelectedClient
+  tag.selectedClient = tag.previouslySelectedClient
+
+proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
+  for tag, clients in this.taggedClients.pairs:
+    let clientIndex: int = clients.find(window)
+    if clientIndex >= 0:
+      this.removeWindowFromTag(tag, clientIndex) 
+  this.doLayout()
+  this.ensureWindowFocus()
 
 proc doLayout(this: WindowManager) =
   ## Revalidates the current layout of the viewed tag(s).
   this.selectedTag.layout.arrange(
     this.display,
-    this.selectedClients
+    this.currTagClients,
+    this.layoutOffset
   )
 
 proc openDisplay(): PDisplay =
@@ -224,27 +356,11 @@ proc openDisplay(): PDisplay =
 
 proc configureRootWindow(this: WindowManager): TWindow =
   result = DefaultRootWindow(this.display)
-  let supported = XInternAtom(this.display, "_NET_SUPPORTED", false)
-  let dataType = XInternAtom(this.display, "ATOM", false)
-  var atomsNames = [
-    XInternAtom(this.display, "_NET_WM_STATE", false),
-    XInternAtom(this.display, "_NET_WM_STATE_FULLSCREEN", false)
-  ]
-  discard XChangeProperty(
-    this.display,
-    result,
-    supported,
-    dataType,
-    32,
-    PropModeReplace,
-    cast[Pcuchar](addr(atomsNames)),
-    cint(len(atomsNames))
-  )
 
   var windowAttribs: TXSetWindowAttributes
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
-  windowAttribs.event_mask = SubstructureRedirectMask # TODO: Try out awesomewm masks
+  windowAttribs.event_mask = SubstructureRedirectMask or PropertyChangeMask
 
   # Listen for events on the root window
   discard XChangeWindowAttributes(
@@ -266,7 +382,7 @@ proc configureConfigActions*(this: WindowManager) =
     proc(keycode: int) = 
       if this.selectedTag.selectedClient.isSome:
         this.moveClientToTag(
-          this.selectedTag.selectedClient.get(),
+          this.selectedTag.selectedClient.get,
           this.keycodeToTag(keycode)
         )
   )
@@ -300,20 +416,36 @@ proc viewTag(this: WindowManager, tag: Tag) =
   if tag == this.selectedTag:
     return
 
+  # TODO: See issue #31
+  # Wish we could use OrderedSets,
+  # but we cannot easily get by index
+  # or even use a `next` proc.
+  # Perhaps we should make our own class.
+  let setCurrent = toHashSet(this.currTagClients)
+  let setNext = toHashSet(this.taggedClients[tag])
+
   # Windows not on the current tag need to be hidden or unmapped.
-  for client in this.selectedClients:
+  for client in (setCurrent - setNext).items:
     discard XUnmapWindow(this.display, client.window)
 
   this.selectedTag = tag
-
-  for client in this.selectedClients:
-    discard XMapWindow(this.display, client.window)
-
   this.doLayout()
+
+  for client in (setNext - setCurrent).items:
+    discard XMapWindow(this.display, client.window)
+    # Ensure correct border color is set for each window
+    let color = if this.selectedTag.isSelectedClient(client): borderColorFocused else: borderColorUnfocused
+    discard XSetWindowBorder(this.display, client.window, color)
+
+  discard XSync(this.display, false)
 
   # Select the "selected" client for the newly viewed tag
   if this.selectedTag.selectedClient.isSome:
-    this.focusWindow(this.selectedTag.selectedClient.get().window)
+    this.focusWindow(this.selectedTag.selectedClient.get.window)
+  else:
+    this.deleteActiveWindowProperty()
+
+  this.updateCurrentDesktopProperty()
 
 proc keycodeToTag(this: WindowManager, keycode: int): Tag =
   try:
@@ -322,7 +454,7 @@ proc keycodeToTag(this: WindowManager, keycode: int): Tag =
       raise newException(Exception, "Tag number cannot be negative")
 
     var i = tagNumber
-    for tag in this.tagTable.keys():
+    for tag in this.taggedClients.keys():
       i -= 1
       if i == 0:
         return tag
@@ -330,104 +462,86 @@ proc keycodeToTag(this: WindowManager, keycode: int): Tag =
     echo "Invalid tag number from config:"
     echo getCurrentExceptionMsg()
 
-proc focusPreviousClient(this: WindowManager) =
-  if this.selectedClients.len <= 1 or
-    this.selectedTag.selectedClient.isNone:
-    return
+proc findSelectedAndNextNormalClientIndexes(
+  this: WindowManager,
+  findNormalClient: proc(clients: openArray[Client], i: int): int
+): tuple[selectedIndex, nextIndex: int] =
+  ## Finds the index of the currently selected client in currTagClients,
+  ## and the index result of findNormalClient.
+  ## Either value can be -1 if not found.
+  let clientOption = this.selectedTag.selectedClient
+  if clientOption.isSome:
+    let selectedClientIndex = this.currTagClients.find(clientOption.get)
+    let nextNormalClientIndex = this.currTagClients.findNormalClient(selectedClientIndex)
+    return (selectedClientIndex, nextNormalClientIndex)
+  return (-1, -1)
 
-  let selected = this.selectedTag.selectedClient.get()
-  var previous = this.selectedTag.selectedClient.get()
-  for i, client in this.selectedClients:
-    if client == selected:
-      if i == 0:
-        # If focusing the first client, select the last client in the tag.
-        let lastClient = this.selectedClients[^1]
-        this.focusWindow(lastClient.window)
-      else:
-        this.focusWindow(previous.window)
-      return
-    previous = client
+proc focusClient(
+  this: WindowManager,
+  findNormalClient: (clients: openArray[Client], i: int) -> int
+) =
+  let result = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
+  if result.nextIndex >= 0:
+    this.focusWindow(
+      this.currTagClients[result.nextIndex].window
+    )
+
+proc focusPreviousClient(this: WindowManager) =
+  this.focusClient(client.findPreviousNormal)
 
 proc focusNextClient(this: WindowManager) =
-  if this.selectedTag.selectedClient.isNone:
-    return
+  this.focusClient(client.findNextNormal)
 
-  var isNext = false
-  for client in this.selectedClients:
-    if isNext:
-      this.focusWindow(client.window)
-      return
-    if client == this.selectedTag.selectedClient.get():
-      isNext = true
-  
-  if isNext:
-    for client in this.selectedClients:
-      this.focusWindow(client.window)
-      return
+proc moveClient(
+  this: WindowManager,
+  findNormalClient: (clients: openArray[Client], i: int) -> int
+) =
+  let indexes = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
+  if indexes.selectedIndex >= 0 and indexes.nextIndex >= 0:
+    let temp = this.currTagClients[indexes.selectedIndex]
+    this.currTagClients[indexes.selectedIndex] = this.currTagClients[indexes.nextIndex]
+    this.currTagClients[indexes.nextIndex] = temp
+    this.doLayout()
+    this.focusWindow(this.currTagClients[indexes.nextIndex].window)
 
 proc moveClientPrevious(this: WindowManager) =
-  let clientOption = this.selectedTag.selectedClient
-  if clientOption.isNone:
-    return
-
-  var clients = this.selectedClients
-  if clients.len < 2:
-    return
-
-  let selectedClient = clientOption.get()
-  let selectedClientIndex = clients.find(selectedClient)
-  if selectedClientIndex < 0:
-    return
-
-  var swapIndex: int = (selectedClientIndex - 1) mod clients.len
-  if swapIndex == -1:
-    swapIndex = clients.len - 1
-  let swapClient = this.selectedClients[swapIndex]
-
-  this.selectedClients[selectedClientIndex] = swapClient
-  this.selectedClients[swapIndex] = selectedClient
-
-  this.doLayout()
+  this.moveClient(client.findPreviousNormal)
 
 proc moveClientNext(this: WindowManager) =
-  let clientOption = this.selectedTag.selectedClient
-  if clientOption.isNone:
-    return
+  this.moveClient(client.findNextNormal)
 
-  if this.selectedClients.len < 2:
-    return
-
-  let selectedClient = clientOption.get()
-  let selectedClientIndex = this.selectedClients.find(selectedClient)
-  if selectedClientIndex < 0:
-    return
-
-  let swapIndex = (selectedClientIndex + 1) mod this.selectedClients.len
-  let swapClient = this.selectedClients[swapIndex]
-  this.selectedClients[selectedClientIndex] = swapClient
-  this.selectedClients[swapIndex] = selectedClient
-  this.doLayout()
+proc updateWindowTagAtom(this: WindowManager, window: TWindow, destinationTag: Tag) =
+  let data: clong = destinationTag.id.clong
+  discard XChangeProperty(this.display,
+                          window,
+                          this.getAtom(NetWMDesktop),
+                          XA_CARDINAL,
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](data.unsafeAddr),
+                          1)
 
 proc moveClientToTag(this: WindowManager, client: Client, destinationTag: Tag) =
-  for tag, clients in this.tagTable.mpairs():
+  for tag, clients in this.taggedClients.mpairs:
+    # This assumes the client is being moved from the current tag to another tag. 
     if tag == destinationTag:
       if not clients.contains(client):
         clients.add(client)
+        this.updateWindowTagAtom(client.window, destinationTag)
         tag.setSelectedClient(client)
         discard XUnmapWindow(this.display, client.window)
     else:
       let clientIndex = clients.find(client)
       if clientIndex < 0:
         continue
-      clients.delete(clientIndex)
+      this.removeWindowFromTag(tag, clientIndex)
       tag.clearSelectedClient(client)
-      if tag.previouslySelectedClient.isNone():
-        continue
-      tag.setSelectedClient(tag.previouslySelectedClient.get())
-      # Ensure our current tag has a window selected if one exists.
-      if tag == this.selectedTag and this.selectedTag.selectedClient.isSome():
-          this.focusWindow(this.selectedTag.selectedClient.get().window)
-          this.doLayout()
+      if tag == this.selectedTag:
+        this.doLayout()
+        this.ensureWindowFocus()
+
+  if this.currTagClients.len == 0:
+    this.deleteActiveWindowProperty()
 
 proc destroySelectedWindow(this: WindowManager) =
   var selectedWin: TWindow
@@ -438,7 +552,7 @@ proc destroySelectedWindow(this: WindowManager) =
   event.xclient.window = selectedWin
   event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", true)
   event.xclient.format = 32
-  event.xclient.data.l[0] = XInternAtom(this.display, "WM_DELETE_WINDOW", false).cint
+  event.xclient.data.l[0] = this.getAtom(WMDelete).cint
   event.xclient.data.l[1] = CurrentTime
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
   discard XDestroyWindow(this.display, selectedWin)
@@ -447,11 +561,14 @@ proc destroySelectedWindow(this: WindowManager) =
 ## XEvent Handling ##
 #####################
 
-proc getNetAtom(this: WindowManager, id: NetAtom): TAtom =
+proc getAtom(this: WindowManager, id: NetAtom): TAtom =
   this.netAtoms[ord(id)]
 
+proc getAtom(this: WindowManager, id: WMAtom): TAtom =
+  this.wmAtoms[ord(id)]
+
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
-  echo repr(error.resourceid)
+  echo "Error: "
   var errorMessage: string = newString(1024)
   discard XGetErrorText(
     display,
@@ -461,34 +578,23 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   )
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
-  echo errorMessage
+  echo "\t", errorMessage
 
 proc toggleFullscreen(this: WindowManager, client: var Client) =
   if client.isFullscreen:
     discard XChangeProperty(
       this.display,
       client.window,
-      this.getNetAtom(NetWMState),
+      this.getAtom(NetWMState),
       XA_ATOM,
       32,
       PropModeReplace,
       cast[Pcuchar]([]),
       0
     )
-    this.addClientToSelectedTags(client.window)
 
     # Ensure the window has focus
     this.focusWindow(client.window)
-    discard XChangeProperty(
-      this.display,
-      this.rootWindow,
-      this.getNetAtom(NetActiveWindow),
-      XA_WINDOW,
-      32,
-      PropModeReplace,
-      cast[Pcuchar](unsafeAddr(client.window)),
-      1
-    )
   else:
     discard XSetWindowBorderWidth(this.display, client.window, 0)
     discard XMoveResizeWindow(
@@ -499,11 +605,11 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
       XDisplayWidth(this.display, 0),
       XDisplayHeight(this.display, 0),
     )
-    var arr = [this.getNetAtom(NetWMFullScreen)]   
+    var arr = [this.getAtom(NetWMStateFullScreen)]   
     discard XChangeProperty(
       this.display,
       client.window,
-      this.getNetAtom(NetWMState),
+      this.getAtom(NetWMState),
       XA_ATOM,
       32,
       PropModeReplace,
@@ -515,76 +621,203 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
   client.isFullscreen = not client.isFullscreen
   this.doLayout()
 
+template copyMaskMember(
+  event: TXConfigureRequestEvent,
+  changeMember: untyped,
+  mask: int,
+  maskMember: int,
+  eventMember: untyped
+) =
+  if (event.value_mask and maskMember) != 0:
+    mask = mask or maskMember
+    changeMember = event.eventMember
+
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
-  if this.isInTagTable(e.window):
-    var changes: TXWindowChanges
-    changes.x = e.x
-    changes.y = e.y
-    changes.width = e.width
-    changes.height = e.height
-    changes.border_width = e.border_width
-    changes.sibling = e.above;
-    changes.stack_mode = e.detail;
-    discard XConfigureWindow(this.display, e.window, cuint(e.value_mask), addr(changes));
-    discard XSync(this.display, false)
+  var mask: int
+  var changes: TXWindowChanges
+  copyMaskMember(e, changes.x, mask, 0, x)
+  copyMaskMember(e, changes.y, mask, 1, y)
+  copyMaskMember(e, changes.width, mask, 2, width)
+  copyMaskMember(e, changes.height, mask, 3, height)
+  copyMaskMember(e, changes.border_width, mask, 4, border_width)
+  copyMaskMember(e, changes.sibling, mask, 5, above)
+  copyMaskMember(e, changes.stack_mode, mask, 6, detail)
+
+  discard XConfigureWindow(this.display, e.window, cuint(mask), addr(changes));
+  discard XSync(this.display, false)
+
+  discard XMoveResizeWindow(
+    this.display,
+    e.window,
+    changes.x,
+    changes.y,
+    changes.width,
+    changes.height
+  )
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
-  var clientIndex = this.selectedClients.find(e.window)
+  if e.message_type == this.getAtom(NetWMStrutPartial):
+    discard
+
+  var clientIndex = this.currTagClients.find(e.window)
   if clientIndex < 0:
     return
 
-  if e.message_type == this.getNetAtom(NetWMState):
-    let fullscreenAtom = this.getNetAtom(NetWMFullScreen)
+  if e.message_type == this.getAtom(NetWMState):
+    let fullscreenAtom = this.getAtom(NetWMStateFullScreen)
     if e.data.l[1] == fullscreenAtom or
       e.data.l[2] == fullscreenAtom:
-        var client = this.selectedClients[clientIndex]
+        var client = this.currTagClients[clientIndex]
         this.toggleFullscreen(client)
+
+proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T] =
+  var
+    actualTypeReturn: TAtom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    propReturn: ptr T
+
+  let getPropResult = XGetWindowProperty(
+    this.display,
+    window,
+    property,
+    0,
+    sizeof(T) div 4,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn.addr)
+  )
+
+  if getPropResult == Success and propReturn != nil:
+    return option(propReturn[])
+  return none(T)
+
+proc updateLayoutOffset(this: WindowManager) =
+  let screenWidth = XDisplayWidth(this.display, 0)
+  let screenHeight = XDisplayHeight(this.display, 0)
+  this.layoutOffset = this.docks.calcLayoutOffset(screenWidth.uint, screenHeight.uint)
+
+proc updateWindowType(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+  let
+    stateOpt = this.getProperty(window, this.getAtom(NetWMState), TAtom)
+    windowTypeOpt = this.getProperty(window, this.getAtom(NetWMWindowType), TAtom)
+
+  let state: TAtom = if stateOpt.isSome: stateOpt.get else: None
+  let windowType: TAtom = if windowTypeOpt.isSome: windowTypeOpt.get else: None
+
+  if windowType == this.getAtom(NetWMWindowTypeDock):
+    var dock = Dock(
+      window: window,
+      x: windowAttr.x,
+      y: windowAttr.y,
+      width: windowAttr.width.uint,
+      height: windowAttr.height.uint
+    )
+    this.docks.add(window, dock)
+    this.updateLayoutOffset()
+  else:
+    # Client Section
+    var client = newClient(window)
+    this.currTagClients.add(client)
+    this.updateWindowTagAtom(client.window, this.selectedTag)
+
+    if state == this.getAtom(NetWMStateFullScreen):
+      this.toggleFullscreen(client)
+
+    client.isFloating = windowType != None and
+                        windowType != this.getAtom(NetWMWindowTypeNormal) and
+                        windowType != this.getAtom(NetWMWindowType)
+
+proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+  for tag, client in this.currTagClients:
+    if client.window == window:
+      # Don't manage the same window twice.
+      return
+  if this.docks.hasKey(window):
+    return
+
+  discard XSetWindowBorder(this.display, window, borderColorUnfocused)
+
+  discard XSelectInput(this.display,
+                       window,
+                       StructureNotifyMask or
+                       PropertyChangeMask or
+                       ResizeRedirectMask or
+                       EnterWindowMask or
+                       FocusChangeMask
+                      )
+
+  discard XRaiseWindow(this.display, window)
+
+  this.addWindowToClientList(window)
+
+  discard XMoveResizeWindow(this.display,
+                            window,
+                            windowAttr.x,
+                            windowAttr.y,
+                            windowAttr.width,
+                            windowAttr.height)
+
+  let data: array[2, int] = [ NormalState, None ]
+  discard XChangeProperty(this.display,
+                          window,
+                          this.getAtom(WMState),
+                          this.getAtom(WMState),
+                          32,
+                          PropModeReplace,
+                          cast[Pcuchar](data.unsafeAddr),
+                          data.len)
+
+  this.updateWindowType(window, windowAttr)
+  this.doLayout()
+  discard XMapWindow(this.display, window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes
+  # TODO: Error thrown here for gimp splash screen (BadValue)
   if XGetWindowAttributes(this.display, e.window, addr(windowAttr)) == 0:
     return
   if windowAttr.override_redirect:
     return
 
-  if not this.isInTagTable(e.window):
-    discard XSetWindowBorderWidth(this.display, e.window, borderWidth)
-    discard XSetWindowBorder(this.display, e.window, borderColorUnfocused)
-    discard XSelectInput(
-      this.display,
-      e.window,
-      StructureNotifyMask or
-      PropertyChangeMask or
-      ResizeRedirectMask or
-      EnterWindowMask or
-      FocusChangeMask
-    )
-    discard XMapWindow(this.display, e.window)
+  this.manage(e.window, windowAttr)
 
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:
-    discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
+    let clientIndex = this.currTagClients.find(e.window)
+    if clientIndex >= 0 and this.currTagClients[clientIndex].isNormal:
+      # Only focus normal windows
+      discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   if e.detail == NotifyPointer or
     e.window == this.rootWindow:
     return
 
-  let clientIndex = this.selectedClients.find(e.window)
-  if clientIndex >= 0:
-    let client = this.selectedClients[clientIndex]
-    this.selectedTag.setSelectedClient(client)
-    discard XSetWindowBorder(
-      this.display,
-      client.window,
-      borderColorFocused
-    )
-    if this.selectedTag.previouslySelectedClient.isSome:
-      let previous = this.selectedTag.previouslySelectedClient.get()
-      if previous.window != client.window:
-        discard XSetWindowBorder(
-          this.display,
-          previous.window,
-          borderColorUnfocused
-        )
+  let clientIndex = this.currTagClients.find(e.window)
+  if clientIndex < 0:
+    return
+  
+  this.setActiveWindowProperty(e.window)
+
+  let client = this.currTagClients[clientIndex]
+  this.selectedTag.setSelectedClient(client)
+  discard XSetWindowBorder(
+    this.display,
+    client.window,
+    borderColorFocused
+  )
+  if this.selectedTag.previouslySelectedClient.isSome:
+    let previous = this.selectedTag.previouslySelectedClient.get
+    if previous.window != client.window:
+      discard XSetWindowBorder(
+        this.display,
+        previous.window,
+        borderColorUnfocused
+      )
 

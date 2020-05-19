@@ -7,10 +7,14 @@ if [ ! -f "$config" ]; then
   printf "Created symlink to %s\n" "$config"
 fi
 
-nimble build || exit 1
+nimble debug || exit 1
 Xephyr -br -ac -reset -screen 1920x1080 :1 &
 sleep 1s
 export DISPLAY=:1
 sxhkd &
 xrdb $HOME/.Xresources &
-./nimdow
+./bin/nimdow &
+
+polybar -c ./polybar/nimdow nimdow &
+nm-applet &
+

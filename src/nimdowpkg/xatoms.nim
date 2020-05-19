@@ -5,12 +5,18 @@ converter boolToTBool(x: bool): TBool = TBool(x)
 
 type
   WMAtom* = enum
-    WMProtocols, WMDalete, WMState, WMTakeFocus, WMLast
+    WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-    NetWMName, NetWMState, NetWMCheck, NetWMFullScreen,
-    NetWMWindowType, NetWMWindowTypeDialog, NetClientList, NetLast
+    NetWMName, NetWMState, NetSupportingWMCheck, NetWMStateFullScreen, NetClientList,
+    NetWMStrutPartial, 
+    NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
+    NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
+    NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
+    NetWMWindowTypeNotification, NetWMWindowTypeDock,
+    NetWMDesktop, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetDesktopNames,
+    NetLast
   XAtom* = enum
     Manager, Xembed, XembedInfo, XLast
 
@@ -34,9 +40,25 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
     XInternAtom(display, "_NET_WM_STATE", false),
     XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", false),
     XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", false),
+    XInternAtom(display, "_NET_CLIENT_LIST", false),
+    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", false),
     XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", false),
-    XInternAtom(display, "_NET_CLIENT_LIST", false)
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLBAR", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_SPLASH", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_TOOLTIP", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_NOTIFICATION", false),
+    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", false),
+    XInternAtom(display, "_NET_WM_DESKTOP", false),
+    XInternAtom(display, "_NET_DESKTOP_VIEWPORT", false),
+    XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", false),
+    XInternAtom(display, "_NET_CURRENT_DESKTOP", false),
+    XInternAtom(display, "_NET_DESKTOP_NAMES", false)
   ]
 
 proc getXAtoms*(display: PDisplay): array[ord(XLast), TAtom] =

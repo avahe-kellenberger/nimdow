@@ -18,6 +18,12 @@ proc newTag*(id: int, layout: Layout): Tag =
     previouslySelectedClient: none(Client)
   )
 
+proc isSelectedClient*(this: Tag, client: Client): bool =
+  this.selectedClient.isSome and this.selectedClient.get == client
+
+proc isPreviouslySelectedClient*(this: Tag, client: Client): bool =
+  this.previouslySelectedClient.isSome and this.previouslySelectedClient.get == client
+
 proc setSelectedClient*(this: Tag, client: Client) =
   if this.selectedClient.isNone or client != this.selectedClient.get():
     this.previouslySelectedClient = this.selectedClient
@@ -32,6 +38,9 @@ proc clearSelectedClient*(this: Tag, client: Client) =
 
   if this.previouslySelectedClient.isSome() and this.previouslySelectedClient.get() == client:
     this.previouslySelectedClient = none(Client)
+
+  if this.selectedClient.isNone and this.previouslySelectedClient.isSome:
+    this.setSelectedClient(this.previouslySelectedClient.get)
 
 proc hash*(this: Tag): Hash = !$Hash(this.id) 
 

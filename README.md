@@ -26,7 +26,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 - [x] Fullscreen windows
 - [ ] Multihead support
 - [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
-- [ ] Status bar integration (probably 3rd party status bar)
+- [x] Status bar integration (mostly integrated with Polybar, see [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
 - [ ] Layouts:
   - [x] Master/stack
   - [ ] Monocle
