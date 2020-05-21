@@ -38,9 +38,6 @@ proc configureExternalProcess(command: string) =
         process = startProcess(command = command, options = { poEvalCommand })
       except:
         echo "Failed to start command: ", command
-      finally:
-        if process != nil:
-          process.close
 
 proc hookConfig*(eventManager: XEventManager) =
   let listener: XEventListener = proc(e: TXEvent) =
