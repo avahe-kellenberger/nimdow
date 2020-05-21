@@ -8,6 +8,7 @@ import
   client,
   xatoms,
   tag,
+  area,
   config/config,
   event/xeventmanager,
   keys/keyutils,
@@ -621,39 +622,42 @@ proc toggleFullscreen(this: WindowManager, client: var Client) =
   client.isFullscreen = not client.isFullscreen
   this.doLayout()
 
-template copyMaskMember(
-  event: TXConfigureRequestEvent,
-  changeMember: untyped,
-  mask: int,
-  maskMember: int,
-  eventMember: untyped
-) =
-  if (event.value_mask and maskMember) != 0:
-    mask = mask or maskMember
-    changeMember = event.eventMember
-
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
-  var mask: int
-  var changes: TXWindowChanges
-  copyMaskMember(e, changes.x, mask, 0, x)
-  copyMaskMember(e, changes.y, mask, 1, y)
-  copyMaskMember(e, changes.width, mask, 2, width)
-  copyMaskMember(e, changes.height, mask, 3, height)
-  copyMaskMember(e, changes.border_width, mask, 4, border_width)
-  copyMaskMember(e, changes.sibling, mask, 5, above)
-  copyMaskMember(e, changes.stack_mode, mask, 6, detail)
+  # TODO: Handle docks as well?
+  var clientOpt: Option[Client] = none(Client)
+  for tag, clients in this.taggedClients.pairs:
+    let index = clients.find(e.window)
+    if index >= 0:
+      clientOpt = clients[index].option
+      break
 
-  discard XConfigureWindow(this.display, e.window, cuint(mask), addr(changes));
-  discard XSync(this.display, false)
+  if clientOpt.isSome:
+    let client = clientOpt.get
+    var geometry: Area 
 
-  discard XMoveResizeWindow(
-    this.display,
-    e.window,
-    changes.x,
-    changes.y,
-    changes.width,
-    changes.height
-  )
+    if (e.value_mask and CWBorderWidth) != 0:
+      discard XSetWindowBorderWidth(this.display, client.window, e.border_width)
+
+    # Geom
+    if (e.value_mask and CWWidth) != 0:
+      geometry.width = e.width
+    if (e.value_mask and CWHeight) != 0:
+      geometry.height = e.height
+    if (e.value_mask and CWX) != 0:
+      geometry.x = e.x
+    if (e.value_mask and CWY) != 0:
+      geometry.y = e.y
+  else: 
+    # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
+    var changes: TXWindowChanges
+    changes.x = e.detail
+    changes.y = e.detail
+    changes.width = e.width
+    changes.height = e.height
+    changes.border_width = e.border_width
+    changes.sibling = e.above
+    changes.stack_mode = e.detail
+    discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
   if e.message_type == this.getAtom(NetWMStrutPartial):
@@ -773,14 +777,16 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
                           cast[Pcuchar](data.unsafeAddr),
                           data.len)
 
+
   this.updateWindowType(window, windowAttr)
+  
   this.doLayout()
   discard XMapWindow(this.display, window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes
   # TODO: Error thrown here for gimp splash screen (BadValue)
-  if XGetWindowAttributes(this.display, e.window, addr(windowAttr)) == 0:
+  if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return
   if windowAttr.override_redirect:
     return
