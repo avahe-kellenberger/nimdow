@@ -9,7 +9,7 @@ when isMainModule:
   nimdow.configureConfigActions()
   # Order matters here.
   # `configureConfigActions` must be invoked before populating the config table.
-  config.populateConfigTable(nimdow.display)
+  config.populateKeyComboTable(nimdow.display)
   config.hookConfig(eventManager)
   nimdow.hookConfigKeys()
   eventManager.startEventListenerLoop(nimdow.display)

@@ -1,36 +1,51 @@
-# Window Controls
+# Start external programs
 
-[focusPrevious]
-keys = [ "k" ]
+[[startProcess]]
+command = "$BROWSER"
+keys = [ "i" ]
 modifiers = [ "super" ]
 
-[focusNext]
-keys = [ "j" ]
+[[startProcess]]
+command = "dmenu_run"
+keys = [ "p" ]
 modifiers = [ "super" ]
 
-[moveWindowPrevious]
-keys = [ "k" ]
-modifiers = [ "super", "shift" ]
-
-[moveWindowNext]
-keys = [ "j" ]
-modifiers = [ "super", "shift" ]
-
-[moveWindowToTag]
-keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-modifiers = [ "super", "shift" ]
-
-[toggleFullscreen]
-keys = [ "f" ]
+[[startProcess]]
+command = "st"
+keys = [ "Return" ]
 modifiers = [ "super" ]
 
-[destroySelectedWindow]
-keys = [ "q" ]
-modifiers = [ "super", "shift" ]
+# Window manager controls
+[controls]
+  [controls.focusPrevious]
+  keys = [ "k" ]
+  modifiers = [ "super" ]
 
-# Tag Navigation
+  [controls.focusNext]
+  keys = [ "j" ]
+  modifiers = [ "super" ]
 
-[goToTag]
-keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-modifiers = [ "super" ]
+  [controls.moveWindowPrevious]
+  keys = [ "k" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowNext]
+  keys = [ "j" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.toggleFullscreen]
+  keys = [ "f" ]
+  modifiers = [ "super" ]
+
+  [controls.destroySelectedWindow]
+  keys = [ "q" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.goToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super" ]
 

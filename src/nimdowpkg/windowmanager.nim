@@ -396,7 +396,7 @@ proc configureConfigActions*(this: WindowManager) =
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
-  for keyCombo in config.ConfigTable.keys():
+  for keyCombo in config.KeyComboTable.keys():
     discard XGrabKey(
       this.display,
       keyCombo.keycode,
