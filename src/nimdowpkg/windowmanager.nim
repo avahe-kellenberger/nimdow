@@ -249,12 +249,7 @@ proc focusWindow(this: WindowManager, window: TWindow) =
 proc ensureWindowFocus(this: WindowManager) =
   ## Ensures a window is selected on the current tag.
   if this.currTagClients.len == 0:
-    discard XSetInputFocus(
-      this.display,
-      this.rootWindow,
-      RevertToPointerRoot,
-      CurrentTime
-    )
+    this.focusWindow(this.rootWindow)
   else:
     if this.selectedTag.selectedClient.isSome:
       this.focusWindow(this.selectedTag.selectedClient.get.window)
@@ -265,12 +260,7 @@ proc ensureWindowFocus(this: WindowManager) =
       if clientIndex >= 0:
         this.focusWindow(this.currTagClients[clientIndex].window)
       else:
-        discard XSetInputFocus(
-          this.display,
-          this.rootWindow,
-          RevertToPointerRoot,
-          CurrentTime
-        )
+        this.focusWindow(this.rootWindow)
 
 proc addWindowToClientList(this: WindowManager, window: TWindow) =
   ## Adds the window to _NET_CLIENT_LIST
@@ -725,7 +715,6 @@ proc updateWindowType(this: WindowManager, window: TWindow, windowAttr: TXWindow
     this.docks.add(window, dock)
     this.updateLayoutOffset()
   else:
-    # Client Section
     var client = newClient(window)
     this.currTagClients.add(client)
     this.updateWindowTagAtom(client.window, this.selectedTag)
@@ -738,9 +727,9 @@ proc updateWindowType(this: WindowManager, window: TWindow, windowAttr: TXWindow
                         windowType != this.getAtom(NetWMWindowType)
 
 proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+  # Don't manage the same window twice.
   for tag, client in this.currTagClients:
     if client.window == window:
-      # Don't manage the same window twice.
       return
   if this.docks.hasKey(window):
     return
@@ -753,8 +742,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
                        PropertyChangeMask or
                        ResizeRedirectMask or
                        EnterWindowMask or
-                       FocusChangeMask
-                      )
+                       FocusChangeMask)
 
   discard XRaiseWindow(this.display, window)
 
@@ -767,19 +755,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
                             windowAttr.width,
                             windowAttr.height)
 
-  let data: array[2, int] = [ NormalState, None ]
-  discard XChangeProperty(this.display,
-                          window,
-                          this.getAtom(WMState),
-                          this.getAtom(WMState),
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](data.unsafeAddr),
-                          data.len)
-
-
   this.updateWindowType(window, windowAttr)
-  
   this.doLayout()
   discard XMapWindow(this.display, window)
 
