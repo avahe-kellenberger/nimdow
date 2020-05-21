@@ -17,9 +17,8 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 1. Ensure you have `nim` and `nimble` installed. My preferred method is to use `choosenim` to install these.
 2. Install the dependencies listed in `nimdow.nimble` (e.g. `nimble install x11`)
 3. Clone this repo
-4. Execute `nimble release` from the package directory to create a release build
-
-The built binary will be in `./bin/nimdow`
+4. Execute `nimble release` from the package directory to create a release build (The built binary will be in `./bin/nimdow`)
+5. Copy the default config (`config.default.toml`) to `${XDG_CONFIG_HOME}/nimdow/config.toml`, OR to `${HOME}/.config/nimdow/config.toml`. Nimdow will NOT run if you skip this step.
 
 ### AUR
 
