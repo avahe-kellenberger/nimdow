@@ -51,31 +51,34 @@ proc populateKeyComboTable*(display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
   let configPath = findConfigPath()
   let configTable = loadConfigfile(configPath)
-  # Populate window manager controls
-  let controlsTable = configTable["controls"]
-  if controlsTable.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid config table!")
-  for action in controlsTable.tableVal[].keys():
-    display.populateControlAction(action, controlsTable[action].tableVal[])
 
-  # Populate external commands
-  let externalProcessesTable = configTable["startProcess"]
-  if externalProcessesTable.kind != TomlValueKind.Array:
-    echo "No \"startProcess\" commands defined!"
-  else:
-    for commandDeclaration in externalProcessesTable.arrayVal:
-      if commandDeclaration.kind != TomlValueKind.Table:
-        echo "Invalid \"startProcess\" configuration command!"
-        continue
-      if not commandDeclaration.tableVal[].hasKey("command"):
-        echo "Invalid \"startProcess\" configuration: Missing\"command\" string!"
-        continue
-      let command = commandDeclaration.tableVal["command"].stringVal
-      configureExternalProcess(command)
-      display.populateControlAction(
-        command,
-        commandDeclaration.tableVal[]
-      )
+  if configTable.hasKey("controls"):
+    # Populate window manager controls
+    let controlsTable = configTable["controls"]
+    if controlsTable.kind != TomlValueKind.Table:
+      raise newException(Exception, "Invalid config table!")
+    for action in controlsTable.tableVal[].keys():
+      display.populateControlAction(action, controlsTable[action].tableVal[])
+
+  if configTable.hasKey("startProcess"):
+    # Populate external commands
+    let externalProcessesTable = configTable["startProcess"]
+    if externalProcessesTable.kind != TomlValueKind.Array:
+      echo "No \"startProcess\" commands defined!"
+    else:
+      for commandDeclaration in externalProcessesTable.arrayVal:
+        if commandDeclaration.kind != TomlValueKind.Table:
+          echo "Invalid \"startProcess\" configuration command!"
+          continue
+        if not commandDeclaration.tableVal[].hasKey("command"):
+          echo "Invalid \"startProcess\" configuration: Missing\"command\" string!"
+          continue
+        let command = commandDeclaration.tableVal["command"].stringVal
+        configureExternalProcess(command)
+        display.populateControlAction(
+          command,
+          commandDeclaration.tableVal[]
+        )
 
 proc findConfigPath(): string =
   let configHome = os.getConfigDir()
