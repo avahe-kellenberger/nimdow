@@ -39,7 +39,7 @@ func find*[T](clients: openArray[T], window: TWindow): int =
   return -1
 
 proc findNextNormal*(clients: openArray[Client], i: int = 0): int =
-  ## Finds the next normal client index from index `i`, iterating forward.
+  ## Finds the next normal client index from index `i` (exclusive), iterating forward.
   ## This search will loop the array.
   for j in countup(i + 1, clients.high):
     if clients[j].isNormal:
@@ -49,8 +49,8 @@ proc findNextNormal*(clients: openArray[Client], i: int = 0): int =
       return j
   return -1
 
-proc findPreviousNormal*(clients: openArray[Client], i: int): int =
-  ## Finds the next normal client index from index `i`, iterating backward.
+proc findPreviousNormal*(clients: openArray[Client], i: int = 0): int =
+  ## Finds the next normal client index from index `i` (exclusive), iterating backward.
   ## This search will loop the array.
   for j in countdown(i - 1, clients.low):
     if clients[j].isNormal:

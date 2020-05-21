@@ -256,13 +256,14 @@ proc ensureWindowFocus(this: WindowManager) =
     elif this.selectedTag.previouslySelectedClient.isSome:
       this.focusWindow(this.selectedTag.selectedClient.get.window)
     else:
-      let clientIndex = this.currTagClients.findNextNormal()
+      # Find the first normal client
+      let clientIndex = this.currTagClients.findNextNormal(-1)
       if clientIndex >= 0:
         this.focusWindow(this.currTagClients[clientIndex].window)
       else:
         this.focusWindow(this.rootWindow)
 
-proc addWindowToClientList(this: WindowManager, window: TWindow) =
+proc addWindowToClientListProperty(this: WindowManager, window: TWindow) =
   ## Adds the window to _NET_CLIENT_LIST
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -277,9 +278,9 @@ proc updateClientList(this: WindowManager) =
   discard XDeleteProperty(this.display, this.rootWindow, this.getAtom(NetClientList))
   for clients in this.taggedClients.values:
     for client in clients:
-      this.addWindowToClientList(client.window)
+      this.addWindowToClientListProperty(client.window)
   for window in this.docks.keys:
-    this.addWindowToClientList(window)
+    this.addWindowToClientListProperty(window)
 
 proc setActiveWindowProperty(this: WindowManager, window: TWindow) =
   discard XChangeProperty(
@@ -315,13 +316,10 @@ proc removeWindowFromTag(this: WindowManager, tag: Tag, clientIndex: int) =
     if this.taggedClients[tag].len == 0:
       tag.previouslySelectedClient = none(Client)
     else:
-      # Find and assign the next normal client as "previouslySelectedClient"
-      let nextNormalIndex = this.taggedClients[tag].findNextNormal()
+      # Find and assign the first normal client as "previouslySelectedClient"
+      let nextNormalIndex = this.taggedClients[tag].findNextNormal(-1)
       if nextNormalIndex >= 0:
         tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
-
-  # Set currently selected window as previouslySelectedClient
-  tag.selectedClient = tag.previouslySelectedClient
 
 proc removeWindowFromTagTable(this: WindowManager, window: TWindow) =
   for tag, clients in this.taggedClients.pairs:
@@ -746,7 +744,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   discard XRaiseWindow(this.display, window)
 
-  this.addWindowToClientList(window)
+  this.addWindowToClientListProperty(window)
 
   discard XMoveResizeWindow(this.display,
                             window,
@@ -758,6 +756,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
   this.updateWindowType(window, windowAttr)
   this.doLayout()
   discard XMapWindow(this.display, window)
+  this.focusWindow(window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes

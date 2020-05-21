@@ -25,7 +25,7 @@ proc isPreviouslySelectedClient*(this: Tag, client: Client): bool =
   this.previouslySelectedClient.isSome and this.previouslySelectedClient.get == client
 
 proc setSelectedClient*(this: Tag, client: Client) =
-  if this.selectedClient.isNone or client != this.selectedClient.get():
+  if this.selectedClient.isNone or client != this.selectedClient.get:
     this.previouslySelectedClient = this.selectedClient
     this.selectedClient = client.option
 
@@ -33,10 +33,10 @@ proc clearSelectedClient*(this: Tag, client: Client) =
   ## If selectedClient and/or previouslySelectedClient
   ## is equal to `client`, the respective fields will be
   ## set to none(Client).
-  if this.selectedClient.isSome() and this.selectedClient.get() == client:
+  if this.selectedClient.isSome and this.selectedClient.get == client:
     this.selectedClient = none(Client)
 
-  if this.previouslySelectedClient.isSome() and this.previouslySelectedClient.get() == client:
+  if this.previouslySelectedClient.isSome and this.previouslySelectedClient.get == client:
     this.previouslySelectedClient = none(Client)
 
   if this.selectedClient.isNone and this.previouslySelectedClient.isSome:
