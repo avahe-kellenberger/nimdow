@@ -45,6 +45,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
 proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T]
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
+proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
 
@@ -171,6 +172,7 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
   this.eventManager.addListener((e: TXEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
+  this.eventManager.addListener((e: TXEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
   this.eventManager.addListener(
@@ -191,7 +193,7 @@ proc configureRootWindow(this: WindowManager): TWindow =
   var windowAttribs: TXSetWindowAttributes
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
-  windowAttribs.event_mask = SubstructureRedirectMask or PropertyChangeMask
+  windowAttribs.event_mask = SubstructureRedirectMask or PropertyChangeMask or PointerMotionMask
 
   # Listen for events on the root window
   discard XChangeWindowAttributes(
@@ -245,7 +247,6 @@ proc hookConfigKeys*(this: WindowManager) =
       GrabModeAsync,
       GrabModeAsync
     )
-
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "Error: "
@@ -416,8 +417,19 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
     return
   this.manage(e.window, windowAttr)
 
+proc selectCorrectMonitor(this: WindowManager, x, y: int) =
+  for monitor in this.monitors:
+    if monitor.area.contains(x, y):
+      if monitor != this.selectedMonitor:
+        this.selectedMonitor = monitor
+      break
+
+proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
+  this.selectCorrectMonitor(e.x_root, e.y_root)
+
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:
+    this.selectCorrectMonitor(e.x_root, e.y_root)
     let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
     if clientIndex >= 0 and this.selectedMonitor.currTagClients[clientIndex].isNormal:
       # Only focus normal windows

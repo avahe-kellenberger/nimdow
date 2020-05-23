@@ -33,7 +33,7 @@ type
   Monitor* = ref object of RootObj
     display: PDisplay
     rootWindow: TWindow
-    area: Area
+    area*: Area
     taggedClients*: OrderedTable[Tag, seq[Client]]
     selectedTag*: Tag
     docks*: Table[TWindow, Dock]
@@ -52,6 +52,7 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area): Monitor =
     let tag: Tag = newTag(
       id = i,
       layout = newMasterStackLayout(
+        monitorArea = area,
         gapSize = gapSize,
         borderWidth = borderWidth,
         masterSlots = masterSlots
@@ -387,10 +388,10 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
     discard XMoveResizeWindow(
       this.display,
       client.window,
-      0,
-      0,
-      XDisplayWidth(this.display, 0),
-      XDisplayHeight(this.display, 0),
+      this.area.x,
+      this.area.y,
+      this.area.width.cint,
+      this.area.height.cint
     )
     var arr = [$NetWMStateFullScreen]   
     discard XChangeProperty(
