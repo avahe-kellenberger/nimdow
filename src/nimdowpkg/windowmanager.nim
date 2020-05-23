@@ -204,11 +204,42 @@ proc configureRootWindow(this: WindowManager): TWindow =
   )
   discard XSync(this.display, false)
 
+proc focusMonitor(this: WindowManager, monitorIndex: int) =
+  if monitorIndex == -1:
+    return
+  let monitor = this.monitors[monitorIndex]
+  let center = monitor.area.center()
+  discard XWarpPointer(
+    this.display,
+    None,
+    this.rootWindow,
+    0,
+    0,
+    0,
+    0,
+    center.x.cint,
+    center.y.cint,
+  )
+
+proc focusPreviousMonitor(this: WindowManager) =
+  let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
+  this.focusMonitor(previousMonitorIndex)
+
+proc focusNextMonitor(this: WindowManager) =
+  let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
+  this.focusMonitor(nextMonitorIndex)
+
 template config(keycode: untyped, id: string, action: untyped) =
   config.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
+  config(keycode, "focusPreviousMonitor"):
+    this.focusPreviousMonitor()
+
+  config(keycode, "focusNextMonitor"):
+    this.focusNextMonitor()
+
   config(keycode, "goToTag"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.viewTag(tag)

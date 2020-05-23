@@ -72,7 +72,7 @@ proc getMonitorAreas*(display: PDisplay, rootWindow: TWindow): seq[Area] =
     cast[ptr UncheckedArray[TXineramaScreenInfo]]
       (XineramaQueryScreens(display, number.addr))
 
-  for i in countup(0, number):
+  for i in countup(0, number - 1):
     result.add((
       x: screenInfo[i].x_org.int,
       y: screenInfo[i].y_org.int,
@@ -412,3 +412,23 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
   if this.selectedTag.selectedClient.isSome:
     this.toggleFullscreen(this.selectedTag.selectedClient.get)
+
+proc findNext*(monitors: openArray[Monitor], current: Monitor): int =
+  ## Finds the next monitor index from index `i` (exclusive), iterating forward.
+  ## This search will loop the array.
+  for i in countup(monitors.low, monitors.high):
+    if monitors[i] == current:
+      if i == monitors.high:
+        return monitors.low
+      return i + 1
+  return -1
+
+proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
+  ## Finds the next monitor index from index `i` (exclusive), iterating backward.
+  ## This search will loop the array.
+  for i in countdown(monitors.high, monitors.low):
+    if monitors[i] == current:
+      if i == monitors.low:
+        return monitors.high
+      return i - 1
+  return -1
