@@ -1,6 +1,11 @@
 # Start external programs
 
 [[startProcess]]
+command = "pkill nimdow"
+keys = [ "Delete" ]
+modifiers = [ "control", "alt" ]
+
+[[startProcess]]
 command = "$BROWSER"
 keys = [ "i" ]
 modifiers = [ "super" ]

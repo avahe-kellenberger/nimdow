@@ -452,9 +452,16 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
   for monitor in this.monitors:
     if monitor.area.contains(x, y):
       if monitor != this.selectedMonitor:
+        # Set old monitor's focused window's border to the unfocused color
+        if this.selectedMonitor.currClient.isSome and monitor.currClient.isSome:
+          discard XSetWindowBorder(
+            this.display,
+            this.selectedMonitor.currClient.get.window,
+            borderColorUnfocused
+          )
         this.selectedMonitor = monitor
-        if this.selectedMonitor.selectedTag.selectedClient.isSome:
-          this.selectedMonitor.focusWindow(this.selectedMonitor.selectedTag.selectedClient.get.window)
+        if this.selectedMonitor.currClient.isSome:
+          this.selectedMonitor.focusWindow(this.selectedMonitor.currClient.get.window)
       break
 
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =

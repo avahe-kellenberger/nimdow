@@ -87,6 +87,9 @@ template currTagClients*(this: Monitor): untyped =
   ## `clients` would be a copy of the collection.
   this.taggedClients[this.selectedTag]
 
+template currClient*(this: Monitor): untyped =
+  this.selectedTag.selectedClient
+
 proc find*(this: Monitor, window: TWindow): Option[Client] =
   ## Finds a client based on its window property.
   for tag, clients in this.taggedClients.pairs:
