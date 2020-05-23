@@ -453,6 +453,8 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     if monitor.area.contains(x, y):
       if monitor != this.selectedMonitor:
         this.selectedMonitor = monitor
+        if this.selectedMonitor.selectedTag.selectedClient.isSome:
+          this.selectedMonitor.focusWindow(this.selectedMonitor.selectedTag.selectedClient.get.window)
       break
 
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
