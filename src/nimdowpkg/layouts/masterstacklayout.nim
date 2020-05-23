@@ -2,7 +2,8 @@ import
   x11/xlib,
   math,
   layout,
-  "../client"
+  "../client",
+  "../area"
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -13,6 +14,7 @@ type MasterStackLayout* = ref object of Layout
   masterSlots*: uint
 
 proc layoutSingleClient(
+  this: MasterStackLayout,
   display: PDisplay,
   client: Client,
   screenWidth: uint,
@@ -41,6 +43,7 @@ proc calcClientWidth(this: MasterStackLayout, screenWidth: uint): uint
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
 
 proc newMasterStackLayout*(
+  monitorArea: Area,
   gapSize: uint, 
   borderWidth: uint, 
   masterSlots: uint
@@ -49,6 +52,7 @@ proc newMasterStackLayout*(
   ## masterSlots: The number of clients allowed on the left half of the screen (traditionally 1).
   MasterStackLayout(
     name: layoutName,
+    monitorArea: monitorArea,
     gapSize: gapSize,
     borderWidth: borderWidth,
     masterSlots: masterSlots
@@ -61,8 +65,8 @@ method arrange*(
     offset: LayoutOffset
   ) =
   ## Aligns the clients in a master/stack fashion.
-  let screenWidth = XDisplayWidth(display, 0).int - offset.left.int - offset.right.int
-  let screenHeight = XDisplayHeight(display, 0).int - offset.top.int - offset.bottom.int
+  let screenWidth = this.monitorArea.width.int - offset.left.int - offset.right.int
+  let screenHeight = this.monitorArea.height.int - offset.top.int - offset.bottom.int
 
   if screenWidth <= 0 or screenHeight <= 0:
     echo "Screen width and height must be > 0!"
@@ -72,11 +76,12 @@ method arrange*(
   let clientCount = clientsToBeArranged.len
   if clientCount == 1:
     for client in clientsToBeArranged:
-      layoutSingleClient(display, client, screenWidth.uint, screenHeight.uint, offset)
+      layoutSingleClient(this, display, client, screenWidth.uint, screenHeight.uint, offset)
   else:
     this.layoutMultipleClients(display, clientsToBeArranged, screenWidth.uint, screenHeight.uint, offset)
 
 proc layoutSingleClient(
+  this: MasterStackLayout,
   display: PDisplay,
   client: Client,
   screenWidth: uint,
@@ -86,8 +91,8 @@ proc layoutSingleClient(
   discard XMoveResizeWindow(
     display,
     client.window,
-    offset.left.cint,
-    offset.top.cint,
+    this.monitorArea.x + offset.left.cint,
+    this.monitorArea.y + offset.top.cint,
     screenWidth.cuint,
     screenHeight.cuint
   )
@@ -138,8 +143,8 @@ proc layoutMultipleClients(
     discard XMoveResizeWindow(
       display,
       client.window,
-      (xPos + offset.left).cint,
-      (yPos + offset.top).cint,
+      this.monitorArea.x + (xPos + offset.left).cint,
+      this.monitorArea.y + (yPos + offset.top).cint,
       clientWidth.cuint,
       clientHeight.cuint
     )

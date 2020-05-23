@@ -33,9 +33,8 @@ proc configureAction*(actionName: string, actionInvokee: Action) =
 proc configureExternalProcess(command: string) =
   IdentifierTable[command] =
     proc(keycode: int) =
-      var process: Process
       try:
-        process = startProcess(command = command, options = { poEvalCommand })
+        discard startProcess(command = command, options = { poEvalCommand })
       except:
         echo "Failed to start command: ", command
 

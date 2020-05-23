@@ -1,6 +1,11 @@
 # Start external programs
 
 [[startProcess]]
+command = "pkill nimdow"
+keys = [ "Delete" ]
+modifiers = [ "control", "alt" ]
+
+[[startProcess]]
 command = "$BROWSER"
 keys = [ "i" ]
 modifiers = [ "super" ]
@@ -48,4 +53,20 @@ modifiers = [ "super" ]
   [controls.goToTag]
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super" ]
+
+  [controls.focusPreviousMonitor]
+  keys = [ "comma" ]
+  modifiers = [ "super" ]
+
+  [controls.focusNextMonitor]
+  keys = [ "period" ]
+  modifiers = [ "super" ]
+
+  [controls.moveWindowToPreviousMonitor]
+  keys = [ "comma" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowToNextMonitor]
+  keys = [ "period" ]
+  modifiers = [ "super", "shift" ]
 

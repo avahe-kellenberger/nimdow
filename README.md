@@ -2,7 +2,7 @@
 
 A window manager written in [Nim](https://nim-lang.org/)
 
-**NOTE: This is a WIP and currently only usable on single monitor setups**
+**NOTE: This is a WIP but is very usable. Please report any bugs if you find any.**
 
 I am using this project to learn Nim, x11, and to replace my build of **dwm** (written in C).
 
@@ -40,9 +40,10 @@ $ polybar -c path/to/config nimdow
 
 - [x] Multiple tags (single tag viewed at one time)
 - [x] Fullscreen windows
-- [ ] Multihead support
+- [x] Multihead support
 - [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
-- [x] Status bar integration (mostly integrated with Polybar, see [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
+- [x] Status bar integration (single monitor - integrated with Polybar)
+  - [ ] Multihead status bar integration (Need to write a polybar module for Nimdow? See [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
 - [ ] Layouts:
   - [x] Master/stack
   - [ ] Monocle
@@ -64,8 +65,8 @@ $ polybar -c path/to/config nimdow
 - [ ] Keybindings:
   - [ ] View multiple tags
   - [ ] Assign single window to multiple tags
-  - [ ] Move window between screens
-  - [ ] Swap tags between screens
+  - [x] Move window between monitors
+  - [ ] Swap tags between monitors
   - [ ] Reload Nimdow (to apply configuration changes)
 
 ## Testing locally (for development)
