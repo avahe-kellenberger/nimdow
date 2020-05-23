@@ -61,3 +61,12 @@ modifiers = [ "super" ]
   [controls.focusNextMonitor]
   keys = [ "period" ]
   modifiers = [ "super" ]
+
+  [controls.moveWindowToPreviousMonitor]
+  keys = [ "comma" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowToNextMonitor]
+  keys = [ "period" ]
+  modifiers = [ "super", "shift" ]
+

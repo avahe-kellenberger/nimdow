@@ -127,7 +127,6 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
     echo "Invalid tag number from config:"
     echo getCurrentExceptionMsg()
 
-
 proc updateLayoutOffset*(this: Monitor) =
   this.layoutOffset = this.docks.calcLayoutOffset(this.area.width, this.area.height)
 
@@ -211,14 +210,13 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
       if nextNormalIndex >= 0:
         tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
 
-proc removeWindowFromTagTable(this: Monitor, window: TWindow) =
+proc removeWindowFromTagTable*(this: Monitor, window: TWindow) =
   for tag, clients in this.taggedClients.pairs:
     let clientIndex: int = clients.find(window)
     if clientIndex >= 0:
       this.removeWindowFromTag(tag, clientIndex) 
   this.doLayout()
   this.ensureWindowFocus()
-
 
 proc removeWindow*(this: Monitor, window: TWindow) =
   var dock: Dock
@@ -256,7 +254,6 @@ proc destroySelectedWindow*(this: Monitor) =
   event.xclient.data.l[1] = CurrentTime
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
   discard XDestroyWindow(this.display, selectedWin)
-
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   for tag, clients in this.taggedClients.mpairs:

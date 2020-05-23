@@ -229,11 +229,41 @@ proc focusNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
   this.focusMonitor(nextMonitorIndex)
 
+proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
+  if this.selectedMonitor.currClient.isNone:
+    return
+
+  let client = this.selectedMonitor.currClient.get
+  if monitorIndex == -1:
+    return
+
+  let nextMonitor = this.monitors[monitorIndex]
+  this.selectedMonitor.removeWindowFromTagTable(client.window)
+  nextMonitor.currTagClients.add(client)
+  nextMonitor.doLayout()
+  this.selectedMonitor = nextMonitor
+  this.focusMonitor(monitorIndex)
+  this.selectedMonitor.focusWindow(client.window)
+
+proc moveClientToPreviousMonitor(this: WindowManager) = 
+  let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
+  this.moveClientToMonitor(previousMonitorIndex)
+
+proc moveClientToNextMonitor(this: WindowManager) = 
+  let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
+  this.moveClientToMonitor(nextMonitorIndex)
+
 template config(keycode: untyped, id: string, action: untyped) =
   config.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
+  config(keycode, "moveWindowToPreviousMonitor"):
+    this.moveClientToPreviousMonitor()
+
+  config(keycode, "moveWindowToNextMonitor"):
+    this.moveClientToNextMonitor()
+
   config(keycode, "focusPreviousMonitor"):
     this.focusPreviousMonitor()
 
