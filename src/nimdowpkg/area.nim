@@ -1,1 +1,1 @@
-type Area* = tuple[x, y, width, height: int]
+type Area* = tuple[x, y: int, width, height: uint]

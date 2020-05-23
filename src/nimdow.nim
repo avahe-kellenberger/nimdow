@@ -6,7 +6,7 @@ import
 when isMainModule:
   let eventManager = newXEventManager()
   let nimdow = newWindowManager(eventManager)
-  nimdow.configureConfigActions()
+  nimdow.mapConfigActions()
   # Order matters here.
   # `configureConfigActions` must be invoked before populating the config table.
   config.populateKeyComboTable(nimdow.display)

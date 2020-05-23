@@ -20,6 +20,20 @@ type
   XAtom* = enum
     Manager, Xembed, XembedInfo, XLast
 
+var WMAtoms*: array[ord(WMLast), TAtom]
+var NetAtoms*: array[ord(NetLast), TAtom]
+var XAtoms*: array[ord(XLast), TAtom]
+
+template `$`*(atom: WMAtom): untyped =
+  xatoms.WMAtoms[ord(atom)]
+
+template `$`*(atom: NetAtom): untyped =
+  xatoms.NetAtoms[ord(atom)]
+
+template `$`*(atom: XAtom): untyped =
+  xatoms.XAtoms[ord(atom)]
+
+
 proc getWMAtoms*(display: PDisplay): array[ord(WMLast), TAtom] =
   [
     XInternAtom(display, "WM_PROTOCOLS", false),
