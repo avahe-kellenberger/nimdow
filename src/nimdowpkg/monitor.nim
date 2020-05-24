@@ -11,7 +11,8 @@ import
   area,
   layouts/layout,
   layouts/masterstacklayout,
-  keys/keyutils
+  keys/keyutils,
+  config/configloader
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -24,7 +25,6 @@ converter toTBool(x: bool): TBool = x.TBool
 const
   tagCount = 9
   borderWidth = 1
-  gapSize = 48
   masterSlots = 1
   borderColorFocused = 0x519f50
   borderColorUnfocused = 0x1c1b19
@@ -41,7 +41,7 @@ type
 
 proc updateCurrentDesktopProperty(this: Monitor)
 
-proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area): Monitor =
+proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConfig: Config): Monitor =
   result = Monitor()
   result.display = display
   result.rootWindow = rootWindow
@@ -53,7 +53,7 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area): Monitor =
       id = i,
       layout = newMasterStackLayout(
         monitorArea = area,
-        gapSize = gapSize,
+        gapSize = currentConfig.gapSize,
         borderWidth = borderWidth,
         masterSlots = masterSlots
       )

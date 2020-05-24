@@ -9,7 +9,7 @@ import
   monitor,
   tag,
   area,
-  config/config,
+  config/configloader,
   event/xeventmanager,
   layouts/masterstacklayout
 
@@ -32,6 +32,7 @@ type
     display*: PDisplay
     rootWindow*: TWindow
     eventManager: XEventManager
+    loadedConfig: Config
     monitors: seq[Monitor]
     selectedMonitor: Monitor
 
@@ -50,11 +51,12 @@ proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
 
-proc newWindowManager*(eventManager: XEventManager): WindowManager =
+proc newWindowManager*(eventManager: XEventManager, loadedConfig: Config): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
+  result.loadedConfig = loadedConfig
   # Populate atoms
   xatoms.WMAtoms = xatoms.getWMAtoms(result.display)
   xatoms.NetAtoms = xatoms.getNetAtoms(result.display)
@@ -64,7 +66,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   # Create monitors
   for area in result.display.getMonitorAreas(result.rootWindow):
     result.monitors.add(
-      newMonitor(result.display, result.rootWindow, area)
+      newMonitor(result.display, result.rootWindow, area, loadedConfig)
     )
   result.selectedMonitor = result.monitors[0]
 
@@ -270,58 +272,58 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-template config(keycode: untyped, id: string, action: untyped) =
-  config.configureAction(id, proc(keycode: int) = action)
+template createControl(keycode: untyped, id: string, action: untyped) =
+  this.loadedConfig.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config(keycode, "increaseMasterCount"):
+  createControl(keycode, "increaseMasterCount"):
     this.increaseMasterCount()
 
-  config(keycode, "decreaseMasterCount"):
+  createControl(keycode, "decreaseMasterCount"):
     this.decreaseMasterCount()
 
-  config(keycode, "moveWindowToPreviousMonitor"):
+  createControl(keycode, "moveWindowToPreviousMonitor"):
     this.moveClientToPreviousMonitor()
 
-  config(keycode, "moveWindowToNextMonitor"):
+  createControl(keycode, "moveWindowToNextMonitor"):
     this.moveClientToNextMonitor()
 
-  config(keycode, "focusPreviousMonitor"):
+  createControl(keycode, "focusPreviousMonitor"):
     this.focusPreviousMonitor()
 
-  config(keycode, "focusNextMonitor"):
+  createControl(keycode, "focusNextMonitor"):
     this.focusNextMonitor()
 
-  config(keycode, "goToTag"):
+  createControl(keycode, "goToTag"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.viewTag(tag)
 
-  config(keycode, "focusNext"):
+  createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient()
 
-  config(keycode, "focusPrevious"):
+  createControl(keycode, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient()
 
-  config(keycode, "moveWindowPrevious"):
+  createControl(keycode, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
 
-  config(keycode, "moveWindowNext"):
+  createControl(keycode, "moveWindowNext"):
     this.selectedMonitor.moveClientNext()
 
-  config(keycode, "moveWindowToTag"):
+  createControl(keycode, "moveWindowToTag"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.moveSelectedWindowToTag(tag)
 
-  config(keycode, "toggleFullscreen"):
+  createControl(keycode, "toggleFullscreen"):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
-  config(keycode, "destroySelectedWindow"):
+  createControl(keycode, "destroySelectedWindow"):
     this.selectedMonitor.destroySelectedWindow()
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
-  for keyCombo in config.KeyComboTable.keys:
+  for keyCombo in this.loadedConfig.keyComboTable.keys:
     discard XGrabKey(
       this.display,
       keyCombo.keycode,
