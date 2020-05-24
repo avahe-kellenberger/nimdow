@@ -10,7 +10,8 @@ import
   tag,
   area,
   config/config,
-  event/xeventmanager
+  event/xeventmanager,
+  layouts/masterstacklayout
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -253,11 +254,33 @@ proc moveClientToNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
   this.moveClientToMonitor(nextMonitorIndex)
 
+proc increaseMasterCount(this: WindowManager) =
+  var layout = this.selectedMonitor.selectedTag.layout
+  if layout of MasterStackLayout:
+    # This can wrap the uint but the number is crazy high
+    # so I don't think it "ruins" the user experience.
+    MasterStackLayout(layout).masterSlots.inc
+    this.selectedMonitor.doLayout()
+
+proc decreaseMasterCount(this: WindowManager) =
+  var layout = this.selectedMonitor.selectedTag.layout
+  if layout of MasterStackLayout:
+    var masterStackLayout = MasterStackLayout(layout)
+    if masterStackLayout.masterSlots > 0:
+      masterStackLayout.masterSlots.dec
+      this.selectedMonitor.doLayout()
+
 template config(keycode: untyped, id: string, action: untyped) =
   config.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
+  config(keycode, "increaseMasterCount"):
+    this.increaseMasterCount()
+
+  config(keycode, "decreaseMasterCount"):
+    this.decreaseMasterCount()
+
   config(keycode, "moveWindowToPreviousMonitor"):
     this.moveClientToPreviousMonitor()
 
