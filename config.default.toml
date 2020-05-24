@@ -70,3 +70,11 @@ modifiers = [ "super" ]
   keys = [ "period" ]
   modifiers = [ "super", "shift" ]
 
+  [controls.increaseMasterCount]
+  keys = [ "z" ]
+  modifiers = [ "super" ]
+
+  [controls.decreaseMasterCount]
+  keys = [ "x" ]
+  modifiers = [ "super" ]
+

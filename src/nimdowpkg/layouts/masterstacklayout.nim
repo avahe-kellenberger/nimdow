@@ -113,7 +113,7 @@ proc layoutMultipleClients(
   let stackClientCount = max(0, clientCount.int - this.masterSlots.int).uint
 
   # If there are only master clients, take up all horizontal space.
-  let clientWidth = if masterClientCount == clientCount: 
+  let clientWidth = if masterClientCount == clientCount or masterClientCount == 0: 
     this.calcClientWidth(screenWidth) * 2 else:
       this.calcClientWidth(screenWidth)
 
@@ -123,7 +123,10 @@ proc layoutMultipleClients(
   let stackRoundingErr: int = this.calcRoundingErr(stackClientCount, stackClientHeight, screenHeight)
   let masterRoundingErr: int = this.calcRoundingErr(masterClientCount, masterClientHeight, screenHeight)
  
-  let stackXPos: uint = math.round(screenWidth.float / 2).uint + math.round(this.gapSize.float / 2).uint
+  let stackXPos: uint =
+    if masterClientCount == 0:
+      this.gapSize else:
+        math.round(screenWidth.float / 2).uint + math.round(this.gapSize.float / 2).uint
 
   for (i, client) in clients.pairs():
     var xPos, yPos, clientHeight: uint
