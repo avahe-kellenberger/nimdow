@@ -9,7 +9,7 @@ import
   monitor,
   tag,
   area,
-  config/config,
+  config/configloader,
   event/xeventmanager,
   layouts/masterstacklayout
 
@@ -24,14 +24,13 @@ converter toBool(x: TBool): bool = x.bool
 const
   wmName = "nimdow"
   tagCount = 9
-  borderColorFocused = 0x519f50
-  borderColorUnfocused = 0x1c1b19
 
 type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: TWindow
     eventManager: XEventManager
+    config: Config
     monitors: seq[Monitor]
     selectedMonitor: Monitor
 
@@ -50,11 +49,12 @@ proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
 
-proc newWindowManager*(eventManager: XEventManager): WindowManager =
+proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
+  result.config = config
   # Populate atoms
   xatoms.WMAtoms = xatoms.getWMAtoms(result.display)
   xatoms.NetAtoms = xatoms.getNetAtoms(result.display)
@@ -64,7 +64,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   # Create monitors
   for area in result.display.getMonitorAreas(result.rootWindow):
     result.monitors.add(
-      newMonitor(result.display, result.rootWindow, area)
+      newMonitor(result.display, result.rootWindow, area, config)
     )
   result.selectedMonitor = result.monitors[0]
 
@@ -270,58 +270,58 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-template config(keycode: untyped, id: string, action: untyped) =
-  config.configureAction(id, proc(keycode: int) = action)
+template createControl(keycode: untyped, id: string, action: untyped) =
+  this.config.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  config(keycode, "increaseMasterCount"):
+  createControl(keycode, "increaseMasterCount"):
     this.increaseMasterCount()
 
-  config(keycode, "decreaseMasterCount"):
+  createControl(keycode, "decreaseMasterCount"):
     this.decreaseMasterCount()
 
-  config(keycode, "moveWindowToPreviousMonitor"):
+  createControl(keycode, "moveWindowToPreviousMonitor"):
     this.moveClientToPreviousMonitor()
 
-  config(keycode, "moveWindowToNextMonitor"):
+  createControl(keycode, "moveWindowToNextMonitor"):
     this.moveClientToNextMonitor()
 
-  config(keycode, "focusPreviousMonitor"):
+  createControl(keycode, "focusPreviousMonitor"):
     this.focusPreviousMonitor()
 
-  config(keycode, "focusNextMonitor"):
+  createControl(keycode, "focusNextMonitor"):
     this.focusNextMonitor()
 
-  config(keycode, "goToTag"):
+  createControl(keycode, "goToTag"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.viewTag(tag)
 
-  config(keycode, "focusNext"):
+  createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient()
 
-  config(keycode, "focusPrevious"):
+  createControl(keycode, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient()
 
-  config(keycode, "moveWindowPrevious"):
+  createControl(keycode, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
 
-  config(keycode, "moveWindowNext"):
+  createControl(keycode, "moveWindowNext"):
     this.selectedMonitor.moveClientNext()
 
-  config(keycode, "moveWindowToTag"):
+  createControl(keycode, "moveWindowToTag"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.moveSelectedWindowToTag(tag)
 
-  config(keycode, "toggleFullscreen"):
+  createControl(keycode, "toggleFullscreen"):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
-  config(keycode, "destroySelectedWindow"):
+  createControl(keycode, "destroySelectedWindow"):
     this.selectedMonitor.destroySelectedWindow()
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
-  for keyCombo in config.KeyComboTable.keys:
+  for keyCombo in this.config.keyComboTable.keys:
     discard XGrabKey(
       this.display,
       keyCombo.keycode,
@@ -467,7 +467,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
     if monitor.docks.hasKey(window):
       return
 
-  discard XSetWindowBorder(this.display, window, borderColorUnfocused)
+  discard XSetWindowBorder(this.display, window, this.config.borderColorUnfocused)
 
   discard XSelectInput(this.display,
                        window,
@@ -510,7 +510,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
           discard XSetWindowBorder(
             this.display,
             this.selectedMonitor.currClient.get.window,
-            borderColorUnfocused
+            this.config.borderColorUnfocused
           )
         this.selectedMonitor = monitor
         if this.selectedMonitor.currClient.isSome:
@@ -544,7 +544,7 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   discard XSetWindowBorder(
     this.display,
     client.window,
-    borderColorFocused
+    this.config.borderColorFocused
   )
   if this.selectedMonitor.selectedTag.previouslySelectedClient.isSome:
     let previous = this.selectedMonitor.selectedTag.previouslySelectedClient.get
@@ -552,6 +552,6 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
       discard XSetWindowBorder(
         this.display,
         previous.window,
-        borderColorUnfocused
+        this.config.borderColorUnfocused
       )
 
