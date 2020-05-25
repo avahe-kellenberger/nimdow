@@ -2,6 +2,7 @@ import
   os,
   osproc,
   parsetoml,
+  strutils,
   tables,
   x11 / [x,  xlib],
   "../keys/keyutils",
@@ -14,12 +15,20 @@ type
     identifierTable*: Table[string, Action]
     keyComboTable*: Table[KeyCombo, Action]
     gapSize*: uint
+    tagCount*: uint
+    borderColorFocused*: int
+    borderColorUnfocused*: int
+    borderWidth*: uint
 
 proc newConfig*(): Config =
   Config(
     identifierTable: initTable[string, Action](),
     keyComboTable: initTable[KeyCombo, Action](),
-    gapSize: 48
+    gapSize: 12,
+    tagCount: 9,
+    borderColorFocused: 0x519f50,
+    borderColorUnfocused: 0x1c1b19,
+    borderWidth: 1
   )
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
@@ -96,19 +105,46 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
         commandDeclaration.tableVal[]
       )
 
+proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string): int =
+  if settingsTable.hasKey(valueName):
+    let setting = settingsTable[valueName]
+    if setting.kind == TomlValueKind.String:
+      try:
+        return fromHex[int](setting.stringVal)
+      except:
+        echo valueName, " is not a proper hex value! Format: #123456"
+    else:
+      echo valueName, " is not a proper hex value! Ensure it is wrapped in double quotes"
+  return -1
+
 proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
-  if not configTable.hasKey("settings"):
-    return
-  let settingsTable = configTable["settings"]
-  if settingsTable.kind != TomlValueKind.Table:
+  if not configTable.hasKey("settings") or configTable["settings"].kind != TomlValueKind.Table:
     echo "Invalid settings table! Using default settings"
     return
+
+  let settingsTable = configTable["settings"].tableVal
+
   if settingsTable.hasKey("gapSize"):
     let gapSizeSetting = settingsTable["gapSize"]
     if gapSizeSetting.kind == TomlValueKind.Int:
       this.gapSize = max(0, gapSizeSetting.intVal).uint
     else:
       echo "gapSize is not an integer value!"
+
+  if settingsTable.hasKey("borderWidth"):
+    let borderWidthSetting = settingsTable["borderWidth"]
+    if borderWidthSetting.kind == TomlValueKind.Int:
+      this.borderWidth = max(0, borderWidthSetting.intVal).uint
+    else:
+      echo "borderWidth is not an integer value!"
+
+  let unfocusedBorderVal = this.loadHexValue(settingsTable, "borderColorUnfocused")
+  if unfocusedBorderVal != -1:
+    this.borderColorUnfocused = unfocusedBorderVal
+
+  let focusedBorderVal = this.loadHexValue(settingsTable, "borderColorFocused")
+  if focusedBorderVal != -1:
+    this.borderColorFocused = focusedBorderVal
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.

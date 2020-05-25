@@ -24,15 +24,13 @@ converter toBool(x: TBool): bool = x.bool
 const
   wmName = "nimdow"
   tagCount = 9
-  borderColorFocused = 0x519f50
-  borderColorUnfocused = 0x1c1b19
 
 type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: TWindow
     eventManager: XEventManager
-    loadedConfig: Config
+    config: Config
     monitors: seq[Monitor]
     selectedMonitor: Monitor
 
@@ -51,12 +49,12 @@ proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
 
-proc newWindowManager*(eventManager: XEventManager, loadedConfig: Config): WindowManager =
+proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
-  result.loadedConfig = loadedConfig
+  result.config = config
   # Populate atoms
   xatoms.WMAtoms = xatoms.getWMAtoms(result.display)
   xatoms.NetAtoms = xatoms.getNetAtoms(result.display)
@@ -66,7 +64,7 @@ proc newWindowManager*(eventManager: XEventManager, loadedConfig: Config): Windo
   # Create monitors
   for area in result.display.getMonitorAreas(result.rootWindow):
     result.monitors.add(
-      newMonitor(result.display, result.rootWindow, area, loadedConfig)
+      newMonitor(result.display, result.rootWindow, area, config)
     )
   result.selectedMonitor = result.monitors[0]
 
@@ -273,7 +271,7 @@ proc decreaseMasterCount(this: WindowManager) =
       this.selectedMonitor.doLayout()
 
 template createControl(keycode: untyped, id: string, action: untyped) =
-  this.loadedConfig.configureAction(id, proc(keycode: int) = action)
+  this.config.configureAction(id, proc(keycode: int) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
@@ -323,7 +321,7 @@ proc mapConfigActions*(this: WindowManager) =
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
-  for keyCombo in this.loadedConfig.keyComboTable.keys:
+  for keyCombo in this.config.keyComboTable.keys:
     discard XGrabKey(
       this.display,
       keyCombo.keycode,
@@ -469,7 +467,7 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
     if monitor.docks.hasKey(window):
       return
 
-  discard XSetWindowBorder(this.display, window, borderColorUnfocused)
+  discard XSetWindowBorder(this.display, window, this.config.borderColorUnfocused)
 
   discard XSelectInput(this.display,
                        window,
@@ -512,7 +510,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
           discard XSetWindowBorder(
             this.display,
             this.selectedMonitor.currClient.get.window,
-            borderColorUnfocused
+            this.config.borderColorUnfocused
           )
         this.selectedMonitor = monitor
         if this.selectedMonitor.currClient.isSome:
@@ -546,7 +544,7 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
   discard XSetWindowBorder(
     this.display,
     client.window,
-    borderColorFocused
+    this.config.borderColorFocused
   )
   if this.selectedMonitor.selectedTag.previouslySelectedClient.isSome:
     let previous = this.selectedMonitor.selectedTag.previouslySelectedClient.get
@@ -554,6 +552,6 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
       discard XSetWindowBorder(
         this.display,
         previous.window,
-        borderColorUnfocused
+        this.config.borderColorUnfocused
       )
 

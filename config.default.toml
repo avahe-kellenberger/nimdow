@@ -21,7 +21,10 @@ keys = [ "Return" ]
 modifiers = [ "super" ]
 
 [settings]
-  gapSize = 4
+  gapSize = 12
+  borderWidth = 1
+  borderColorFocused = "#519f50"
+  borderColorUnfocused = "#1c1b19"
 
 # Window manager controls
 [controls]

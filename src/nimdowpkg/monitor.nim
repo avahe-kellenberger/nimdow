@@ -24,16 +24,14 @@ converter toTBool(x: bool): TBool = x.TBool
 # TODO: Should load these from settings
 const
   tagCount = 9
-  borderWidth = 1
   masterSlots = 1
-  borderColorFocused = 0x519f50
-  borderColorUnfocused = 0x1c1b19
 
 type
   Monitor* = ref object of RootObj
     display: PDisplay
     rootWindow: TWindow
     area*: Area
+    config: Config
     taggedClients*: OrderedTable[Tag, seq[Client]]
     selectedTag*: Tag
     docks*: Table[TWindow, Dock]
@@ -46,6 +44,7 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConf
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
+  result.config = currentConfig
   result.docks = initTable[TWindow, Dock]()
   result.taggedClients = OrderedTable[Tag, seq[Client]]()
   for i in 0..<tagCount:
@@ -54,7 +53,7 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConf
       layout = newMasterStackLayout(
         monitorArea = area,
         gapSize = currentConfig.gapSize,
-        borderWidth = borderWidth,
+        borderWidth = currentConfig.borderWidth,
         masterSlots = masterSlots
       )
     )
@@ -307,7 +306,10 @@ proc viewTag*(this: Monitor, tag: Tag) =
   for client in (setNext - setCurrent).items:
     discard XMapWindow(this.display, client.window)
     # Ensure correct border color is set for each window
-    let color = if this.selectedTag.isSelectedClient(client): borderColorFocused else: borderColorUnfocused
+    let color =
+      if this.selectedTag.isSelectedClient(client):
+        this.config.borderColorFocused else:
+          this.config.borderColorUnfocused
     discard XSetWindowBorder(this.display, client.window, color)
 
   discard XSync(this.display, false)
