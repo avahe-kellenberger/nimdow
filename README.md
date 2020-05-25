@@ -15,10 +15,9 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 ### Building from source
 
 1. Ensure you have `nim` and `nimble` installed. My preferred method is to use `choosenim` to install these.
-2. Install the dependencies listed in `nimdow.nimble` (e.g. `nimble install x11`)
-3. Clone this repo
-4. Execute `nimble release` from the package directory to create a release build (The built binary will be in `./bin/nimdow`)
-5. Copy the default config (`config.default.toml`) to `${XDG_CONFIG_HOME}/nimdow/config.toml`, OR to `${HOME}/.config/nimdow/config.toml`. Nimdow will NOT run if you skip this step.
+2. Clone this repo
+3. Execute `nimble release` from the package directory to create a release build (The built binary will be in `./bin/nimdow`)
+4. Copy the default config (`config.default.toml`) to `${XDG_CONFIG_HOME}/nimdow/config.toml`, OR to `${HOME}/.config/nimdow/config.toml`. Nimdow will NOT run if you skip this step.
 
 ### AUR
 
@@ -44,30 +43,33 @@ $ polybar -c path/to/config nimdow
 - [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
 - [x] Status bar integration (single monitor - integrated with Polybar)
   - [ ] Multihead status bar integration (Need to write a polybar module for Nimdow? See [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
-- [ ] Layouts:
+- [ ] Floating window support
+  - [ ] Move windows with super + left click
+  - [ ] Resize windows with super + right click drag
+- [x] Layouts:
   - [x] Master/stack
-  - [ ] Monocle
-- [ ] Keybindings:
+- [x] Keybindings:
   - [x] Close window
   - [x] Toggle fullscreen
-  - [ ] Switch layout to master/stack
-  - [ ] Switch layout to monocle
   - [x] Navigate windows
   - [x] Navigate tags
   - [x] Move windows in stack
   - [x] Move windows between tags
-  - [ ] Add/remove window per tag
 
 ### Version 1.0
 
 - TBA (partial list, still in discussion)
-- [ ] Floating window support
+- [ ] Layouts
+  - [ ] Monocle
 - [ ] Keybindings:
+  - [x] Move window between monitors
+  - [ ] Add/remove window per tag
   - [ ] View multiple tags
   - [ ] Assign single window to multiple tags
-  - [x] Move window between monitors
   - [ ] Swap tags between monitors
   - [ ] Reload Nimdow (to apply configuration changes)
+  - [ ] Switch layout to master/stack
+  - [ ] Switch layout to monocle
 
 ## Testing locally (for development)
 
