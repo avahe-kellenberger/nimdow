@@ -502,7 +502,6 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
     this.selectedMonitor.focusWindow(window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
-  echo "Map request from: ", e.window
   var windowAttr: TXWindowAttributes
   if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return
