@@ -79,6 +79,43 @@ proc getMonitorAreas*(display: PDisplay, rootWindow: TWindow): seq[Area] =
       height: screenInfo[i].height.uint
     ))
 
+proc calculateStrutArea*(strut: Strut, displayWidth, displayHeight: int): Area =
+  if strut.left != 0:
+    return (
+      0,
+      strut.leftStartY.int,
+      strut.left,
+      strut.leftEndY - strut.leftStartY + 1
+    )
+
+  elif strut.right != 0:
+    return (
+      displayWidth - strut.right.int,
+      strut.rightStartY.int,
+      strut.right,
+      strut.rightEndY - strut.rightStartY + 1
+    )
+
+  elif strut.top != 0:
+    return (
+      strut.topStartX.int,
+      0,
+      strut.topEndX - strut.topStartX + 1,
+      strut.top
+    )
+
+  elif strut.bottom != 0:
+    return (
+      strut.bottomStartX.int,
+      (displayHeight - strut.bottom).int,
+      strut.bottomEndX - strut.bottomStartX + 1,
+      strut.bottom
+    )
+
+  else:
+    echo "ERROR: No invalid strut!"
+  return (0, 0, 0.uint, 0.uint)
+
 template currTagClients*(this: Monitor): untyped =
   ## Grabs the windows on the current tag.
   ## This is used like an alias, e.g.:
@@ -98,13 +135,11 @@ proc find*(this: Monitor, window: TWindow): Option[Client] =
   return none(Client)
 
 proc updateCurrentDesktopProperty(this: Monitor) =
-  # var data: array[1, clong] = [this.selectedTag.id]
   # TODO: Fix this when we determine how to display tags in a multihead environment.
   var data: array[1, clong] = [this.selectedTag.id]
   discard XChangeProperty(this.display,
                           this.rootWindow,
                           $NetCurrentDesktop,
-                          # this.getAtom(NetCurrentDesktop),
                           XA_CARDINAL,
                           32,
                           PropModeReplace,
