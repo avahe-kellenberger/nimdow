@@ -3,7 +3,6 @@ import
   sugar,
   options,
   tables,
-  sets,
   client,
   xatoms,
   monitor,
@@ -42,7 +41,12 @@ proc configureRootWindow(this: WindowManager): TWindow
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
-proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T]
+proc getProperty[T](
+  this: WindowManager,
+  window: TWindow,
+  property: TAtom,
+  kind: typedesc[T]
+): Option[T]
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
@@ -167,7 +171,6 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
                             cast[Pcuchar](data.unsafeAddr),
                             2)
 
-
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
@@ -177,8 +180,9 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
   this.eventManager.addListener(
-    (e: TXEvent) =>
-      this.selectedMonitor.removeWindow(e.xdestroywindow.window),
+    proc(e: TXEvent) =
+      for monitor in this.monitors:
+        monitor.removeWindow(e.xdestroywindow.window),
       DestroyNotify
   )
 
@@ -347,30 +351,19 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
 
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
   for monitor in this.monitors:
-    # TODO: Handle docks as well?
-    var clientOpt: Option[Client] = none(Client)
+    var isWindowManaged = false
     for tag, clients in monitor.taggedClients.pairs:
       let index = clients.find(e.window)
       if index >= 0:
-        clientOpt = clients[index].option
+        isWindowManaged = true
         break
+    if monitor.docks.hasKey(e.window):
+      isWindowManaged = true
 
-    if clientOpt.isSome:
-      let client = clientOpt.get
-      var geometry: Area 
-
+    if isWindowManaged:
       if (e.value_mask and CWBorderWidth) != 0:
-        discard XSetWindowBorderWidth(this.display, client.window, e.border_width)
-
-      # Geom
-      if (e.value_mask and CWWidth) != 0:
-        geometry.width = e.width.uint
-      if (e.value_mask and CWHeight) != 0:
-        geometry.height = e.height.uint
-      if (e.value_mask and CWX) != 0:
-        geometry.x = e.x
-      if (e.value_mask and CWY) != 0:
-        geometry.y = e.y
+        discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
+      discard XMoveResizeWindow(this.display, e.window, e.x, e.y, e.width, e.height)
     else: 
       # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
       var changes: TXWindowChanges
@@ -384,9 +377,6 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
       discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
-  if e.message_type == $NetWMStrutPartial:
-    discard
-
   for monitor in this.monitors:
     var clientOpt = monitor.find(e.window)
     if clientOpt.isNone:
@@ -399,7 +389,12 @@ proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
     # We can stop once we've found the particular client
     break
 
-proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind: typedesc[T]): Option[T] =
+proc getProperty[T](
+  this: WindowManager,
+  window: TWindow,
+  property: TAtom,
+  kind: typedesc[T],
+): Option[T] =
   var
     actualTypeReturn: TAtom
     actualFormatReturn: cint
@@ -407,12 +402,12 @@ proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind:
     bytesAfterReturn: culong
     propReturn: ptr T
 
-  let getPropResult = XGetWindowProperty(
+  discard XGetWindowProperty(
     this.display,
     window,
     property,
     0,
-    sizeof(T) div 4,
+    0.clong.high,
     false,
     AnyPropertyType,
     actualTypeReturn.addr,
@@ -421,32 +416,42 @@ proc getProperty[T](this: WindowManager, window: TWindow, property: TAtom, kind:
     bytesAfterReturn.addr,
     cast[PPcuchar](propReturn.addr)
   )
+  if numItemsReturn > 0.culong:
+    return propReturn[].option
+  else:
+    return none(T)
 
-  if getPropResult == Success and propReturn != nil:
-    return option(propReturn[])
-  return none(T)
-
-proc updateWindowType(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+proc updateWindowType(this: WindowManager, window: TWindow) =
   # NOTE: This is only called for newly created windows,
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
   let
     stateOpt = this.getProperty(window, $NetWMState, TAtom)
     windowTypeOpt = this.getProperty(window, $NetWMWindowType, TAtom)
+    strutProp = this.getProperty(window, $NetWMStrutPartial, Strut)
 
-  let state: TAtom = if stateOpt.isSome: stateOpt.get else: None
-  let windowType: TAtom = if windowTypeOpt.isSome: windowTypeOpt.get else: None
+  let state = if stateOpt.isSome: stateOpt.get else: None
+  let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
 
-  if windowType == $NetWMWindowTypeDock:
-      let dock = Dock(
-        window: window,
-        x: windowAttr.x,
-        y: windowAttr.y,
-        width: windowAttr.width.uint,
-        height: windowAttr.height.uint
-      )
-      this.selectedMonitor.docks.add(window, dock)
-      this.selectedMonitor.updateLayoutOffset()
+  if windowType == $NetWMWindowTypeDock and strutProp.isSome:
+    let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
+    let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
+    let area = monitor.calculateStrutArea(strutProp.get, screenWidth, screenHeight)
+    let dock = Dock(
+      window: window,
+      x: area.x,
+      y: area.y,
+      width: area.width.uint,
+      height: area.height.uint
+    )
+    # Find monitor based on location of the dock
+    block findMonitorArea:
+      for monitor in this.monitors:
+        if monitor.area.contains(area.x, area.y):
+          monitor.docks.add(window, dock)
+          monitor.updateLayoutOffset()
+          discard XMoveResizeWindow(this.display, window, dock.x, dock.y, dock.width.cuint, dock.height.cuint)
+          break findMonitorArea
   else:
     var client = newClient(window)
     this.selectedMonitor.currTagClients.add(client)
@@ -481,19 +486,23 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   this.selectedMonitor.addWindowToClientListProperty(window)
 
-  discard XMoveResizeWindow(this.display,
-                            window,
-                            windowAttr.x,
-                            windowAttr.y,
-                            windowAttr.width,
-                            windowAttr.height)
+  # discard XMoveResizeWindow(this.display,
+  #                           window,
+  #                           windowAttr.x,
+  #                           windowAttr.y,
+  #                           windowAttr.width,
+  #                           windowAttr.height)
 
-  this.updateWindowType(window, windowAttr)
+  this.updateWindowType(window)
   this.selectedMonitor.doLayout()
   discard XMapWindow(this.display, window)
-  this.selectedMonitor.focusWindow(window)
+
+  # Ensure this window isn't a dock before requesting focus
+  if not this.selectedMonitor.docks.contains(window):
+    this.selectedMonitor.focusWindow(window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
+  echo "Map request from: ", e.window
   var windowAttr: TXWindowAttributes
   if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return

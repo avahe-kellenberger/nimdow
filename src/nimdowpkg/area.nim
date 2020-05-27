@@ -1,4 +1,19 @@
-type Area* = tuple[x, y: int, width, height: uint]
+type
+  Area* = tuple[x, y: int, width, height: uint]
+  Strut* = tuple[
+    left,
+    right,
+    top,
+    bottom,
+    leftStartY,
+    leftEndY,
+    rightStartY,
+    rightEndY,
+    topStartX,
+    topEndX,
+    bottomStartX,
+    bottomEndX: culong
+  ]
 
 proc center*(this: Area): tuple[x, y: float] =
   ## Calculates the center of the area.
@@ -11,5 +26,5 @@ proc contains*(this: Area, x, y: int): bool =
   return
     x >= this.x and
     y >= this.y and
-    x <= this.x + this.width.int and
-    y <= this.y + this.height.int
+    x < this.x + this.width.int and
+    y < this.y + this.height.int
