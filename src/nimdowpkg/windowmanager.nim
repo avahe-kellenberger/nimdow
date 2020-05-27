@@ -486,12 +486,12 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   this.selectedMonitor.addWindowToClientListProperty(window)
 
-  # discard XMoveResizeWindow(this.display,
-  #                           window,
-  #                           windowAttr.x,
-  #                           windowAttr.y,
-  #                           windowAttr.width,
-  #                           windowAttr.height)
+  discard XMoveResizeWindow(this.display,
+                            window,
+                            windowAttr.x,
+                            windowAttr.y,
+                            windowAttr.width,
+                            windowAttr.height)
 
   this.updateWindowType(window)
   this.selectedMonitor.doLayout()
