@@ -555,6 +555,8 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     # Focus the new monitor's current client
     if this.selectedMonitor.currClient.isSome:
       this.selectedMonitor.focusWindow(this.selectedMonitor.currClient.get.window)
+    else:
+      discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
 
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
