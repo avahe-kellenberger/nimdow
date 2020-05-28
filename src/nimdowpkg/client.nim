@@ -12,14 +12,13 @@ type
     borderWidth*: int
     isFullscreen*: bool
     isFloating*: bool
+    isFixed*: bool
 
 proc hash*(this: Client): Hash
 
 proc newClient*(window: TWindow): Client =
   Client(
-    window: window,
-    x: -1,
-    y: -1
+    window: window
   )
 
 proc isNormal*(this: Client): bool =

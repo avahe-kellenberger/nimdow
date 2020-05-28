@@ -38,6 +38,7 @@ type
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
+proc doLayout*(this: Monitor)
 
 proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConfig: Config): Monitor =
   result = Monitor()
@@ -163,6 +164,7 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
 
 proc updateLayoutOffset*(this: Monitor) =
   this.layoutOffset = this.docks.calcLayoutOffset(this.area.width, this.area.height)
+  this.doLayout()
 
 proc focusWindow*(this: Monitor, window: TWindow) =
   discard XSetInputFocus(

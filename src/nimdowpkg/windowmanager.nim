@@ -350,16 +350,20 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
 
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
   var clientOpt: Option[Client]
+  var monitorOpt: Option[Monitor]
   for monitor in this.monitors:
     clientOpt = monitor.find(e.window)
     if clientOpt.isSome:
+      monitorOpt = monitor.option
       break
     if monitor.docks.hasKey(e.window):
       clientOpt = monitor.docks[e.window].option
+      monitorOpt = monitor.option
       break
 
   if clientOpt.isSome:
     let client = clientOpt.get
+    let monitor = monitorOpt.get
     if (e.value_mask and CWBorderWidth) != 0 and e.border_width > 0:
       discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
 
@@ -376,12 +380,11 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
       client.height = e.height.uint
       client.isFloating = true
 
-    if client.x == -1:
-      let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
-      client.x = (screenWidth div 2 - (client.width.int div 2))
-    if client.y == -1:
-      let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
-      client.y = (screenHeight div 2 - (client.height.int div 2))
+    if not client.isFixed:
+      if client.x == 0:
+        client.x = monitor.area.x + (monitor.area.width.int div 2 - (client.width.int div 2))
+      if client.y == 0:
+        client.y = monitor.area.y + (monitor.area.height.int div 2 - (client.height.int div 2))
 
     discard XMoveResizeWindow(
       this.display,
@@ -448,14 +451,14 @@ proc getProperty[T](
   else:
     return none(T)
 
-proc updateWindowType(this: WindowManager, window: TWindow) =
+proc updateWindowType(this: WindowManager, client: var Client) =
   # NOTE: This is only called for newly created windows,
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
   let
-    stateOpt = this.getProperty[:TAtom](window, $NetWMState)
-    windowTypeOpt = this.getProperty[:TAtom](window, $NetWMWindowType)
-    strutProp = this.getProperty[:Strut](window, $NetWMStrutPartial)
+    stateOpt = this.getProperty[:TAtom](client.window, $NetWMState)
+    windowTypeOpt = this.getProperty[:TAtom](client.window, $NetWMWindowType)
+    strutProp = this.getProperty[:Strut](client.window, $NetWMStrutPartial)
 
   let state = if stateOpt.isSome: stateOpt.get else: None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
@@ -465,31 +468,55 @@ proc updateWindowType(this: WindowManager, window: TWindow) =
     let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
     let area = monitor.calculateStrutArea(strutProp.get, screenWidth, screenHeight)
     let dock = Client(
-      window: window,
+      window: client.window,
       x: area.x,
       y: area.y,
       width: area.width.uint,
-      height: area.height.uint
+      height: area.height.uint,
+      isFixed: true
     )
     # Find monitor based on location of the dock
     block findMonitorArea:
       for monitor in this.monitors:
         if monitor.area.contains(area.x, area.y):
-          monitor.docks.add(window, dock)
+          monitor.docks.add(client.window, dock)
           monitor.updateLayoutOffset()
-          discard XMoveResizeWindow(this.display, window, dock.x, dock.y, dock.width.cuint, dock.height.cuint)
+          discard XMoveResizeWindow(this.display, client.window, dock.x, dock.y, dock.width.cuint, dock.height.cuint)
           break findMonitorArea
   else:
-    var client = newClient(window)
     this.selectedMonitor.currTagClients.add(client)
     this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
 
     if state == $NetWMStateFullScreen:
       this.selectedMonitor.toggleFullscreen(client)
 
-    client.isFloating = windowType != None and
-                        windowType != $NetWMWindowTypeNormal and
-                        windowType != $NetWMWindowType
+    if not client.isFloating:
+      client.isFloating = windowType != None and
+                          windowType != $NetWMWindowTypeNormal and
+                          windowType != $NetWMWindowType
+
+proc updateSizeHints(this: WindowManager, client: var Client) =
+  var sizeHints = XAllocSizeHints()
+  var returnMask: int
+  discard XGetWMNormalHints(this.display, client.window, sizeHints, returnMask.addr)
+  if (sizeHints.min_width > 0 and sizeHints.min_width ==
+          sizeHints.max_width and sizeHints.min_height > 0 and
+          sizeHints.min_height == sizeHints.max_height):
+    client.isFloating = true
+    client.width = sizeHints.min_width.uint
+    client.height = sizeHints.min_height.uint
+
+    if not client.isFixed:
+      let area = this.selectedMonitor.area
+      client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
+      client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
+      discard XMoveResizeWindow(this.display,
+                                client.window,
+                                client.x,
+                                client.y,
+                                client.width.cuint,
+                                client.height.cuint
+                               )
 
 proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
   # Don't manage the same window twice.
@@ -498,6 +525,8 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
         return
     if monitor.docks.hasKey(window):
       return
+
+  var client = newClient(window)
 
   discard XSetWindowBorder(this.display, window, this.config.borderColorUnfocused)
 
@@ -518,17 +547,12 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
                             windowAttr.width,
                             windowAttr.height)
 
-  this.updateWindowType(window)
+  this.updateWindowType(client)
+  this.updateSizeHints(client)
   this.selectedMonitor.doLayout()
   discard XMapWindow(this.display, window)
 
-  # Ensure this window isn't a dock before requesting focus
-  var isDock = false
-  for monitor in this.monitors:
-    if monitor.docks.hasKey(window):
-      isDock = true
-      break
-  if not isDock:
+  if not client.isFixed:
     this.selectedMonitor.focusWindow(window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
