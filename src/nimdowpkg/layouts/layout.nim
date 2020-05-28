@@ -18,7 +18,7 @@ proc newLayout*(name: string, monitorArea: Area, gapSize: uint, borderWidth: uin
 method arrange*(this: Layout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) {.base.} =
   echo "Not implemented for base class"
 
-proc calcLayoutOffset(dock: Dock, screenWidth, screenHeight: float): LayoutOffset =
+proc calcLayoutOffset(dock: Client, screenWidth, screenHeight: float): LayoutOffset =
   let dockRatio = dock.width.float / dock.height.float
   let screenRatio = screenWidth / screenHeight
 
@@ -44,7 +44,7 @@ proc calcLayoutOffset(dock: Dock, screenWidth, screenHeight: float): LayoutOffse
       offset.right = max(0, screenWidth.int - dock.x).uint
   return offset
 
-proc calcLayoutOffset*(docks: Table[TWindow, Dock], screenWidth, screenHeight: uint): LayoutOffset =
+proc calcLayoutOffset*(docks: Table[TWindow, Client], screenWidth, screenHeight: uint): LayoutOffset =
   var top, left, bottom, right: uint
   for dock in docks.values:
     let offset = calcLayoutOffset(dock, screenWidth.float, screenHeight.float)

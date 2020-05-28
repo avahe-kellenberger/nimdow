@@ -34,7 +34,7 @@ type
     config: Config
     taggedClients*: OrderedTable[Tag, seq[Client]]
     selectedTag*: Tag
-    docks*: Table[TWindow, Dock]
+    docks*: Table[TWindow, Client]
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -45,7 +45,7 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConf
   result.rootWindow = rootWindow
   result.area = area
   result.config = currentConfig
-  result.docks = initTable[TWindow, Dock]()
+  result.docks = initTable[TWindow, Client]()
   result.taggedClients = OrderedTable[Tag, seq[Client]]()
   for i in 0..<tagCount:
     let tag: Tag = newTag(
@@ -253,7 +253,7 @@ proc removeWindowFromTagTable*(this: Monitor, window: TWindow) =
   this.ensureWindowFocus()
 
 proc removeWindow*(this: Monitor, window: TWindow) =
-  var dock: Dock
+  var dock: Client
   if this.docks.pop(window, dock):
     this.updateLayoutOffset()
     this.doLayout()

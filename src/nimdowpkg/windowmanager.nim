@@ -44,8 +44,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
 proc getProperty[T](
   this: WindowManager,
   window: TWindow,
-  property: TAtom,
-  kind: typedesc[T]
+  property: TAtom
 ): Option[T]
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
@@ -350,37 +349,66 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "\t", errorMessage
 
 proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
+  var clientOpt: Option[Client]
   for monitor in this.monitors:
-    var isWindowManaged = false
-    for tag, clients in monitor.taggedClients.pairs:
-      let index = clients.find(e.window)
-      if index >= 0:
-        isWindowManaged = true
-        break
+    clientOpt = monitor.find(e.window)
+    if clientOpt.isSome:
+      break
     if monitor.docks.hasKey(e.window):
-      isWindowManaged = true
+      clientOpt = monitor.docks[e.window].option
+      break
 
-    if isWindowManaged:
-      if (e.value_mask and CWBorderWidth) != 0:
-        discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
-      discard XMoveResizeWindow(this.display, e.window, e.x, e.y, e.width, e.height)
-    else: 
-      # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
-      var changes: TXWindowChanges
-      changes.x = e.detail
-      changes.y = e.detail
-      changes.width = e.width
-      changes.height = e.height
-      changes.border_width = e.border_width
-      changes.sibling = e.above
-      changes.stack_mode = e.detail
-      discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
+  if clientOpt.isSome:
+    let client = clientOpt.get
+    if (e.value_mask and CWBorderWidth) != 0:
+      discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
+
+    if (e.value_mask and CWX) != 0:
+      client.x = e.x
+      client.isFloating = true
+    if (e.value_mask and CWY) != 0:
+      client.y = e.y
+      client.isFloating = true
+    if (e.value_mask and CWWidth) != 0:
+      client.width = e.width.uint
+      client.isFloating = true
+    if (e.value_mask and CWHeight) != 0:
+      client.height = e.height.uint
+      client.isFloating = true
+
+    if client.x == -1:
+      let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
+      client.x = (screenWidth div 2 - (client.width.int div 2))
+    if client.y == -1:
+      let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
+      client.y = (screenHeight div 2 - (client.height.int div 2))
+
+    discard XMoveResizeWindow(
+      this.display,
+      e.window,
+      client.x,
+      client.y,
+      client.width.cint,
+      client.height.cint
+    )
+    this.selectedMonitor.doLayout()
+  else: 
+    # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
+    var changes: TXWindowChanges
+    changes.x = e.detail
+    changes.y = e.detail
+    changes.width = e.width
+    changes.height = e.height
+    changes.border_width = e.border_width
+    changes.sibling = e.above
+    changes.stack_mode = e.detail
+    discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
 
 proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
   for monitor in this.monitors:
     var clientOpt = monitor.find(e.window)
     if clientOpt.isNone:
-      return
+      continue
     if e.message_type == $NetWMState:
       let fullscreenAtom = $NetWMStateFullScreen
       if e.data.l[1] == fullscreenAtom or
@@ -393,7 +421,6 @@ proc getProperty[T](
   this: WindowManager,
   window: TWindow,
   property: TAtom,
-  kind: typedesc[T],
 ): Option[T] =
   var
     actualTypeReturn: TAtom
@@ -426,9 +453,9 @@ proc updateWindowType(this: WindowManager, window: TWindow) =
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
   let
-    stateOpt = this.getProperty(window, $NetWMState, TAtom)
-    windowTypeOpt = this.getProperty(window, $NetWMWindowType, TAtom)
-    strutProp = this.getProperty(window, $NetWMStrutPartial, Strut)
+    stateOpt = this.getProperty[:TAtom](window, $NetWMState)
+    windowTypeOpt = this.getProperty[:TAtom](window, $NetWMWindowType)
+    strutProp = this.getProperty[:Strut](window, $NetWMStrutPartial)
 
   let state = if stateOpt.isSome: stateOpt.get else: None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
@@ -437,7 +464,7 @@ proc updateWindowType(this: WindowManager, window: TWindow) =
     let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
     let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
     let area = monitor.calculateStrutArea(strutProp.get, screenWidth, screenHeight)
-    let dock = Dock(
+    let dock = Client(
       window: window,
       x: area.x,
       y: area.y,
@@ -482,8 +509,6 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
                        EnterWindowMask or
                        FocusChangeMask)
 
-  discard XRaiseWindow(this.display, window)
-
   this.selectedMonitor.addWindowToClientListProperty(window)
 
   discard XMoveResizeWindow(this.display,
@@ -498,7 +523,12 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
   discard XMapWindow(this.display, window)
 
   # Ensure this window isn't a dock before requesting focus
-  if not this.selectedMonitor.docks.contains(window):
+  var isDock = false
+  for monitor in this.monitors:
+    if monitor.docks.hasKey(window):
+      isDock = true
+      break
+  if not isDock:
     this.selectedMonitor.focusWindow(window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
@@ -532,8 +562,7 @@ proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if e.window != this.rootWindow:
     this.selectCorrectMonitor(e.x_root, e.y_root)
     let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
-    if clientIndex >= 0 and this.selectedMonitor.currTagClients[clientIndex].isNormal:
-      # Only focus normal windows
+    if clientIndex >= 0:
       discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =

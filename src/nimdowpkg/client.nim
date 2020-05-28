@@ -3,26 +3,23 @@ import
   hashes
 
 type
-  BaseClient* = ref object of RootObj
+  Client* = ref object of RootObj
     window*: TWindow
-  Client* = ref object of BaseClient
-    borderWidth*: int
-    isFullscreen*: bool
-    isFloating*: bool
-  Dock* = ref object of BaseClient
     x*: int
     y*: int
     width*: uint
     height*: uint
+    borderWidth*: int
+    isFullscreen*: bool
+    isFloating*: bool
 
-proc hash*(this: BaseClient): Hash
+proc hash*(this: Client): Hash
 
 proc newClient*(window: TWindow): Client =
   Client(
     window: window,
-    borderWidth: 0,
-    isFullscreen: false,
-    isFloating: false
+    x: -1,
+    y: -1
   )
 
 proc isNormal*(this: Client): bool =
@@ -31,7 +28,7 @@ proc isNormal*(this: Client): bool =
   not this.isFloating
 
 func find*[T](clients: openArray[T], window: TWindow): int =
-  ## Finds a BaseClient's index by its relative window.
+  ## Finds a Client's index by its relative window.
   ## If a client is not found, -1 is returned.
   for i, client in clients:
     if client.window == window:
@@ -60,4 +57,4 @@ proc findPreviousNormal*(clients: openArray[Client], i: int = 0): int =
       return j
   return -1
 
-proc hash*(this: BaseClient): Hash = !$Hash(this.window) 
+proc hash*(this: Client): Hash = !$Hash(this.window) 
