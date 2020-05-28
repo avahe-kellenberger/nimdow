@@ -244,6 +244,21 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   let nextMonitor = this.monitors[monitorIndex]
   this.selectedMonitor.removeWindowFromTagTable(client.window)
   nextMonitor.currTagClients.add(client)
+
+  if client.isFloating:
+    let deltaX = client.x - this.selectedMonitor.area.x
+    let deltaY = client.y - this.selectedMonitor.area.y
+    client.x = nextMonitor.area.x + deltaX
+    client.y = nextMonitor.area.y + deltaY
+    discard XMoveResizeWindow(
+      this.display,
+      client.window,
+      client.x,
+      client.y,
+      client.width.cuint,
+      client.height.cuint
+    )
+
   nextMonitor.doLayout()
   this.selectedMonitor = nextMonitor
   this.focusMonitor(monitorIndex)
@@ -369,16 +384,12 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
 
     if (e.value_mask and CWX) != 0:
       client.x = e.x
-      client.isFloating = true
     if (e.value_mask and CWY) != 0:
       client.y = e.y
-      client.isFloating = true
     if (e.value_mask and CWWidth) != 0:
       client.width = e.width.uint
-      client.isFloating = true
     if (e.value_mask and CWHeight) != 0:
       client.height = e.height.uint
-      client.isFloating = true
 
     if not client.isFixed:
       if client.x == 0:
