@@ -180,7 +180,7 @@ proc ensureWindowFocus(this: Monitor) =
     if this.selectedTag.selectedClient.isSome:
       this.focusWindow(this.selectedTag.selectedClient.get.window)
     elif this.selectedTag.previouslySelectedClient.isSome:
-      this.focusWindow(this.selectedTag.selectedClient.get.window)
+      this.focusWindow(this.selectedTag.previouslySelectedClient.get.window)
     else:
       # Find the first normal client
       let clientIndex = this.currTagClients.findNextNormal(-1)
@@ -245,12 +245,16 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
         tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
 
 proc removeWindowFromTagTable*(this: Monitor, window: TWindow) =
+  var wasModified = false
   for tag, clients in this.taggedClients.pairs:
-    let clientIndex: int = clients.find(window)
+    let clientIndex = clients.find(window)
     if clientIndex >= 0:
       this.removeWindowFromTag(tag, clientIndex) 
-  this.doLayout()
-  this.ensureWindowFocus()
+      wasModified = true
+
+  if wasModified:
+    this.doLayout()
+    this.ensureWindowFocus()
 
 proc removeWindow*(this: Monitor, window: TWindow) =
   var dock: Client

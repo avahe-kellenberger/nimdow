@@ -360,7 +360,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
 
   if clientOpt.isSome:
     let client = clientOpt.get
-    if (e.value_mask and CWBorderWidth) != 0:
+    if (e.value_mask and CWBorderWidth) != 0 and e.border_width > 0:
       discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
 
     if (e.value_mask and CWX) != 0:
@@ -541,19 +541,21 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
   for monitor in this.monitors:
-    if monitor.area.contains(x, y):
-      if monitor != this.selectedMonitor:
-        # Set old monitor's focused window's border to the unfocused color
-        if this.selectedMonitor.currClient.isSome and monitor.currClient.isSome:
-          discard XSetWindowBorder(
-            this.display,
-            this.selectedMonitor.currClient.get.window,
-            this.config.borderColorUnfocused
-          )
-        this.selectedMonitor = monitor
-        if this.selectedMonitor.currClient.isSome:
-          this.selectedMonitor.focusWindow(this.selectedMonitor.currClient.get.window)
-      break
+    if not monitor.area.contains(x, y) or monitor == this.selectedMonitor:
+      continue
+    let previousMonitor = this.selectedMonitor
+    this.selectedMonitor = monitor
+    # Set old monitor's focused window's border to the unfocused color
+    if previousMonitor.currClient.isSome:
+      discard XSetWindowBorder(
+        this.display,
+        previousMonitor.currClient.get.window,
+        this.config.borderColorUnfocused
+      )
+    # Focus the new monitor's current client
+    if this.selectedMonitor.currClient.isSome:
+      this.selectedMonitor.focusWindow(this.selectedMonitor.currClient.get.window)
+    break
 
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
   this.selectCorrectMonitor(e.x_root, e.y_root)
