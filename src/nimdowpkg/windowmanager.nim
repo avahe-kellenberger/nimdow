@@ -234,18 +234,15 @@ proc focusNextMonitor(this: WindowManager) =
   this.focusMonitor(nextMonitorIndex)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if this.selectedMonitor.currClient.isNone:
+  if monitorIndex == -1 or this.selectedMonitor.currClient.isNone:
     return
 
   let client = this.selectedMonitor.currClient.get
-  if monitorIndex == -1:
-    return
-
   let nextMonitor = this.monitors[monitorIndex]
   this.selectedMonitor.removeWindowFromTagTable(client.window)
   nextMonitor.currTagClients.add(client)
 
-  if client.isFloating:
+  if client.isFloating or client.isFullscreen:
     let deltaX = client.x - this.selectedMonitor.area.x
     let deltaY = client.y - this.selectedMonitor.area.y
     client.x = nextMonitor.area.x + deltaX
@@ -478,21 +475,25 @@ proc updateWindowType(this: WindowManager, client: var Client) =
     let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
     let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
     let area = monitor.calculateStrutArea(strutProp.get, screenWidth, screenHeight)
-    let dock = Client(
-      window: client.window,
-      x: area.x,
-      y: area.y,
-      width: area.width.uint,
-      height: area.height.uint,
-      isFixed: true
-    )
+    client.x = area.x
+    client.y = area.y
+    client.width = area.width
+    client.height = area.height
+    client.isFixed = true
     # Find monitor based on location of the dock
     block findMonitorArea:
       for monitor in this.monitors:
         if monitor.area.contains(area.x, area.y):
-          monitor.docks.add(client.window, dock)
+          monitor.docks.add(client.window, client)
           monitor.updateLayoutOffset()
-          discard XMoveResizeWindow(this.display, client.window, dock.x, dock.y, dock.width.cuint, dock.height.cuint)
+          discard XMoveResizeWindow(
+            this.display,
+            client.window,
+            client.x,
+            client.y,
+            client.width.cuint,
+            client.height.cuint
+          )
           break findMonitorArea
   else:
     this.selectedMonitor.currTagClients.add(client)

@@ -423,9 +423,6 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
-
-    # Ensure the window has focus
-    this.focusWindow(client.window)
   else:
     discard XSetWindowBorderWidth(this.display, client.window, 0)
     discard XMoveResizeWindow(
@@ -433,8 +430,8 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       client.window,
       this.area.x,
       this.area.y,
-      this.area.width.cint,
-      this.area.height.cint
+      this.area.width.cuint,
+      this.area.height.cuint
     )
     var arr = [$NetWMStateFullScreen]   
     discard XChangeProperty(
@@ -450,6 +447,8 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
     discard XRaiseWindow(this.display, client.window)
 
   client.isFullscreen = not client.isFullscreen
+  # Ensure the window has focus
+  this.focusWindow(client.window)
   this.doLayout()
 
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
