@@ -18,5 +18,5 @@ when isMainModule:
   loadedConfig.populateKeyComboTable(configTable, nimdow.display)
   loadedConfig.hookConfig(eventManager)
   nimdow.hookConfigKeys()
+  loadedConfig.runAutostartCommands(configTable)
   eventManager.startEventListenerLoop(nimdow.display)
-
