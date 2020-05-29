@@ -1,4 +1,4 @@
-import 
+import
   os,
   osproc,
   parsetoml,
@@ -39,6 +39,35 @@ proc populateControlAction(this: Config, display: PDisplay, action: string, conf
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef]
+proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string]
+proc runCommands(commands: varargs[string])
+
+proc runAutostartCommands*(this: Config, configTable: TomlTable) =
+  let autostartCommands = this.getAutostartCommands(configTable)
+  runCommands(autostartCommands)
+
+proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
+  if not configTable.hasKey("autostart"):
+    return
+  let autoStartTable = configTable["autostart"]
+  if autoStartTable.kind != TomlValueKind.Table:
+    echo "Invalid autostart table"
+    return
+  if not autoStartTable.tableVal[].hasKey("exec"):
+    echo "Autostart table does not have exec key" 
+    return
+  for cmd in autoStartTable.tableVal[]["exec"].arrayVal:
+    if cmd.kind != TomlValueKind.String:
+      echo repr(cmd), " is not a string"
+    else:
+      result.add(cmd.stringVal)
+
+proc runCommands(commands: varargs[string]) =
+  for cmd in commands:
+    try:
+      discard startProcess(command = cmd, options = { poEvalCommand })
+    except:
+      echo "Failed to start command: ", cmd
 
 proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:

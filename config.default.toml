@@ -20,6 +20,12 @@ command = "st"
 keys = [ "Return" ]
 modifiers = [ "super" ]
 
+[autostart]
+exec = [
+  #"firefox",
+  #"st",
+]
+
 [settings]
   gapSize = 12
   borderWidth = 1
