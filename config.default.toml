@@ -22,8 +22,8 @@ modifiers = [ "super" ]
 
 [autostart]
 exec = [
-	"firefox",
-	"st",
+  #"firefox",
+  #"st",
 ]
 
 [settings]
