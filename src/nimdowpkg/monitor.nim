@@ -21,7 +21,6 @@ converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
 converter toTBool(x: bool): TBool = x.TBool
 
-# TODO: Should load these from settings
 const
   tagCount = 9
   masterSlots = 1
@@ -423,7 +422,11 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
+    client.adjustToState(this.display)
   else:
+    # Don't invoke client.adjustToState here,
+    # since we want to be able to return the client to its normal state
+    # when/if this proc is invoked again.
     discard XSetWindowBorderWidth(this.display, client.window, 0)
     discard XMoveResizeWindow(
       this.display,
@@ -444,7 +447,6 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar](arr.addr),
       1
     )
-    discard XRaiseWindow(this.display, client.window)
 
   client.isFullscreen = not client.isFullscreen
   # Ensure the window has focus

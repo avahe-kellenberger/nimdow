@@ -23,6 +23,14 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 If you are on an Arch Linux based system, use `nimdow-bin` in the AUR to install a pre-built binary.
 
+## Command line arguments
+
+Currently the only argument that may be provided is a config file path. This was added for testing purposes.
+
+E.g. `$ nimdow ./some-config.toml`
+
+If no argument is provided, we use the config file mentioned in the *Building from source* section.
+
 ## Polybar config
 
 If you would like to use Polybar with Nimdow, there is a config file [here](https://github.com/avahe-kellenberger/nimdow/tree/master/polybar).

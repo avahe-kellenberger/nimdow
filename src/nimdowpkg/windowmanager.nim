@@ -1,5 +1,6 @@
 import
   x11 / [x, xlib, xutil, xatom],
+  math,
   sugar,
   options,
   tables,
@@ -23,8 +24,11 @@ converter toBool(x: TBool): bool = x.bool
 const
   wmName = "nimdow"
   tagCount = 9
+  minimumUpdateInterval = math.round(1000 / 60).int
 
 type
+  MouseState* = enum
+    Normal, Moving, Resizing
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: TWindow
@@ -32,6 +36,10 @@ type
     config: Config
     monitors: seq[Monitor]
     selectedMonitor: Monitor
+    mouseState: MouseState
+    lastMousePress: tuple[x, y: int]
+    lastMoveResizeClientState: Area
+    lastMoveResizeTime: culong
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -51,6 +59,10 @@ proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
+proc handleButtonPressed(this: WindowManager, e: TXButtonEvent)
+proc handleButtonReleased(this: WindowManager, e: TXButtonEvent)
+proc handleMouseMotion(this: WindowManager, e: TXMotionEvent)
+proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 
 proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
   result = WindowManager()
@@ -184,6 +196,9 @@ proc initListeners(this: WindowManager) =
         monitor.removeWindow(e.xdestroywindow.window),
       DestroyNotify
   )
+  this.eventManager.addListener((e: TXEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
+  this.eventManager.addListener((e: TXEvent) => handleButtonReleased(this, e.xbutton), ButtonRelease)
+  this.eventManager.addListener((e: TXEvent) => handleMouseMotion(this, e.xmotion), MotionNotify)
 
 proc openDisplay(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
@@ -245,16 +260,11 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if client.isFloating or client.isFullscreen:
     let deltaX = client.x - this.selectedMonitor.area.x
     let deltaY = client.y - this.selectedMonitor.area.y
-    client.x = nextMonitor.area.x + deltaX
-    client.y = nextMonitor.area.y + deltaY
-    discard XMoveResizeWindow(
-      this.display,
-      client.window,
-      client.x,
-      client.y,
-      client.width.cuint,
-      client.height.cuint
-    )
+    this.resize(client,
+                nextMonitor.area.x + deltaX,
+                nextMonitor.area.y + deltaY,
+                client.width,
+                client.height)
 
   nextMonitor.doLayout()
   this.selectedMonitor = nextMonitor
@@ -347,6 +357,21 @@ proc hookConfigKeys*(this: WindowManager) =
       GrabModeAsync
     )
 
+  # We only care about left and right clicks
+  for button in @[Button1, Button3]: 
+    discard XGrabButton(
+      this.display,
+      button,
+      Mod4Mask,
+      this.rootWindow,
+      false,
+      ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+      GrabModeASync,
+      GrabModeASync,
+      None,
+      None
+    )
+
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "Error: "
   var errorMessage: string = newString(1024)
@@ -354,7 +379,7 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
     display,
     cint(error.error_code),
     errorMessage.cstring,
-    len(errorMessage)
+    errorMessage.len
   )
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
@@ -539,6 +564,10 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
       return
 
   var client = newClient(window)
+  client.x = windowAttr.x
+  client.y = windowAttr.y
+  client.width = windowAttr.width.uint
+  client.height = windowAttr.height.uint
 
   discard XSetWindowBorder(this.display, window, this.config.borderColorUnfocused)
 
@@ -554,10 +583,10 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   discard XMoveResizeWindow(this.display,
                             window,
-                            windowAttr.x,
-                            windowAttr.y,
-                            windowAttr.width,
-                            windowAttr.height)
+                            client.x,
+                            client.y,
+                            client.width.cuint,
+                            client.height.cuint)
 
   this.updateWindowType(client)
   this.updateSizeHints(client)
@@ -610,13 +639,13 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
     e.window == this.rootWindow:
     return
 
-  let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
-  if clientIndex < 0:
+  let clientOpt = this.selectedMonitor.find(e.window)
+  if clientOpt.isNone:
     return
   
   this.selectedMonitor.setActiveWindowProperty(e.window)
 
-  let client = this.selectedMonitor.currTagClients[clientIndex]
+  let client = clientOpt.get
   this.selectedMonitor.selectedTag.setSelectedClient(client)
   discard XSetWindowBorder(
     this.display,
@@ -631,4 +660,70 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
         previous.window,
         this.config.borderColorUnfocused
       )
+  discard XRaiseWindow(this.display, client.window)
+
+proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
+  ## Resizes and raises the client.
+  client.x = x
+  client.y = y
+  client.width = width
+  client.height = height
+  client.adjustToState(this.display)
+  discard XRaiseWindow(this.display, client.window)
+
+proc handleButtonPressed(this: WindowManager, e: TXButtonEvent) =
+  case e.button:
+    of Button1:
+      this.mouseState = MouseState.Moving
+    of Button3:
+      this.mouseState = MouseState.Resizing
+    else:
+      this.mouseState = MouseState.Normal
+
+  if this.mouseState != MouseState.Normal:
+    if this.selectedMonitor.currClient.isNone:
+      return
+    this.lastMousePress = (e.x.int, e.y.int)
+    let client = this.selectedMonitor.currClient.get
+    this.lastMoveResizeClientState = client.toArea()
+
+proc handleButtonReleased(this: WindowManager, e: TXButtonEvent) =
+  this.mouseState = MouseState.Normal
+
+proc handleMouseMotion(this: WindowManager, e: TXMotionEvent) =
+  if this.mouseState == Normal or this.selectedMonitor.currClient.isNone:
+    return
+
+  var client = this.selectedMonitor.currClient.get
+  if client.isFullscreen:
+    return
+
+  # Prevent trying to process events too quickly (causes major lag).
+  if e.time - this.lastMoveResizeTime < minimumUpdateInterval:
+    return
+
+  # Track the last time we moved or resized a window.
+  this.lastMoveResizeTime = e.time
+
+  if not client.isFloating:
+    client.isFloating = true
+    client.borderWidth = this.config.borderWidth.int
+    this.selectedMonitor.doLayout()
+
+  let
+    deltaX = e.x - this.lastMousePress.x
+    deltaY = e.y - this.lastMousePress.y
+  
+  if this.mouseState == Moving:
+    this.resize(client,
+                this.lastMoveResizeClientState.x + deltaX,
+                this.lastMoveResizeClientState.y + deltaY,
+                this.lastMoveResizeClientState.width,
+                this.lastMoveResizeClientState.height)
+  elif this.mouseState == Resizing:
+    this.resize(client,
+                this.lastMoveResizeClientState.x,
+                this.lastMoveResizeClientState.y,
+                this.lastMoveResizeClientState.width.int + deltaX,
+                this.lastMoveResizeClientState.height.int + deltaY)
 
