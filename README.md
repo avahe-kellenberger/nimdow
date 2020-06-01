@@ -51,9 +51,9 @@ $ polybar -c path/to/config nimdow
 - [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
 - [x] Status bar integration (single monitor - integrated with Polybar)
   - [ ] Multihead status bar integration (Writing our own bar - See [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
-- [ ] Floating window support
-  - [ ] Move windows with super + left click
-  - [ ] Resize windows with super + right click drag
+- [x] Floating window support
+  - [x] Move windows with super + left click
+  - [x] Resize windows with super + right click drag
 - [x] Layouts:
   - [x] Master/stack
 - [x] Keybindings:
