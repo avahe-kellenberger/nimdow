@@ -88,16 +88,13 @@ proc layoutSingleClient(
   screenHeight: uint,
   offset: LayoutOffset
   ) =
-  discard XMoveResizeWindow(
-    display,
-    client.window,
-    this.monitorArea.x + offset.left.cint,
-    this.monitorArea.y + offset.top.cint,
-    screenWidth.cuint,
-    screenHeight.cuint
-  )
+  client.x = this.monitorArea.x + offset.left.int
+  client.y = this.monitorArea.y + offset.top.int
+  client.width = screenWidth
+  client.height = screenHeight
   # Hide border if it's the only client
-  discard XSetWindowBorderWidth(display, client.window, 0)
+  client.borderWidth = 0
+  client.adjustToState(display)
 
 proc layoutMultipleClients(
   this: MasterStackLayout,
@@ -130,7 +127,6 @@ proc layoutMultipleClients(
 
   for (i, client) in clients.pairs():
     var xPos, yPos, clientHeight: uint
-    discard XSetWindowBorderWidth(display, client.window, this.borderWidth.cuint)
     if i.uint < masterClientCount:
       # Master layout
       xPos = this.gapSize
@@ -143,14 +139,12 @@ proc layoutMultipleClients(
       yPos = this.calcYPosition(stackIndex, stackClientCount, stackClientHeight, stackRoundingErr)
       clientHeight = stackClientHeight
 
-    discard XMoveResizeWindow(
-      display,
-      client.window,
-      this.monitorArea.x + (xPos + offset.left).cint,
-      this.monitorArea.y + (yPos + offset.top).cint,
-      clientWidth.cuint,
-      clientHeight.cuint
-    )
+    client.x = this.monitorArea.x + (xPos + offset.left).int
+    client.y = this.monitorArea.y + (yPos + offset.top).int
+    client.width = clientWidth
+    client.height = clientHeight
+    client.borderWidth = this.borderWidth
+    client.adjustToState(display)
 
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint =
   ## Calculates the height of a client (not counting its borders).

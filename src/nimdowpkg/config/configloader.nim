@@ -78,7 +78,7 @@ proc getModifierMask(modifier: TomlValueRef): int =
                        repr(modifier) & " is not a a valid key modifier")
   return ModifierTable[modifier.stringVal]
 
-proc xorModifiers(modifiers: openarray[TomlValueRef]): int =
+proc bitorModifiers(modifiers: openarray[TomlValueRef]): int =
   for tomlElement in modifiers:
     result = result or getModifierMask(tomlElement)
 
@@ -186,9 +186,11 @@ proc findConfigPath(): string =
   if not fileExists(result):
     raise newException(Exception, result & " does not exist")
 
-proc loadConfigFile*(): TomlTable =
+proc loadConfigFile*(filePath: string = ""): TomlTable =
   ## Reads the user's configuration file into a table.
-  let configPath = findConfigPath()
+  ## If a filePath is given, that path will be used to load the config.
+  ## Otherwise, we find the user's configuration file.
+  let configPath = if filePath.len == 0: findConfigPath() else: filepath
   let loadedConfig = parsetoml.parseFile(configPath)
   if loadedConfig.kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid config file!")
@@ -205,7 +207,7 @@ proc populateControlAction(this: Config, display: PDisplay, action: string, conf
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
   ## Gets the KeyCombos associated with the given `action` from the table.
   let modifierArray = this.getModifiersForAction(configTable, action)
-  let modifiers: int = xorModifiers(modifierArray)
+  let modifiers: int = bitorModifiers(modifierArray)
   let keys: seq[string] = this.getKeysForAction(configTable, action)
   for key in keys:
     let keycode: int = key.toKeycode(display)

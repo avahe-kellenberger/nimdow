@@ -90,3 +90,7 @@ exec = [
   keys = [ "x" ]
   modifiers = [ "super" ]
 
+  [controls.toggleFloating]
+  keys = [ "space" ]
+  modifiers = [ "super" ]
+
