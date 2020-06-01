@@ -123,8 +123,16 @@ template currTagClients*(this: Monitor): untyped =
   ## `clients` would be a copy of the collection.
   this.taggedClients[this.selectedTag]
 
-template currClient*(this: Monitor): untyped =
+template currClient*(this: Monitor): Option[Client] =
   this.selectedTag.selectedClient
+
+template withSomeCurrClient*(this: Monitor, client, body: untyped) =
+  ## Executes `body` if `this.currClient.isSome == true`
+  ## with the extracted Client value.
+  if this.currClient.isNone:
+    return
+  var client: Client = this.currClient.get
+  body
 
 proc find*(this: Monitor, window: TWindow): Option[Client] =
   ## Finds a client based on its window property.
@@ -173,13 +181,13 @@ proc focusWindow*(this: Monitor, window: TWindow) =
     CurrentTime
   )
 
-proc ensureWindowFocus(this: Monitor) =
+proc ensureWindowFocus*(this: Monitor) =
   ## Ensures a window is selected on the current tag.
   if this.currTagClients.len == 0:
     this.focusWindow(this.rootWindow)
   else:
-    if this.selectedTag.selectedClient.isSome:
-      this.focusWindow(this.selectedTag.selectedClient.get.window)
+    if this.currClient.isSome:
+      this.focusWindow(this.currClient.get.window)
     elif this.selectedTag.previouslySelectedClient.isSome:
       this.focusWindow(this.selectedTag.previouslySelectedClient.get.window)
     else:
@@ -245,25 +253,27 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
       if nextNormalIndex >= 0:
         tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
 
-proc removeWindowFromTagTable*(this: Monitor, window: TWindow) =
-  var wasModified = false
+proc removeWindowFromTagTable*(this: Monitor, window: TWindow): bool =
+  ## Removes a window from the tag table on this monitor.
+  ## Returns if the window was removed from the table.
+  result = false
   for tag, clients in this.taggedClients.pairs:
     let clientIndex = clients.find(window)
     if clientIndex >= 0:
       this.removeWindowFromTag(tag, clientIndex) 
-      wasModified = true
+      result = true
 
-  if wasModified:
-    this.doLayout()
-    this.ensureWindowFocus()
-
-proc removeWindow*(this: Monitor, window: TWindow) =
+proc removeWindow*(this: Monitor, window: TWindow): bool =
+  ## Removes a window (could be in the tag table or a dock).
+  ## Returns if the window was removed.
+  ## After a window is removed, you should typically call
+  ## doLayout and ensureWindowFocus (unless you have a specific use case).
+  result = false
   var dock: Client
   if this.docks.pop(window, dock):
     this.updateLayoutOffset()
-    this.doLayout()
   else:
-    this.removeWindowFromTagTable(window)
+    result = this.removeWindowFromTagTable(window)
     this.deleteActiveWindowProperty()
   
   this.updateClientList()
@@ -317,9 +327,9 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
     this.deleteActiveWindowProperty()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
-  if this.selectedTag.selectedClient.isSome:
+  if this.currClient.isSome:
     this.moveClientToTag(
-      this.selectedTag.selectedClient.get,
+      this.currClient.get,
       tag
     )
 
@@ -355,8 +365,8 @@ proc viewTag*(this: Monitor, tag: Tag) =
   discard XSync(this.display, false)
 
   # Select the "selected" client for the newly viewed tag
-  if this.selectedTag.selectedClient.isSome:
-    this.focusWindow(this.selectedTag.selectedClient.get.window)
+  if this.currClient.isSome:
+    this.focusWindow(this.currClient.get.window)
   else:
     this.deleteActiveWindowProperty()
 
@@ -369,7 +379,7 @@ proc findSelectedAndNextNormalClientIndexes(
   ## Finds the index of the currently selected client in currTagClients,
   ## and the index result of findNormalClient.
   ## Either value can be -1 if not found.
-  let clientOption = this.selectedTag.selectedClient
+  let clientOption = this.currClient
   if clientOption.isSome:
     let selectedClientIndex = this.currTagClients.find(clientOption.get)
     let nextNormalClientIndex = this.currTagClients.findNormalClient(selectedClientIndex)
@@ -454,8 +464,23 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
   this.doLayout()
 
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
-  if this.selectedTag.selectedClient.isSome:
-    this.toggleFullscreen(this.selectedTag.selectedClient.get)
+  this.withSomeCurrClient(client):
+    this.toggleFullscreen(client)
+
+proc setFloating*(this: Monitor, client: Client, floating: bool) =
+  ## Changes the client's floating state,
+  ## performs the current layout for the current tag,
+  ## and fits the client to its state attributes.
+  if floating == client.isFloating:
+    return
+  client.isFloating = floating
+  this.doLayout()
+  if floating:
+    client.adjustToState(this.display)
+
+proc toggleFloatingForSelectedClient*(this: Monitor) =
+  this.withSomeCurrClient(client):
+    this.setFloating(client, not client.isFloating)
 
 proc findNext*(monitors: openArray[Monitor], current: Monitor): int =
   ## Finds the next monitor index from index `i` (exclusive), iterating forward.
@@ -475,4 +500,12 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
       if i == monitors.low:
         return monitors.high
       return i - 1
+  return -1
+
+proc find*(monitors: openArray[Monitor], x, y: int): int =
+  ## Finds a monitor's index based on the pointer location.
+  ## -1 is returned if no monitors contain the location.
+  for i, monitor in monitors:
+    if monitor.area.contains(x, y):
+      return i
   return -1

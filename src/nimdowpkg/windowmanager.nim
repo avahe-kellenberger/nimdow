@@ -40,6 +40,7 @@ type
     lastMousePress: tuple[x, y: int]
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
+    moveResizingClient: Option[Client]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -193,7 +194,9 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener(
     proc(e: TXEvent) =
       for monitor in this.monitors:
-        monitor.removeWindow(e.xdestroywindow.window),
+        if monitor.removeWindow(e.xdestroywindow.window):
+          monitor.doLayout()
+          monitor.ensureWindowFocus(),
       DestroyNotify
   )
   this.eventManager.addListener((e: TXEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
@@ -254,7 +257,9 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
 
   let client = this.selectedMonitor.currClient.get
   let nextMonitor = this.monitors[monitorIndex]
-  this.selectedMonitor.removeWindowFromTagTable(client.window)
+  if this.selectedMonitor.removeWindow(client.window):
+    this.selectedMonitor.doLayout()
+    this.selectedMonitor.ensureWindowFocus()
   nextMonitor.currTagClients.add(client)
 
   if client.isFloating or client.isFullscreen:
@@ -343,6 +348,9 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "destroySelectedWindow"):
     this.selectedMonitor.destroySelectedWindow()
+
+  createControl(keycode, "toggleFloating"):
+    this.selectedMonitor.toggleFloatingForSelectedClient()
 
 proc hookConfigKeys*(this: WindowManager) =
   # Grab key combos defined in the user's config
@@ -625,17 +633,21 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     break
 
 proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
-  this.selectCorrectMonitor(e.x_root, e.y_root)
+  # If moving/resizing a client, we delay selecting the new monitor.
+  if this.mouseState == MouseState.Normal:
+    this.selectCorrectMonitor(e.x_root, e.y_root)
 
 proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
-  if e.window != this.rootWindow:
-    this.selectCorrectMonitor(e.x_root, e.y_root)
-    let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
-    if clientIndex >= 0:
-      discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
+  if this.mouseState != MouseState.Normal or e.window == this.rootWindow:
+    return
+  this.selectCorrectMonitor(e.x_root, e.y_root)
+  let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
+  if clientIndex >= 0:
+    discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
-  if e.detail == NotifyPointer or
+  if this.mouseState != Normal or
+    e.detail == NotifyPointer or
     e.window == this.rootWindow:
     return
 
@@ -671,30 +683,56 @@ proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
   client.adjustToState(this.display)
   discard XRaiseWindow(this.display, client.window)
 
+proc selectClientForMoveResize(this: WindowManager, e: TXButtonEvent) =
+  if this.selectedMonitor.currClient.isNone:
+      return
+  let client = this.selectedMonitor.currClient.get
+  this.moveResizingClient = client.option
+  this.lastMousePress = (e.x.int, e.y.int)
+  this.lastMoveResizeClientState = client.toArea()
+
 proc handleButtonPressed(this: WindowManager, e: TXButtonEvent) =
   case e.button:
     of Button1:
       this.mouseState = MouseState.Moving
+      this.selectClientForMoveResize(e)
     of Button3:
       this.mouseState = MouseState.Resizing
+      this.selectClientForMoveResize(e)
     else:
       this.mouseState = MouseState.Normal
-
-  if this.mouseState != MouseState.Normal:
-    if this.selectedMonitor.currClient.isNone:
-      return
-    this.lastMousePress = (e.x.int, e.y.int)
-    let client = this.selectedMonitor.currClient.get
-    this.lastMoveResizeClientState = client.toArea()
 
 proc handleButtonReleased(this: WindowManager, e: TXButtonEvent) =
   this.mouseState = MouseState.Normal
 
-proc handleMouseMotion(this: WindowManager, e: TXMotionEvent) =
-  if this.mouseState == Normal or this.selectedMonitor.currClient.isNone:
+  if this.moveResizingClient.isNone:
     return
 
-  var client = this.selectedMonitor.currClient.get
+  # Handle moving clients between monitors
+  let client = this.moveResizingClient.get
+  # Detect new monitor from area location
+  let
+    centerX = client.x + client.width.int div 2
+    centerY = client.y + client.height.int div 2
+
+  let monitorIndex = this.monitors.find(centerX, centerY)
+  if monitorIndex < 0 or this.monitors[monitorIndex] == this.selectedMonitor:
+    return
+  let nextMonitor = this.monitors[monitorIndex]
+  let prevMonitor = this.selectedMonitor
+  # Remove client from current monitor/tag
+  discard prevMonitor.removeWindow(client.window)
+  nextMonitor.currTagClients.add(client)
+  nextMonitor.selectedTag.setSelectedClient(client)
+  this.selectedMonitor = nextMonitor
+  # Unset the client being moved/resized
+  this.moveResizingClient = none(Client)
+
+proc handleMouseMotion(this: WindowManager, e: TXMotionEvent) =
+  if this.mouseState == Normal or this.moveResizingClient.isNone:
+    return
+
+  var client = this.moveResizingClient.get
   if client.isFullscreen:
     return
 
@@ -713,7 +751,7 @@ proc handleMouseMotion(this: WindowManager, e: TXMotionEvent) =
   let
     deltaX = e.x - this.lastMousePress.x
     deltaY = e.y - this.lastMousePress.y
-  
+
   if this.mouseState == Moving:
     this.resize(client,
                 this.lastMoveResizeClientState.x + deltaX,
