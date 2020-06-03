@@ -75,10 +75,7 @@ method arrange*(
   let clientsToBeArranged = getClientsToBeArranged(clients)
   let clientCount = clientsToBeArranged.len
   if clientCount == 1:
-    let client = clients[0]
-    if client.isFloating or client.isFullscreen:
-      return
-    this.layoutSingleClient(display, client, screenWidth.uint, screenHeight.uint, offset)
+    this.layoutSingleClient(display, clientsToBeArranged[0], screenWidth.uint, screenHeight.uint, offset)
   else:
     this.layoutMultipleClients(display, clientsToBeArranged, screenWidth.uint, screenHeight.uint, offset)
 
@@ -183,6 +180,6 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
   ## Finds all clients that should be arranged in the layout.
   ## Some windows are excluded, such as fullscreen windows.
   for client in clients:
-    if not client.isFullscreen and not client.isFloating:
+    if not client.isFullscreen and not client.isFloating and not client.isFixed:
       result.add(client)
 
