@@ -457,6 +457,7 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar](arr.addr),
       1
     )
+    discard XRaiseWindow(this.display, client.window)
 
   client.isFullscreen = not client.isFullscreen
   # Ensure the window has focus
