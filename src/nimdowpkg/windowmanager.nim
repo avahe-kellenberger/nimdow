@@ -603,6 +603,8 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
 
   if not client.isFixed:
     this.selectedMonitor.focusWindow(window)
+  if client.isFloating:
+    discard XRaiseWindow(this.display, client.window)
 
 proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
   var windowAttr: TXWindowAttributes
@@ -672,7 +674,8 @@ proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
         previous.window,
         this.config.borderColorUnfocused
       )
-  discard XRaiseWindow(this.display, client.window)
+  if client.isFloating:
+    discard XRaiseWindow(this.display, client.window)
 
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
   ## Resizes and raises the client.
