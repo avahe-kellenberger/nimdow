@@ -75,8 +75,10 @@ method arrange*(
   let clientsToBeArranged = getClientsToBeArranged(clients)
   let clientCount = clientsToBeArranged.len
   if clientCount == 1:
-    for client in clientsToBeArranged:
-      layoutSingleClient(this, display, client, screenWidth.uint, screenHeight.uint, offset)
+    let client = clients[0]
+    if client.isFloating or client.isFullscreen:
+      return
+    this.layoutSingleClient(display, client, screenWidth.uint, screenHeight.uint, offset)
   else:
     this.layoutMultipleClients(display, clientsToBeArranged, screenWidth.uint, screenHeight.uint, offset)
 

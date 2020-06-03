@@ -260,9 +260,11 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if this.selectedMonitor.removeWindow(client.window):
     this.selectedMonitor.doLayout()
     this.selectedMonitor.ensureWindowFocus()
-  nextMonitor.currTagClients.add(client)
 
-  if client.isFloating or client.isFullscreen:
+  nextMonitor.currTagClients.add(client)
+  nextMonitor.doLayout()
+
+  if client.isFloating:
     let deltaX = client.x - this.selectedMonitor.area.x
     let deltaY = client.y - this.selectedMonitor.area.y
     this.resize(client,
@@ -270,8 +272,14 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
                 nextMonitor.area.y + deltaY,
                 client.width,
                 client.height)
+  elif client.isFullscreen:
+    this.resize(client,
+                nextMonitor.area.x,
+                nextMonitor.area.y,
+                nextMonitor.area.width,
+                nextMonitor.area.height
+               )
 
-  nextMonitor.doLayout()
   this.selectedMonitor = nextMonitor
   this.focusMonitor(monitorIndex)
   this.selectedMonitor.focusWindow(client.window)
