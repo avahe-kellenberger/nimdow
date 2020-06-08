@@ -1,7 +1,7 @@
 import
   x11 / [x, xlib]
 
-converter boolToTBool(x: bool): TBool = TBool(x)
+converter boolToXBool(x: bool): XBool = XBool(x)
 
 type
   WMAtom* = enum
@@ -20,9 +20,9 @@ type
   XAtom* = enum
     Manager, Xembed, XembedInfo, XLast
 
-var WMAtoms*: array[ord(WMLast), TAtom]
-var NetAtoms*: array[ord(NetLast), TAtom]
-var XAtoms*: array[ord(XLast), TAtom]
+var WMAtoms*: array[ord(WMLast), Atom]
+var NetAtoms*: array[ord(NetLast), Atom]
+var XAtoms*: array[ord(XLast), Atom]
 
 template `$`*(atom: WMAtom): untyped =
   xatoms.WMAtoms[ord(atom)]
@@ -34,7 +34,7 @@ template `$`*(atom: XAtom): untyped =
   xatoms.XAtoms[ord(atom)]
 
 
-proc getWMAtoms*(display: PDisplay): array[ord(WMLast), TAtom] =
+proc getWMAtoms*(display: PDisplay): array[ord(WMLast), Atom] =
   [
     XInternAtom(display, "WM_PROTOCOLS", false),
     XInternAtom(display, "WM_DELETE_WINDOW", false),
@@ -42,7 +42,7 @@ proc getWMAtoms*(display: PDisplay): array[ord(WMLast), TAtom] =
     XInternAtom(display, "WM_TAKE_FOCUS", false)
   ]
 
-proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
+proc getNetAtoms*(display: PDisplay): array[ord(NetLast), Atom] =
   [
     XInternAtom(display, "_NET_ACTIVE_WINDOW", false),
     XInternAtom(display, "_NET_SUPPORTED", false),
@@ -75,7 +75,7 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), TAtom] =
     XInternAtom(display, "_NET_DESKTOP_NAMES", false)
   ]
 
-proc getXAtoms*(display: PDisplay): array[ord(XLast), TAtom] =
+proc getXAtoms*(display: PDisplay): array[ord(XLast), Atom] =
   [
     XInternAtom(display, "MANAGER", false),
     XInternAtom(display, "_XEMBED", false),

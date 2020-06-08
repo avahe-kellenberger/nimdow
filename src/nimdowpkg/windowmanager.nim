@@ -18,8 +18,8 @@ converter intToCUint(x: int): cuint = x.cuint
 converter cintToCUint(x: cint): cuint = x.cuint
 converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
-converter toTBool(x: bool): TBool = x.TBool
-converter toBool(x: TBool): bool = x.bool
+converter toXBool(x: bool): XBool = x.XBool
+converter toBool(x: XBool): bool = x.bool
 
 const
   wmName = "nimdow"
@@ -31,7 +31,7 @@ type
     Normal, Moving, Resizing
   WindowManager* = ref object
     display*: PDisplay
-    rootWindow*: TWindow
+    rootWindow*: Window
     eventManager: XEventManager
     config: Config
     monitors: seq[Monitor]
@@ -45,24 +45,24 @@ type
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
 proc mapConfigActions*(this: WindowManager)
-proc configureRootWindow(this: WindowManager): TWindow
+proc configureRootWindow(this: WindowManager): Window
 # XEvents
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent)
+proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc getProperty[T](
   this: WindowManager,
-  window: TWindow,
-  property: TAtom
+  window: Window,
+  property: Atom
 ): Option[T]
-proc onClientMessage(this: WindowManager, e: TXClientMessageEvent)
-proc onMapRequest(this: WindowManager, e: TXMapRequestEvent)
-proc onMotionNotify(this: WindowManager, e: TXMotionEvent)
-proc onEnterNotify(this: WindowManager, e: TXCrossingEvent)
-proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent)
-proc handleButtonPressed(this: WindowManager, e: TXButtonEvent)
-proc handleButtonReleased(this: WindowManager, e: TXButtonEvent)
-proc handleMouseMotion(this: WindowManager, e: TXMotionEvent)
+proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
+proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
+proc onMotionNotify(this: WindowManager, e: XMotionEvent)
+proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
+proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
+proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
+proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
+proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 
 proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
@@ -135,7 +135,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
 
   # We need to map this window to be able to set the input focus to it if no other window is available to be focused.
   discard XMapWindow(result.display, ewmhWindow)
-  var changes: TXWindowChanges
+  var changes: XWindowChanges
   changes.stack_mode = Below
   discard XConfigureWindow(result.display, ewmhWindow, CWStackMode, addr(changes))
 
@@ -161,7 +161,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
        "7".cstring,
        "8".cstring,
        "9".cstring]
-    var text: TXTextProperty
+    var text: XTextProperty
     discard Xutf8TextListToTextProperty(result.display,
                                         cast[PPChar](tags[0].addr),
                                         tagCount,
@@ -185,23 +185,23 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
 
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
-  this.eventManager.addListener((e: TXEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
-  this.eventManager.addListener((e: TXEvent) => onClientMessage(this, e.xclient), ClientMessage)
-  this.eventManager.addListener((e: TXEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
-  this.eventManager.addListener((e: TXEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
-  this.eventManager.addListener((e: TXEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
-  this.eventManager.addListener((e: TXEvent) => onFocusIn(this, e.xfocus), FocusIn)
+  this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
+  this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
+  this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
+  this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
+  this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
+  this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
   this.eventManager.addListener(
-    proc(e: TXEvent) =
+    proc(e: XEvent) =
       for monitor in this.monitors:
         if monitor.removeWindow(e.xdestroywindow.window):
           monitor.doLayout()
           monitor.ensureWindowFocus(),
       DestroyNotify
   )
-  this.eventManager.addListener((e: TXEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
-  this.eventManager.addListener((e: TXEvent) => handleButtonReleased(this, e.xbutton), ButtonRelease)
-  this.eventManager.addListener((e: TXEvent) => handleMouseMotion(this, e.xmotion), MotionNotify)
+  this.eventManager.addListener((e: XEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
+  this.eventManager.addListener((e: XEvent) => handleButtonReleased(this, e.xbutton), ButtonRelease)
+  this.eventManager.addListener((e: XEvent) => handleMouseMotion(this, e.xmotion), MotionNotify)
 
 proc openDisplay(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
@@ -209,10 +209,10 @@ proc openDisplay(): PDisplay =
     quit "Failed to open display"
   return tempDisplay
 
-proc configureRootWindow(this: WindowManager): TWindow =
+proc configureRootWindow(this: WindowManager): Window =
   result = DefaultRootWindow(this.display)
 
-  var windowAttribs: TXSetWindowAttributes
+  var windowAttribs: XSetWindowAttributes
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
   windowAttribs.event_mask = SubstructureRedirectMask or PropertyChangeMask or PointerMotionMask
@@ -401,7 +401,7 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   errorMessage.setLen(errorMessage.cstring.len)
   echo "\t", errorMessage
 
-proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
+proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   var clientOpt: Option[Client]
   var monitorOpt: Option[Monitor]
   for monitor in this.monitors:
@@ -446,7 +446,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     this.selectedMonitor.doLayout()
   else: 
     # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
-    var changes: TXWindowChanges
+    var changes: XWindowChanges
     changes.x = e.detail
     changes.y = e.detail
     changes.width = e.width
@@ -456,7 +456,7 @@ proc onConfigureRequest(this: WindowManager, e: TXConfigureRequestEvent) =
     changes.stack_mode = e.detail
     discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
 
-proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
+proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   for monitor in this.monitors:
     var clientOpt = monitor.find(e.window)
     if clientOpt.isNone:
@@ -471,11 +471,11 @@ proc onClientMessage(this: WindowManager, e: TXClientMessageEvent) =
 
 proc getProperty[T](
   this: WindowManager,
-  window: TWindow,
-  property: TAtom,
+  window: Window,
+  property: Atom,
 ): Option[T] =
   var
-    actualTypeReturn: TAtom
+    actualTypeReturn: Atom
     actualFormatReturn: cint
     numItemsReturn: culong
     bytesAfterReturn: culong
@@ -505,8 +505,8 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
   let
-    stateOpt = this.getProperty[:TAtom](client.window, $NetWMState)
-    windowTypeOpt = this.getProperty[:TAtom](client.window, $NetWMWindowType)
+    stateOpt = this.getProperty[:Atom](client.window, $NetWMState)
+    windowTypeOpt = this.getProperty[:Atom](client.window, $NetWMWindowType)
     strutProp = this.getProperty[:Strut](client.window, $NetWMStrutPartial)
 
   let state = if stateOpt.isSome: stateOpt.get else: None
@@ -571,7 +571,7 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
                                 client.height.cuint
                                )
 
-proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes) =
+proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   # Don't manage the same window twice.
   for monitor in this.monitors:
     if monitor.find(window).isSome:
@@ -614,8 +614,8 @@ proc manage(this: WindowManager, window: TWindow, windowAttr: TXWindowAttributes
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
 
-proc onMapRequest(this: WindowManager, e: TXMapRequestEvent) =
-  var windowAttr: TXWindowAttributes
+proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
+  var windowAttr: XWindowAttributes
   if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return
   if windowAttr.override_redirect:
@@ -642,12 +642,12 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
 
-proc onMotionNotify(this: WindowManager, e: TXMotionEvent) =
+proc onMotionNotify(this: WindowManager, e: XMotionEvent) =
   # If moving/resizing a client, we delay selecting the new monitor.
   if this.mouseState == MouseState.Normal:
     this.selectCorrectMonitor(e.x_root, e.y_root)
 
-proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
+proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
   if this.mouseState != MouseState.Normal or e.window == this.rootWindow:
     return
   this.selectCorrectMonitor(e.x_root, e.y_root)
@@ -655,7 +655,7 @@ proc onEnterNotify(this: WindowManager, e: TXCrossingEvent) =
   if clientIndex >= 0:
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
-proc onFocusIn(this: WindowManager, e: TXFocusChangeEvent) =
+proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   if this.mouseState != Normal or
     e.detail == NotifyPointer or
     e.window == this.rootWindow:
@@ -694,7 +694,7 @@ proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
   client.adjustToState(this.display)
   discard XRaiseWindow(this.display, client.window)
 
-proc selectClientForMoveResize(this: WindowManager, e: TXButtonEvent) =
+proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   if this.selectedMonitor.currClient.isNone:
       return
   let client = this.selectedMonitor.currClient.get
@@ -702,7 +702,7 @@ proc selectClientForMoveResize(this: WindowManager, e: TXButtonEvent) =
   this.lastMousePress = (e.x.int, e.y.int)
   this.lastMoveResizeClientState = client.toArea()
 
-proc handleButtonPressed(this: WindowManager, e: TXButtonEvent) =
+proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   case e.button:
     of Button1:
       this.mouseState = MouseState.Moving
@@ -713,7 +713,7 @@ proc handleButtonPressed(this: WindowManager, e: TXButtonEvent) =
     else:
       this.mouseState = MouseState.Normal
 
-proc handleButtonReleased(this: WindowManager, e: TXButtonEvent) =
+proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   this.mouseState = MouseState.Normal
 
   if this.moveResizingClient.isNone:
@@ -739,7 +739,7 @@ proc handleButtonReleased(this: WindowManager, e: TXButtonEvent) =
   # Unset the client being moved/resized
   this.moveResizingClient = none(Client)
 
-proc handleMouseMotion(this: WindowManager, e: TXMotionEvent) =
+proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
   if this.mouseState == Normal or this.moveResizingClient.isNone:
     return
 

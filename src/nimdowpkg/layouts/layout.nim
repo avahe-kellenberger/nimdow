@@ -44,7 +44,7 @@ proc calcLayoutOffset(dock: Client, screenWidth, screenHeight: float): LayoutOff
       offset.right = max(0, screenWidth.int - dock.x).uint
   return offset
 
-proc calcLayoutOffset*(docks: Table[TWindow, Client], screenWidth, screenHeight: uint): LayoutOffset =
+proc calcLayoutOffset*(docks: Table[Window, Client], screenWidth, screenHeight: uint): LayoutOffset =
   var top, left, bottom, right: uint
   for dock in docks.values:
     let offset = calcLayoutOffset(dock, screenWidth.float, screenHeight.float)

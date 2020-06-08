@@ -94,7 +94,7 @@ proc configureExternalProcess(this: Config, command: string) =
         echo "Failed to start command: ", command
 
 proc hookConfig*(this: Config, eventManager: XEventManager) =
-  let listener: XEventListener = proc(e: TXEvent) =
+  let listener: XEventListener = proc(e: XEvent) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):

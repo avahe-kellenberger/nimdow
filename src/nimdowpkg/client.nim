@@ -5,7 +5,7 @@ import
 
 type
   Client* = ref object of RootObj
-    window*: TWindow
+    window*: Window
     x*: int
     y*: int
     width*: uint
@@ -17,7 +17,7 @@ type
 
 proc hash*(this: Client): Hash
 
-proc newClient*(window: TWindow): Client =
+proc newClient*(window: Window): Client =
   Client(window: window)
 
 proc adjustToState*(this: Client, display: PDisplay) =
@@ -32,7 +32,7 @@ proc adjustToState*(this: Client, display: PDisplay) =
   )
   discard XSetWindowBorderWidth(display, this.window, this.borderWidth.cuint)
 
-  var windowChanges: TXWindowChanges
+  var windowChanges: XWindowChanges
   windowChanges.x = this.x.cint
   windowChanges.y = this.y.cint
   windowChanges.width = this.width.cint
@@ -50,7 +50,7 @@ proc isNormal*(this: Client): bool =
   ## This currently means the client is not fixed.
   not this.isFixed
 
-func find*[T](clients: openArray[T], window: TWindow): int =
+func find*[T](clients: openArray[T], window: Window): int =
   ## Finds a Client's index by its relative window.
   ## If a client is not found, -1 is returned.
   for i, client in clients:

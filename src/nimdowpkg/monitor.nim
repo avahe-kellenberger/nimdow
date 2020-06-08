@@ -19,7 +19,7 @@ converter intToCUint(x: int): cuint = x.cuint
 converter cintToCUint(x: cint): cuint = x.cuint
 converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
-converter toTBool(x: bool): TBool = x.TBool
+converter toXBool(x: bool): XBool = x.XBool
 
 const
   tagCount = 9
@@ -28,24 +28,24 @@ const
 type
   Monitor* = ref object of RootObj
     display: PDisplay
-    rootWindow: TWindow
+    rootWindow: Window
     area*: Area
     config: Config
     taggedClients*: OrderedTable[Tag, seq[Client]]
     selectedTag*: Tag
-    docks*: Table[TWindow, Client]
+    docks*: Table[Window, Client]
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
 proc doLayout*(this: Monitor)
 
-proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConfig: Config): Monitor =
+proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfig: Config): Monitor =
   result = Monitor()
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
   result.config = currentConfig
-  result.docks = initTable[TWindow, Client]()
+  result.docks = initTable[Window, Client]()
   result.taggedClients = OrderedTable[Tag, seq[Client]]()
   for i in 0..<tagCount:
     let tag: Tag = newTag(
@@ -65,10 +65,10 @@ proc newMonitor*(display: PDisplay, rootWindow: TWindow, area: Area, currentConf
 
   result.updateCurrentDesktopProperty()
 
-proc getMonitorAreas*(display: PDisplay, rootWindow: TWindow): seq[Area] =
+proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
   var number: cint
   var screenInfo =
-    cast[ptr UncheckedArray[TXineramaScreenInfo]]
+    cast[ptr UncheckedArray[XineramaScreenInfo]]
       (XineramaQueryScreens(display, number.addr))
 
   for i in countup(0, number - 1):
@@ -134,7 +134,7 @@ template withSomeCurrClient*(this: Monitor, client, body: untyped) =
   var client: Client = this.currClient.get
   body
 
-proc find*(this: Monitor, window: TWindow): Option[Client] =
+proc find*(this: Monitor, window: Window): Option[Client] =
   ## Finds a client based on its window property.
   for tag, clients in this.taggedClients.pairs:
     let index = clients.find(window)
@@ -173,7 +173,7 @@ proc updateLayoutOffset*(this: Monitor) =
   this.layoutOffset = this.docks.calcLayoutOffset(this.area.width, this.area.height)
   this.doLayout()
 
-proc focusWindow*(this: Monitor, window: TWindow) =
+proc focusWindow*(this: Monitor, window: Window) =
   discard XSetInputFocus(
     this.display,
     window,
@@ -198,7 +198,7 @@ proc ensureWindowFocus*(this: Monitor) =
       else:
         this.focusWindow(this.rootWindow)
 
-proc addWindowToClientListProperty*(this: Monitor, window: TWindow) =
+proc addWindowToClientListProperty*(this: Monitor, window: Window) =
   ## Adds the window to _NET_CLIENT_LIST
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -217,7 +217,7 @@ proc updateClientList(this: Monitor) =
   for window in this.docks.keys:
     this.addWindowToClientListProperty(window)
 
-proc setActiveWindowProperty*(this: Monitor, window: TWindow) =
+proc setActiveWindowProperty*(this: Monitor, window: Window) =
   discard XChangeProperty(
       this.display,
       this.rootWindow,
@@ -253,7 +253,7 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
       if nextNormalIndex >= 0:
         tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
 
-proc removeWindowFromTagTable*(this: Monitor, window: TWindow): bool =
+proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
   ## Returns if the window was removed from the table.
   result = false
@@ -263,7 +263,7 @@ proc removeWindowFromTagTable*(this: Monitor, window: TWindow): bool =
       this.removeWindowFromTag(tag, clientIndex) 
       result = true
 
-proc removeWindow*(this: Monitor, window: TWindow): bool =
+proc removeWindow*(this: Monitor, window: Window): bool =
   ## Removes a window (could be in the tag table or a dock).
   ## Returns if the window was removed.
   ## After a window is removed, you should typically call
@@ -278,7 +278,7 @@ proc removeWindow*(this: Monitor, window: TWindow): bool =
   
   this.updateClientList()
 
-proc updateWindowTagAtom*(this: Monitor, window: TWindow, tag: Tag) =
+proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
   # TODO: We should probably define our own per-monitor tag atoms
   let data: clong = this.selectedTag.id.clong
   discard XChangeProperty(this.display,
@@ -291,10 +291,10 @@ proc updateWindowTagAtom*(this: Monitor, window: TWindow, tag: Tag) =
                           1)
 
 proc destroySelectedWindow*(this: Monitor) =
-  var selectedWin: TWindow
+  var selectedWin: Window
   var selectionState: cint
   discard XGetInputFocus(this.display, addr(selectedWin), addr(selectionState))
-  var event = TXEvent()
+  var event = XEvent()
   event.xclient.theType = ClientMessage
   event.xclient.window = selectedWin
   event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", true)

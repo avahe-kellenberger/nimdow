@@ -2,7 +2,7 @@ import
   x11 / [x, xlib],
   tables
 
-converter toInt(x: TKeyCode): int = x.int
+converter toInt(x: KeyCode): int = x.int
 
 ## A table of key modifier names to their respective masks.
 const ModifierTable* = {
@@ -27,7 +27,7 @@ func cleanMask*(mask: int): int =
 func toKeycode*(key: string, display: PDisplay): int =
   XKeysymToKeycode(display, XStringToKeysym(key))
 
-func toString*(key: TKeyCode, display: PDisplay): string =
+func toString*(key: KeyCode, display: PDisplay): string =
   let keySym = XKeycodeToKeysym(display, key, cint(0))
   return $XKeysymToString(keySym)
 

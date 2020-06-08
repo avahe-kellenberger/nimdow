@@ -4,10 +4,10 @@ import
   sets
 
 type
-  XEventListener* = proc(e: TXEvent)
+  XEventListener* = proc(e: XEvent)
   XEventManager* = ref object
     listenerMap: Table[cint, HashSet[XEventListener]]
-    event: TXEvent
+    event: XEvent
 
 proc newXEventManager*(): XEventManager =
   XEventManager(listenerMap: initTable[cint, HashSet[XEventListener]]())
@@ -25,7 +25,7 @@ proc removeListener*(this: XEventManager, listener: XEventListener, types: varar
     if theType in this.listenerMap:
       this.listenerMap[theType].excl(listener)
 
-proc dispatchEvent*(this: XEventManager, e: TXEvent) =
+proc dispatchEvent*(this: XEventManager, e: XEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
 
   # We are not listening for this event type - exit.
