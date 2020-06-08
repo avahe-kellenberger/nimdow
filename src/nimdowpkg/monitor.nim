@@ -481,6 +481,8 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
 
 proc toggleFloatingForSelectedClient*(this: Monitor) =
   this.withSomeCurrClient(client):
+    if client.isFixed or client.isFullscreen:
+      return
     this.setFloating(client, not client.isFloating)
 
 proc findNext*(monitors: openArray[Monitor], current: Monitor): int =
