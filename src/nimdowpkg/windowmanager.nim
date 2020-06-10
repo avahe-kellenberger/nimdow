@@ -50,16 +50,13 @@ proc configureRootWindow(this: WindowManager): Window
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
-proc getProperty[T](
-  this: WindowManager,
-  window: Window,
-  property: Atom
-): Option[T]
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
+proc onPropertyNotify(this: WindowManager, e: XPropertyEvent)
+proc onExposeNotify(this: WindowManager, e: XExposeEvent)
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
@@ -191,6 +188,8 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
+  this.eventManager.addListener((e: XEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
+  this.eventManager.addListener((e: XEvent) => onExposeNotify(this, e.xexpose), Expose)
   this.eventManager.addListener(
     proc(e: XEvent) =
       for monitor in this.monitors:
@@ -469,45 +468,14 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
     # We can stop once we've found the particular client
     break
 
-proc getProperty[T](
-  this: WindowManager,
-  window: Window,
-  property: Atom,
-): Option[T] =
-  var
-    actualTypeReturn: Atom
-    actualFormatReturn: cint
-    numItemsReturn: culong
-    bytesAfterReturn: culong
-    propReturn: ptr T
-
-  discard XGetWindowProperty(
-    this.display,
-    window,
-    property,
-    0,
-    0.clong.high,
-    false,
-    AnyPropertyType,
-    actualTypeReturn.addr,
-    actualFormatReturn.addr,
-    numItemsReturn.addr,
-    bytesAfterReturn.addr,
-    cast[PPcuchar](propReturn.addr)
-  )
-  if numItemsReturn > 0.culong:
-    return propReturn[].option
-  else:
-    return none(T)
-
 proc updateWindowType(this: WindowManager, client: var Client) =
   # NOTE: This is only called for newly created windows,
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
   let
-    stateOpt = this.getProperty[:Atom](client.window, $NetWMState)
-    windowTypeOpt = this.getProperty[:Atom](client.window, $NetWMWindowType)
-    strutProp = this.getProperty[:Strut](client.window, $NetWMStrutPartial)
+    stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
+    windowTypeOpt = this.display.getProperty[:Atom](client.window, $NetWMWindowType)
+    strutProp = this.display.getProperty[:Strut](client.window, $NetWMStrutPartial)
 
   let state = if stateOpt.isSome: stateOpt.get else: None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
@@ -684,6 +652,13 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       )
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
+
+proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
+  if e.window == this.rootWindow and e.atom == $NetCurrentDesktop:
+    echo "TODO: redraw status bar"
+
+proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
+  echo "TODO: Exposed - redraw bar"
 
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
   ## Resizes and raises the client.

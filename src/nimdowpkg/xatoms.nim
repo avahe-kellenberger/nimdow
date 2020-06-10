@@ -1,5 +1,6 @@
 import
-  x11 / [x, xlib]
+  x11 / [x, xlib],
+  options
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 
@@ -9,8 +10,8 @@ type
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-    NetWMName, NetWMState, NetSupportingWMCheck, NetWMStateFullScreen, NetClientList,
-    NetWMStrutPartial, 
+    NetWMName, NetWMState, NetWMStateAbove, NetWMStateSticky,
+    NetSupportingWMCheck, NetWMStateFullScreen, NetClientList, NetWMStrutPartial, 
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
     NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
     NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
@@ -52,6 +53,8 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), Atom] =
     XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION_HORZ", false),
     XInternAtom(display, "_NET_WM_NAME", false),
     XInternAtom(display, "_NET_WM_STATE", false),
+    XInternAtom(display, "_NET_WM_STATE_ABOVE", false),
+    XInternAtom(display, "_NET_WM_STATE_STICKY", false),
     XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", false),
     XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", false),
     XInternAtom(display, "_NET_CLIENT_LIST", false),
@@ -82,3 +85,33 @@ proc getXAtoms*(display: PDisplay): array[ord(XLast), Atom] =
     XInternAtom(display, "_XEMBED_INFO", false)
   ]
 
+proc getProperty*[T](
+  display: PDisplay,
+  window: Window,
+  property: Atom,
+): Option[T] =
+  var
+    actualTypeReturn: Atom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    propReturn: ptr T
+
+  discard XGetWindowProperty(
+    display,
+    window,
+    property,
+    0,
+    0.clong.high,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn.addr)
+  )
+  if numItemsReturn > 0.culong:
+    return propReturn[].option
+  else:
+    return none(T)
