@@ -12,7 +12,8 @@ import
   layouts/layout,
   layouts/masterstacklayout,
   keys/keyutils,
-  config/configloader
+  config/configloader,
+  nimbar
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -29,11 +30,11 @@ type
   Monitor* = ref object of RootObj
     display: PDisplay
     rootWindow: Window
+    statusBar*: StatusBar
     area*: Area
     config: Config
     taggedClients*: OrderedTable[Tag, seq[Client]]
     selectedTag*: Tag
-    docks*: Table[Window, Client]
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -44,8 +45,12 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
+  # TODO: Load bar area size from currentConfig
+  let barArea: Area = (area.x, 0, area.width, 20.uint)
+  result.statusBar = display.newStatusBar(rootWindow, barArea)
   result.config = currentConfig
-  result.docks = initTable[Window, Client]()
+  result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
+
   result.taggedClients = OrderedTable[Tag, seq[Client]]()
   for i in 0..<tagCount:
     let tag: Tag = newTag(
@@ -169,10 +174,6 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
     echo "Invalid tag number from config:"
     echo getCurrentExceptionMsg()
 
-proc updateLayoutOffset*(this: Monitor) =
-  this.layoutOffset = this.docks.calcLayoutOffset(this.area.width, this.area.height)
-  this.doLayout()
-
 proc focusWindow*(this: Monitor, window: Window) =
   discard XSetInputFocus(
     this.display,
@@ -214,8 +215,6 @@ proc updateClientList(this: Monitor) =
   for clients in this.taggedClients.values:
     for client in clients:
       this.addWindowToClientListProperty(client.window)
-  for window in this.docks.keys:
-    this.addWindowToClientListProperty(window)
 
 proc setActiveWindowProperty*(this: Monitor, window: Window) =
   discard XChangeProperty(
@@ -264,18 +263,11 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
       result = true
 
 proc removeWindow*(this: Monitor, window: Window): bool =
-  ## Removes a window (could be in the tag table or a dock).
   ## Returns if the window was removed.
   ## After a window is removed, you should typically call
   ## doLayout and ensureWindowFocus (unless you have a specific use case).
-  result = false
-  var dock: Client
-  if this.docks.pop(window, dock):
-    this.updateLayoutOffset()
-  else:
-    result = this.removeWindowFromTagTable(window)
-    this.deleteActiveWindowProperty()
-  
+  result = this.removeWindowFromTagTable(window)
+  this.deleteActiveWindowProperty()
   this.updateClientList()
 
 proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
@@ -364,6 +356,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   discard XSync(this.display, false)
 
+  # TODO: We don't need to worry about updating atoms anymore.
   # Select the "selected" client for the newly viewed tag
   if this.currClient.isSome:
     this.focusWindow(this.currClient.get.window)
@@ -371,6 +364,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
     this.deleteActiveWindowProperty()
 
   this.updateCurrentDesktopProperty()
+  this.statusBar.redraw(this.selectedTag.id)
 
 proc findSelectedAndNextNormalClientIndexes(
   this: Monitor,

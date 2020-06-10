@@ -14,6 +14,5 @@ export DISPLAY=:1
 xrdb $HOME/.Xresources &
 ./bin/nimdow "./config.default.toml" &
 
-polybar -c ./polybar/nimdow nimdow &
-nm-applet &
+# nm-applet &
 ~/.fehbg &

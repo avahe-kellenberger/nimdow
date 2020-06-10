@@ -1,23 +1,20 @@
 import
   x11 / [x, xlib, xutil, xatom, xft, xrender],
-  options,
   xatoms,
   area
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 converter intToCint(x: int): cint = x.cint
 converter intToCuint(x: int): cuint = x.cuint
+converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
   fontString = "monospace:size=8"
-  barWidth = 1920
-  barHeight = 20
   cellWidth = 21
 
 type
   StatusBar* = object
-    running: bool 
     display: PDisplay
     screen: cint
     barWindow*: Window
@@ -26,19 +23,21 @@ type
     draw: PXftDraw
     visual: PVisual
     colormap: Colormap
-    fgColor, bgColor, selectedFgColor: var XftColor
+    fgColor, bgColor, selectedFgColor: XftColor
+    area: Area
 
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
 proc configureFont(this: StatusBar): PXftFont
-proc renderTags(this: StatusBar, startX: int = 0)
+proc renderTags(this: StatusBar, selectedTag: int)
 
-proc newStatusBar*(display: PDisplay, rootWindow: Window): StatusBar =
+proc newStatusBar*(display: PDisplay, rootWindow: Window, area: Area): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
   result.colormap = DefaultColormap(display, result.screen)
+  result.area = area
   result.barWindow = result.createBar()
   result.draw = XftDrawCreate(display, result.barWindow, result.visual, result.colormap)
 
@@ -49,31 +48,25 @@ proc newStatusBar*(display: PDisplay, rootWindow: Window): StatusBar =
   discard XSelectInput(
     display,
     result.barWindow,
-    ExposureMask or ButtonPressMask or ButtonReleaseMask or Button1MotionMask
+    ExposureMask
   )
-  discard XSelectInput(display, rootWindow, PropertyChangeMask)
   discard XMapWindow(display, result.barWindow)
   discard XFlush(display)
 
 proc createBar(this: StatusBar): Window =
   var windowAttr: XSetWindowAttributes
+  # windowAttr.override_redirect = true
   windowAttr.background_pixmap = ParentRelative
-  windowAttr.event_mask = ExposureMask or ButtonReleaseMask or ButtonPressMask
-
-  # TODO: Have these passed in as params
-  let
-    x: cint = 0
-    y: cint = 0
-    borderWidth: cuint = 0
+  windowAttr.event_mask = ExposureMask
 
   return XCreateWindow(
     this.display,
     this.rootWindow,
-    x,
-    y,
-    barWidth,
-    barHeight,
-    borderWidth,
+    this.area.x,
+    this.area.y,
+    this.area.width,
+    this.area.height,
+    0,
     DefaultDepth(this.display, this.screen),
     CopyFromParent,
     this.visual,
@@ -127,9 +120,9 @@ proc configureBar(this: StatusBar) =
 
   # TODO: Strut properties should be passed in as params.
   var strut: Strut
-  strut.top = barHeight
-  strut.topStartX = 0
-  strut.topEndX = strut.topStartX + barWidth - 1
+  strut.top = this.area.height
+  strut.topStartX = this.area.x.culong
+  strut.topEndX = strut.topStartX + this.area.width - 1
 
   discard XChangeProperty(
     this.display,
@@ -153,8 +146,8 @@ proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
   if result != 1:
     echo "Failed to alloc color!"
 
-proc freeColor(this: StatusBar, color: var XftColor) =
-  XftColorFree(this.display, this.visual, this.colormap, color.addr)
+proc freeColor(this: StatusBar, color: PXftColor) =
+  XftColorFree(this.display, this.visual, this.colormap, color)
 
 proc configureColors(this: StatusBar) =
   # TODO: Load colors from a config file
@@ -164,7 +157,7 @@ proc configureColors(this: StatusBar) =
     color.red = 0xfc * 256
     color.green = 0xe8 * 256
     color.blue = 0xc3 * 256
-    this.allocColor(color.addr, this.fgColor.addr)
+    this.allocColor(color.addr, this.fgColor.unsafeAddr)
 
   block background:
     var color: XRenderColor
@@ -172,7 +165,7 @@ proc configureColors(this: StatusBar) =
     color.red = 0x1c * 256
     color.green = 0x1b * 256
     color.blue = 0x19 * 256
-    this.allocColor(color.addr, this.bgColor.addr)
+    this.allocColor(color.addr, this.bgColor.unsafeAddr)
 
   block selectedBackground:
     var color: XRenderColor
@@ -180,13 +173,13 @@ proc configureColors(this: StatusBar) =
     color.red = 0x51 * 256
     color.green = 0x9f * 256
     color.blue = 0x50 * 256
-    this.allocColor(color.addr, this.selectedFgColor.addr)
+    this.allocColor(color.addr, this.selectedFgColor.unsafeAddr)
 
 proc configureFont(this: StatusBar): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
   if result == nil:
     result = XftFontOpenName(this.display, this.screen, fontString)
-  if this.font == nil:
+  if result == nil:
     quit "Failed to load font"
 
 ######################
@@ -224,25 +217,18 @@ proc configureFont(this: StatusBar): PXftFont =
 #    )
 #  return extents.xOff
 
-proc renderTags(this: StatusBar, startX: int = 0) =
+proc renderTags(this: StatusBar, selectedTag: int) =
   var
     extents: XGlyphInfo
     tagStr: string
     textXPos: int
 
-  let currTagOpt = this.display.getProperty[:Atom](this.rootWindow, $NetCurrentDesktop)
-  let currTag = if currTagOpt.isSome: currTagOpt.get.int else: None
-
   # TODO:
   let numTags = 9
 
-  if currTag < 0 or numTags < 0:
-    # Property returned invalid value
-    return
-
   for i in countup(0, numTags - 1):
     # Text x position
-    textXPos = cellWidth * i + startX
+    textXPos = cellWidth * i
 
     tagStr = $(i + 1)
     let tagStrAddr = cast[PFcChar8](tagStr[0].addr)
@@ -250,31 +236,33 @@ proc renderTags(this: StatusBar, startX: int = 0) =
 
     var currentFgColor: XftColor
 
-    if i == currTag:
+    # Tag is selected
+    if i == selectedTag:
       currentFgColor = this.selectedFgColor
     else:
       currentFgColor = this.fgColor
 
-    XftDrawRect(this.draw, this.bgColor.addr, textXPos, 0, cellWidth, barHeight)
+    XftDrawRect(this.draw, this.bgColor.unsafeAddr, textXPos, 0, cellWidth, this.area.height)
 
     XftDrawStringUtf8(
       this.draw,
       currentFgColor.addr,
       this.font,
       textXPos + ((cellWidth - extents.xOff) / 2).int,
-      this.font.ascent + (barHeight - this.font.height) div 2,
+      this.font.ascent + (this.area.height.int - this.font.height) div 2,
       tagStrAddr,
       tagStr.len
     )
 
-proc redraw*(this: StatusBar) =
+proc redraw*(this: StatusBar, selectedTag: int) =
   # Will add calls to other functions which will render more info
-  this.renderTags()
+  XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.area.width, this.area.height)
+  this.renderTags(selectedTag)
 
 proc closeBar*(this: StatusBar) =
-  this.freeColor(this.fgColor)
-  this.freeColor(this.selectedFgColor)
-  this.freeColor(this.bgColor)
+  this.freeColor(this.fgColor.unsafeAddr)
+  this.freeColor(this.selectedFgColor.unsafeAddr)
+  this.freeColor(this.bgColor.unsafeAddr)
 
   XftFontClose(this.display, this.font)
   XftDrawDestroy(this.draw)

@@ -7,6 +7,7 @@ import
   client,
   xatoms,
   monitor,
+  nimbar,
   tag,
   area,
   config/configloader,
@@ -55,7 +56,6 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
-proc onPropertyNotify(this: WindowManager, e: XPropertyEvent)
 proc onExposeNotify(this: WindowManager, e: XExposeEvent)
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
@@ -79,6 +79,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
     result.monitors.add(
       newMonitor(result.display, result.rootWindow, area, config)
     )
+
   result.selectedMonitor = result.monitors[0]
 
   # Supporting window for NetWMCheck
@@ -188,7 +189,6 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
-  this.eventManager.addListener((e: XEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
   this.eventManager.addListener((e: XEvent) => onExposeNotify(this, e.xexpose), Expose)
   this.eventManager.addListener(
     proc(e: XEvent) =
@@ -408,10 +408,6 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
     if clientOpt.isSome:
       monitorOpt = monitor.option
       break
-    if monitor.docks.hasKey(e.window):
-      clientOpt = monitor.docks[e.window].option
-      monitorOpt = monitor.option
-      break
 
   if clientOpt.isSome:
     let client = clientOpt.get
@@ -472,49 +468,25 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   # NOTE: This is only called for newly created windows,
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
+
+  # TODO: We don't need to care about these anymore since we are using our own bar.
   let
     stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
     windowTypeOpt = this.display.getProperty[:Atom](client.window, $NetWMWindowType)
-    strutProp = this.display.getProperty[:Strut](client.window, $NetWMStrutPartial)
 
   let state = if stateOpt.isSome: stateOpt.get else: None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
 
-  if windowType == $NetWMWindowTypeDock and strutProp.isSome:
-    let screenWidth = XDisplayWidth(this.display, XDefaultScreen(this.display))
-    let screenHeight = XDisplayHeight(this.display, XDefaultScreen(this.display))
-    let area = monitor.calculateStrutArea(strutProp.get, screenWidth, screenHeight)
-    client.x = area.x
-    client.y = area.y
-    client.width = area.width
-    client.height = area.height
-    client.isFixed = true
-    # Find monitor based on location of the dock
-    block findMonitorArea:
-      for monitor in this.monitors:
-        if monitor.area.contains(area.x, area.y):
-          monitor.docks.add(client.window, client)
-          monitor.updateLayoutOffset()
-          discard XMoveResizeWindow(
-            this.display,
-            client.window,
-            client.x,
-            client.y,
-            client.width.cuint,
-            client.height.cuint
-          )
-          break findMonitorArea
-  else:
-    this.selectedMonitor.currTagClients.add(client)
-    this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
+  this.selectedMonitor.currTagClients.add(client)
+  this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
 
-    if state == $NetWMStateFullScreen:
-      this.selectedMonitor.toggleFullscreen(client)
+  if state == $NetWMStateFullScreen:
+    this.selectedMonitor.toggleFullscreen(client)
 
-    if not client.isFloating:
-      client.isFloating = windowType != None and
-                          windowType != $NetWMWindowTypeNormal and
-                          windowType != $NetWMWindowType
+  if not client.isFloating:
+    client.isFloating = windowType != None and
+                        windowType != $NetWMWindowTypeNormal and
+                        windowType != $NetWMWindowType
 
 proc updateSizeHints(this: WindowManager, client: var Client) =
   var sizeHints = XAllocSizeHints()
@@ -544,8 +516,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   for monitor in this.monitors:
     if monitor.find(window).isSome:
         return
-    if monitor.docks.hasKey(window):
-      return
 
   var client = newClient(window)
   client.x = windowAttr.x
@@ -653,12 +623,9 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
 
-proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
-  if e.window == this.rootWindow and e.atom == $NetCurrentDesktop:
-    echo "TODO: redraw status bar"
-
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
-  echo "TODO: Exposed - redraw bar"
+  for monitor in this.monitors:
+    monitor.statusBar.redraw(monitor.selectedTag.id)
 
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
   ## Resizes and raises the client.
