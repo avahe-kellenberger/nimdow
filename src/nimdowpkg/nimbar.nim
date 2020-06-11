@@ -4,33 +4,37 @@ import
   area
 
 converter boolToXBool(x: bool): XBool = XBool(x)
+converter XBoolToBool(x: XBool): bool = bool(x)
 converter intToCint(x: int): cint = x.cint
 converter intToCuint(x: int): cuint = x.cuint
 converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  fontString = "monospace:size=8"
+  numTags = 9
+  # TODO: These should all be loaded from the settings or passed in as params
+  fontStrings = ["monospace:size=8", "JoyPixels:pixelsize=10:antialias=true:autohint=true"]
   cellWidth = 21
+  rightPadding = 4
 
 type
   StatusBar* = object
+    status*: string
     display: PDisplay
     screen: cint
     barWindow*: Window
     rootWindow: Window
-    font: PXftFont
+    fonts: seq[PXftFont]
     draw: PXftDraw
     visual: PVisual
     colormap: Colormap
-    fgColor, bgColor, selectedFgColor: XftColor
-    area: Area
+    fgColor*, bgColor*, selectedFgColor*: XftColor
+    area*: Area
 
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
-proc configureFont(this: StatusBar): PXftFont
-proc renderTags(this: StatusBar, selectedTag: int)
+proc configureFont(this: StatusBar, fontString: string): PXftFont
 
 proc newStatusBar*(display: PDisplay, rootWindow: Window, area: Area): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
@@ -43,7 +47,9 @@ proc newStatusBar*(display: PDisplay, rootWindow: Window, area: Area): StatusBar
 
   result.configureBar()
   result.configureColors()
-  result.font = result.configureFont()
+  result.fonts = @[]
+  for fontString in fontStrings:
+    result.fonts.add(result.configureFont(fontString))
 
   discard XSelectInput(
     display,
@@ -175,7 +181,7 @@ proc configureColors(this: StatusBar) =
     color.blue = 0x50 * 256
     this.allocColor(color.addr, this.selectedFgColor.unsafeAddr)
 
-proc configureFont(this: StatusBar): PXftFont =
+proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
   if result == nil:
     result = XftFontOpenName(this.display, this.screen, fontString)
@@ -186,85 +192,75 @@ proc configureFont(this: StatusBar): PXftFont =
 ### Rendering procs ##
 ######################
 
-#proc renderString*(str: var string, x: int, alignRight: bool): int16 =
-#  ## Renders a string at position x.
-#  ## If alignRight is true,
-#  ## the string will be rendered from the right side of the bar (barWidth - x).
-#  ## Returns the x offset
-#  var extents: XGlyphInfo
-#  var strAddr = cast[PFcChar8](str[0].addr)
-#  XftTextExtentsUtf8(display, font, strAddr, str.len, extents.addr)
-
-#  if alignRight:
-#    XftDrawRect(draw, bgColor.addr, (x - extents.xOff), 0, extents.xOff.cuint, barHeight)
-#    XftDrawStringUtf8(
-#      draw,
-#      fgColor.addr,
-#      font,
-#      x - extents.xOff,
-#      1 + font.ascent,
-#      strAddr,
-#      str.len
-#    )
-#  else:
-#    XftDrawRect(draw, bgColor.addr, x, 0, extents.xOff.cuint, barHeight)
-#    XftDrawStringUtf8(
-#      draw, fgColor.addr, font,
-#      x,
-#      (1 + font.ascent),
-#      strAddr,
-#      str.len
-#    )
-#  return extents.xOff
-
-proc renderTags(this: StatusBar, selectedTag: int) =
+proc renderString*(this: StatusBar, str: string, x: int, color: XftColor, alignRight: bool = false) =
+  ## Renders a string at position x.
+  ## If alignRight is true,
+  ## the string will be rendered from the right side of the bar (barWidth - x).
   var
     extents: XGlyphInfo
+    strAddr = cast[PFcChar8](str[0].unsafeAddr)
+    xLoc = x
+
+  let font = this.fonts[0]
+  XftTextExtentsUtf8(this.display, font, strAddr, str.len, extents.addr)
+  let centerY = font.ascent + (this.area.height.int - font.height) div 2
+
+  if alignRight:
+    xLoc -= extents.xOff
+
+  XftDrawRect(
+    this.draw,
+    this.bgColor.unsafeAddr,
+    xLoc,
+    0,
+    extents.xOff.cuint,
+    this.area.height
+   )
+  XftDrawStringUtf8(
+    this.draw,
+    color.unsafeAddr,
+    font,
+    xLoc,
+    centerY,
+    strAddr,
+    str.len
+  )
+
+proc renderTags*(this: StatusBar, selectedTag: int) =
+  var
     tagStr: string
     textXPos: int
 
-  # TODO:
-  let numTags = 9
-
   for i in countup(0, numTags - 1):
     # Text x position
-    textXPos = cellWidth * i
-
+    textXPos = cellWidth div 2 + cellWidth * i
     tagStr = $(i + 1)
-    let tagStrAddr = cast[PFcChar8](tagStr[0].addr)
-    XftTextExtentsUtf8(this.display, this.font, tagStrAddr, tagStr.len, extents.addr)
-
-    var currentFgColor: XftColor
-
-    # Tag is selected
     if i == selectedTag:
-      currentFgColor = this.selectedFgColor
+      this.renderString(tagStr, textXPos, this.selectedFgColor)
     else:
-      currentFgColor = this.fgColor
+      this.renderString(tagStr, textXPos, this.fgColor)
 
-    XftDrawRect(this.draw, this.bgColor.unsafeAddr, textXPos, 0, cellWidth, this.area.height)
+proc renderStatus(this: StatusBar) =
+  if this.status.len > 0:
+    this.renderString(this.status, this.area.width.int - rightPadding, this.fgColor, true)
 
-    XftDrawStringUtf8(
-      this.draw,
-      currentFgColor.addr,
-      this.font,
-      textXPos + ((cellWidth - extents.xOff) / 2).int,
-      this.font.ascent + (this.area.height.int - this.font.height) div 2,
-      tagStrAddr,
-      tagStr.len
-    )
+proc setStatus*(this: var StatusBar, status: string) =
+  this.status = status
+  this.renderStatus()
 
 proc redraw*(this: StatusBar, selectedTag: int) =
   # Will add calls to other functions which will render more info
   XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.area.width, this.area.height)
   this.renderTags(selectedTag)
+  this.renderStatus()
 
 proc closeBar*(this: StatusBar) =
   this.freeColor(this.fgColor.unsafeAddr)
   this.freeColor(this.selectedFgColor.unsafeAddr)
   this.freeColor(this.bgColor.unsafeAddr)
 
-  XftFontClose(this.display, this.font)
+  for font in this.fonts:
+    XftFontClose(this.display, font)
   XftDrawDestroy(this.draw)
   discard XDestroyWindow(this.display, this.barWindow)
   discard XCloseDisplay(this.display)

@@ -47,7 +47,6 @@ proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
 proc mapConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): Window
-# XEvents
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
@@ -56,11 +55,13 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
+proc onPropertyNotify(this: WindowManager, e: XPropertyEvent)
 proc onExposeNotify(this: WindowManager, e: XExposeEvent)
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
+proc renderStatus(this: WindowManager)
 
 proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
   result = WindowManager()
@@ -79,6 +80,8 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
     result.monitors.add(
       newMonitor(result.display, result.rootWindow, area, config)
     )
+
+  result.renderStatus()
 
   result.selectedMonitor = result.monitors[0]
 
@@ -189,6 +192,7 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
+  this.eventManager.addListener((e: XEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
   this.eventManager.addListener((e: XEvent) => onExposeNotify(this, e.xexpose), Expose)
   this.eventManager.addListener(
     proc(e: XEvent) =
@@ -622,6 +626,17 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       )
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
+
+proc renderStatus(this: WindowManager) =
+  var name: cstring
+  if XFetchName(this.display, this.rootWindow, name.addr) == 1:
+    let status = $name
+    for monitor in this.monitors:
+      monitor.statusBar.setStatus(status)
+
+proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
+  if e.window == this.rootWindow and e.atom == $WMName:
+    this.renderStatus()
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:

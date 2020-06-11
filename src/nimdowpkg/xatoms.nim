@@ -6,7 +6,7 @@ converter boolToXBool(x: bool): XBool = XBool(x)
 
 type
   WMAtom* = enum
-    WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast
+    WMName, WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast
   NetAtom* = enum
     NetActiveWindow, NetSupported,
     NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
@@ -37,6 +37,7 @@ template `$`*(atom: XAtom): untyped =
 
 proc getWMAtoms*(display: PDisplay): array[ord(WMLast), Atom] =
   [
+    XInternAtom(display, "WM_NAME", false),
     XInternAtom(display, "WM_PROTOCOLS", false),
     XInternAtom(display, "WM_DELETE_WINDOW", false),
     XInternAtom(display, "WM_STATE", false),
@@ -115,3 +116,4 @@ proc getProperty*[T](
     return propReturn[].option
   else:
     return none(T)
+
