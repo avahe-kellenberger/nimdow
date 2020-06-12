@@ -1,5 +1,6 @@
 import
   x11 / [x, xlib, xutil, xatom, xft, xrender],
+  unicode,
   xatoms,
   area
 
@@ -19,7 +20,8 @@ const
 
 type
   StatusBar* = object
-    status*: string
+    status: string
+    selectedTag: int
     display: PDisplay
     screen: cint
     barWindow*: Window
@@ -192,41 +194,61 @@ proc configureFont(this: StatusBar, fontString: string): PXftFont =
 ### Rendering procs ##
 ######################
 
-proc renderString*(this: StatusBar, str: string, x: int, color: XftColor, alignRight: bool = false) =
-  ## Renders a string at position x.
-  ## If alignRight is true,
-  ## the string will be rendered from the right side of the bar (barWidth - x).
+proc renderStringRightAligned*(this: StatusBar, str: string, x: int, color: XftColor) =
+  ## Renders a string at position x from the right side of the bar (barWidth - x).
   var
     extents: XGlyphInfo
-    strAddr = cast[PFcChar8](str[0].unsafeAddr)
+    pos = str.len
     xLoc = x
 
-  let font = this.fonts[0]
-  XftTextExtentsUtf8(this.display, font, strAddr, str.len, extents.addr)
-  let centerY = font.ascent + (this.area.height.int - font.height) div 2
+  let runes = str.toRunes()
+  for i in countdown(runes.high, runes.low):
+    let rune = runes[i]
+    pos -= rune.size
+    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+    for font in this.fonts:
+      if XftCharExists(this.display, font, rune.FcChar32) == 1:
+        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, extents.addr)
+        let centerY = font.ascent + (this.area.height.int - font.height) div 2
+        xLoc -= extents.xOff
+        XftDrawStringUtf8(
+          this.draw,
+          color.unsafeAddr,
+          font,
+          xLoc,
+          centerY,
+          runeAddr,
+          rune.size
+        )
+        break
 
-  if alignRight:
-    xLoc -= extents.xOff
+proc renderString*(this: StatusBar, str: string, x: int, color: XftColor) =
+  ## Renders a string at position x.
+  var
+    extents: XGlyphInfo
+    pos = 0
+    xLoc = x
 
-  XftDrawRect(
-    this.draw,
-    this.bgColor.unsafeAddr,
-    xLoc,
-    0,
-    extents.xOff.cuint,
-    this.area.height
-   )
-  XftDrawStringUtf8(
-    this.draw,
-    color.unsafeAddr,
-    font,
-    xLoc,
-    centerY,
-    strAddr,
-    str.len
-  )
+  for rune in str.runes:
+    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+    pos += rune.size
+    for font in this.fonts:
+      if XftCharExists(this.display, font, rune.FcChar32) == 1:
+        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, extents.addr)
+        let centerY = font.ascent + (this.area.height.int - font.height) div 2
+        XftDrawStringUtf8(
+          this.draw,
+          color.unsafeAddr,
+          font,
+          xLoc,
+          centerY,
+          runeAddr,
+          rune.size
+        )
+        xLoc += extents.xOff
+        break
 
-proc renderTags*(this: StatusBar, selectedTag: int) =
+proc renderTags(this: StatusBar, selectedTag: int) =
   var
     tagStr: string
     textXPos: int
@@ -235,24 +257,27 @@ proc renderTags*(this: StatusBar, selectedTag: int) =
     # Text x position
     textXPos = cellWidth div 2 + cellWidth * i
     tagStr = $(i + 1)
-    if i == selectedTag:
-      this.renderString(tagStr, textXPos, this.selectedFgColor)
-    else:
-      this.renderString(tagStr, textXPos, this.fgColor)
+    let color =
+      if i == selectedTag:
+        this.selectedFgColor
+      else:
+        this.fgColor
+    this.renderString(tagStr, textXPos, color)
 
 proc renderStatus(this: StatusBar) =
   if this.status.len > 0:
-    this.renderString(this.status, this.area.width.int - rightPadding, this.fgColor, true)
+    this.renderStringRightAligned(this.status, this.area.width.int - rightPadding, this.fgColor)
 
-proc setStatus*(this: var StatusBar, status: string) =
-  this.status = status
-  this.renderStatus()
-
-proc redraw*(this: StatusBar, selectedTag: int) =
+proc redraw*(this: var StatusBar, selectedTag: int) =
   # Will add calls to other functions which will render more info
+  this.selectedTag = selectedTag
   XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.area.width, this.area.height)
   this.renderTags(selectedTag)
   this.renderStatus()
+
+proc setStatus*(this: var StatusBar, status: string) =
+  this.status = status
+  this.redraw(this.selectedTag)
 
 proc closeBar*(this: StatusBar) =
   this.freeColor(this.fgColor.unsafeAddr)
