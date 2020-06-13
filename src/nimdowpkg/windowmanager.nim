@@ -7,7 +7,7 @@ import
   client,
   xatoms,
   monitor,
-  nimbar,
+  statusbar,
   tag,
   area,
   config/configloader,

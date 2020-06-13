@@ -13,7 +13,7 @@ import
   layouts/masterstacklayout,
   keys/keyutils,
   config/configloader,
-  nimbar
+  statusbar
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
