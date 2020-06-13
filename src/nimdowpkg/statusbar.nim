@@ -14,13 +14,14 @@ const
   barName = "nimbar"
   numTags = 9
   # TODO: These should all be loaded from the settings or passed in as params
-  fontStrings = ["monospace:size=8", "JoyPixels:pixelsize=10:antialias=true:autohint=true"]
+  fontStrings = ["monospace:size=9", "JoyPixels:pixelsize=10:antialias=true:autohint=true"]
   cellWidth = 21
   rightPadding = 4
 
 type
   StatusBar* = object
     status: string
+    activeWindowTitle: string
     selectedTag: int
     display: PDisplay
     screen: cint
@@ -194,7 +195,7 @@ proc configureFont(this: StatusBar, fontString: string): PXftFont =
 ### Rendering procs ##
 ######################
 
-proc renderStringRightAligned*(this: StatusBar, str: string, x: int, color: XftColor) =
+proc renderStringRightAligned(this: StatusBar, str: string, x: int, color: XftColor) =
   ## Renders a string at position x from the right side of the bar (barWidth - x).
   var
     extents: XGlyphInfo
@@ -221,6 +222,46 @@ proc renderStringRightAligned*(this: StatusBar, str: string, x: int, color: XftC
           rune.size
         )
         break
+
+proc renderStringCentered*(this: StatusBar, str: string, x: int, color: XftColor) =
+  ## Renders a string centered at position x.
+
+  # TODO:
+  # 1. There may be a more efficient way to do this.
+  # 2. We need to make sure the text doesn't bleed into the status or tags.
+  # Maybe we should store the entire width of those strings and their locations.
+  var
+    runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
+    stringWidth, xLoc, pos: int
+
+  for rune in str.runes:
+    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+    pos += rune.size
+    for font in this.fonts:
+      if XftCharExists(this.display, font, rune.FcChar32) == 1:
+        var glyph: XGlyphInfo
+        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
+        runeInfo.add((rune, font, glyph))
+        stringWidth += glyph.width
+        break
+
+  xLoc = x - (stringWidth div 2)
+  pos = 0
+  for (rune, font, glyph) in runeInfo:
+    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+    pos += rune.size
+    let centerY = font.ascent + (this.area.height.int - font.height) div 2
+    XftDrawStringUtf8(
+      this.draw,
+      color.unsafeAddr,
+      font,
+      xLoc,
+      centerY,
+      runeAddr,
+      rune.size
+    )
+    xLoc += glyph.xOff
+
 
 proc renderString*(this: StatusBar, str: string, x: int, color: XftColor) =
   ## Renders a string at position x.
@@ -268,16 +309,26 @@ proc renderStatus(this: StatusBar) =
   if this.status.len > 0:
     this.renderStringRightAligned(this.status, this.area.width.int - rightPadding, this.fgColor)
 
+proc renderActiveWindowTitle(this: StatusBar) =
+  if this.activeWindowTitle.len > 0:
+    this.renderStringCentered(this.activeWindowTitle, this.area.width.int div 2, this.selectedFgColor)
+
 proc redraw*(this: var StatusBar, selectedTag: int) =
-  # Will add calls to other functions which will render more info
   this.selectedTag = selectedTag
   XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.area.width, this.area.height)
   this.renderTags(selectedTag)
   this.renderStatus()
+  this.renderActiveWindowTitle()
 
-proc setStatus*(this: var StatusBar, status: string) =
+proc setStatus*(this: var StatusBar, status: string, redraw: bool = true) =
   this.status = status
-  this.redraw(this.selectedTag)
+  if redraw:
+    this.redraw(this.selectedTag)
+
+proc setActiveWindowTitle*(this: var StatusBar, title: string, redraw: bool = true) =
+  this.activeWindowTitle = title
+  if redraw:
+    this.redraw(this.selectedTag)
 
 proc closeBar*(this: StatusBar) =
   this.freeColor(this.fgColor.unsafeAddr)

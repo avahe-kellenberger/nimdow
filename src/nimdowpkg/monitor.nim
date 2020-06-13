@@ -148,7 +148,7 @@ proc find*(this: Monitor, window: Window): Option[Client] =
   return none(Client)
 
 proc updateCurrentDesktopProperty(this: Monitor) =
-  # TODO: Fix this when we determine how to display tags in a multihead environment.
+  # TODO: Can remove this since we don't care about atoms anymore.
   var data: array[1, clong] = [this.selectedTag.id]
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -271,7 +271,7 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.updateClientList()
 
 proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
-  # TODO: We should probably define our own per-monitor tag atoms
+  # TODO: Can remove this since we don't care about atoms anymore.
   let data: clong = this.selectedTag.id.clong
   discard XChangeProperty(this.display,
                           window,
@@ -362,6 +362,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
     this.focusWindow(this.currClient.get.window)
   else:
     this.deleteActiveWindowProperty()
+    this.statusBar.setActiveWindowTitle("", false)
 
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw(this.selectedTag.id)

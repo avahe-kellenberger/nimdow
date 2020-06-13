@@ -62,6 +62,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 proc renderStatus(this: WindowManager)
+proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 
 proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
   result = WindowManager()
@@ -599,8 +600,10 @@ proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
 
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   if this.mouseState != Normal or
-    e.detail == NotifyPointer or
-    e.window == this.rootWindow:
+      e.detail == NotifyPointer or
+      e.window == this.rootWindow:
+    # Clear the window title (no windows are focused)
+    this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
   let clientOpt = this.selectedMonitor.find(e.window)
@@ -626,8 +629,19 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       )
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
+  # Render the active window title on the status bar.
+  this.renderWindowTitle(this.selectedMonitor)
+
+proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
+  ## Renders the title of the active window of the given monitor
+  ## on the monitor's status bar.
+  monitor.withSomeCurrClient(client):
+    let titleOpt = this.display.getStringProperty(client.window, $NetWMName)
+    if titleOpt.isSome:
+      this.selectedMonitor.statusBar.setActiveWindowTitle(titleOpt.get)
 
 proc renderStatus(this: WindowManager) =
+  ## Renders the status on all status bars.
   var name: cstring
   if XFetchName(this.display, this.rootWindow, name.addr) == 1:
     let status = $name
@@ -637,6 +651,13 @@ proc renderStatus(this: WindowManager) =
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
   if e.window == this.rootWindow and e.atom == $WMName:
     this.renderStatus()
+  elif e.atom == $NetWMName:
+    for monitor in this.monitors:
+      monitor.withSomeCurrClient(client):
+        if client.window == e.window:
+          let titleOpt = this.display.getStringProperty(client.window, $NetWMName)
+          if titleOpt.isSome:
+            this.selectedMonitor.statusBar.setActiveWindowTitle(titleOpt.get)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:

@@ -117,3 +117,37 @@ proc getProperty*[T](
   else:
     return none(T)
 
+proc getStringProperty*(
+  display: PDisplay,
+  window: Window,
+  property: Atom,
+): Option[string] =
+  var
+    actualTypeReturn: Atom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    str: string = newString(300)
+    propReturn = cast[ptr cstring](addr str)
+
+  discard XGetWindowProperty(
+    display,
+    window,
+    property,
+    0,
+    0.clong.high,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn)
+  )
+
+  if numItemsReturn > 0.culong:
+    let val = $propReturn[]
+    return val.option
+  else:
+    return none(string)
+
