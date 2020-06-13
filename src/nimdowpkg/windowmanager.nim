@@ -3,6 +3,7 @@ import
   math,
   sugar,
   options,
+  utils/optionutils,
   tables,
   client,
   xatoms,
@@ -636,9 +637,8 @@ proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
   monitor.withSomeCurrClient(client):
-    let titleOpt = this.display.getStringProperty(client.window, $NetWMName)
-    if titleOpt.isSome:
-      this.selectedMonitor.statusBar.setActiveWindowTitle(titleOpt.get)
+    withSome(this.display.getWindowName(client.window), title):
+      this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc renderStatus(this: WindowManager) =
   ## Renders the status on all status bars.
@@ -655,9 +655,8 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
     for monitor in this.monitors:
       monitor.withSomeCurrClient(client):
         if client.window == e.window:
-          let titleOpt = this.display.getStringProperty(client.window, $NetWMName)
-          if titleOpt.isSome:
-            this.selectedMonitor.statusBar.setActiveWindowTitle(titleOpt.get)
+          withSome(this.display.getWindowName(client.window), title):
+            this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:

@@ -151,3 +151,10 @@ proc getStringProperty*(
   else:
     return none(string)
 
+proc getWindowName*(display: PDisplay, window: Window): Option[string] =
+  ## Gets the name of the window by querying for NetWMName and WMName.
+  var titleOpt = display.getStringProperty(window, $NetWMName)
+  if titleOpt.isNone:
+    titleOpt = display.getStringProperty(window, $WMName)
+  return titleOpt
+
