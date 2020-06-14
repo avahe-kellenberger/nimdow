@@ -8,7 +8,7 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 ## Screenshots
 
-![](https://user-images.githubusercontent.com/34498340/82363615-0ee58880-99dc-11ea-8290-fec33849095c.png)
+![](https://user-images.githubusercontent.com/34498340/84605679-209c3d80-ae6d-11ea-8823-09b2c8626b55.png)
 
 ## Installation
 
@@ -31,15 +31,17 @@ E.g. `$ nimdow ./some-config.toml`
 
 If no argument is provided, we use the config file mentioned in the *Building from source* section.
 
-## Polybar config
+## Status Bar
 
-If you would like to use Polybar with Nimdow, there is a config file [here](https://github.com/avahe-kellenberger/nimdow/tree/master/polybar).
+The status bar displays:
+- The available tags on the top left
+- The focused window's title in the center
+- The status (set by the user) on the right
 
-To start polybar:
+### Setting the status
 
-```sh
-$ polybar -c path/to/config nimdow
-```
+The status is the text read from the root window's name property, which can be set with `xsetroot -name "My status"`.
+This is the exact same way `dwm` manages its status. I recommend [reading their page](https://dwm.suckless.org/status_monitor/) about setting statuses.
 
 ## Roadmap
 
@@ -49,8 +51,7 @@ $ polybar -c path/to/config nimdow
 - [x] Fullscreen windows
 - [x] Multihead support
 - [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
-- [x] Status bar integration (single monitor - integrated with Polybar)
-  - [ ] Multihead status bar integration (Writing our own bar - See [#29](https://github.com/avahe-kellenberger/nimdow/issues/29))
+- [x] Status bar integration
 - [x] Floating window support
   - [x] Move windows with super + left click
   - [x] Resize windows with super + right click drag
@@ -84,5 +85,4 @@ $ polybar -c path/to/config nimdow
 0. Create a copy or symlink of the config file in `$XDG_CONFIG_HOME/nimdow/config.toml`
 1. Start up Xephyr: `Xephyr -ac -screen 1920x1080 -br -reset -terminate 2> /dev/null :1 &`
 2. Execute nimdow on the new display: `DISPLAY=:1 ./nimdow`
-
 
