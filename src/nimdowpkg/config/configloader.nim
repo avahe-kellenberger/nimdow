@@ -18,7 +18,7 @@ type
     borderColorUnfocused*: int
     borderWidth*: uint
   BarSettings* = ref object
-    height*: int
+    height*: uint
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*: int
@@ -40,8 +40,11 @@ proc newConfig*(): Config =
       borderWidth: 1
     ),
     barSettings: BarSettings(
-      height: 30,
-      fonts: @["monospace:size=10"],
+      height: 20,
+      fonts: @[
+        "monospace:size=10:anialias=false",
+        "NotoColorEmoji:size=10:anialias=false"
+      ],
       fgColor: 0xfce8c3,
       bgColor: 0x1c1b19,
       selectionColor: 0x519f50
@@ -163,6 +166,39 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
       echo valueName, " is not a proper hex value! Ensure it is wrapped in double quotes"
   return -1
 
+proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
+  let bgColor = this.loadHexValue(settingsTable, "barBackgroundColor")
+  if bgColor != -1:
+    this.barSettings.bgColor = bgColor
+
+  let fgColor = this.loadHexValue(settingsTable, "barForegroundColor")
+  if fgColor != -1:
+    this.barSettings.fgColor = fgColor
+
+  let selectionColor = this.loadHexValue(settingsTable, "barSelectionColor")
+  if selectionColor != -1:
+    this.barSettings.selectionColor = selectionColor
+
+  if settingsTable.hasKey("barHeight"):
+    let barHeight = settingsTable["barHeight"]
+    if barHeight.kind == TomlValueKind.Int:
+      this.barSettings.height = max(0, barHeight.intVal).uint
+
+  if settingsTable.hasKey("barFonts"):
+    let fonts = settingsTable["barFonts"]
+    if fonts.kind != TomlValueKind.Array:
+      raise newException(Exception, "barFonts is not an array of strings!")
+
+    if fonts.arrayVal.len > 0:
+      # Clear default fonts
+      this.barSettings.fonts.setLen(0)
+
+    for font in fonts.arrayVal:
+      if font.kind == TomlValueKind.String:
+        this.barSettings.fonts.add(font.stringVal)
+      else:
+        echo "Invalid font - must be a string!"
+
 proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if not configTable.hasKey("settings") or configTable["settings"].kind != TomlValueKind.Table:
     echo "Invalid settings table! Using default settings"
@@ -191,6 +227,8 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   let focusedBorderVal = this.loadHexValue(settingsTable, "borderColorFocused")
   if focusedBorderVal != -1:
     this.windowSettings.borderColorFocused = focusedBorderVal
+
+  this.populateBarSettings(settingsTable)
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.

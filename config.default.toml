@@ -27,10 +27,20 @@ exec = [
 ]
 
 [settings]
+  # Window settings
   gapSize = 12
   borderWidth = 1
   borderColorFocused = "#519f50"
   borderColorUnfocused = "#1c1b19"
+  # Bar settings
+  barHeight = 20
+  barBackgroundColor = "#1c1b19"
+  barForegroundColor = "#fce8c3"
+  barSelectionColor = "#519f50"
+  barFonts = [
+    "monospace:size=10:anialias=false",
+    "NotoColorEmoji:size=10:anialias=false"
+  ]
 
 # Window manager controls
 [controls]

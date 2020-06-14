@@ -47,7 +47,7 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
   result.rootWindow = rootWindow
   result.area = area
   # TODO: Load bar area size from currentConfig
-  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height.uint)
+  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
   result.config = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
