@@ -377,6 +377,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
   else:
     this.deleteActiveWindowProperty()
     this.statusBar.setActiveWindowTitle("", false)
+    this.statusBar.setSelectedClient(nil, false)
 
   this.updateCurrentDesktopProperty()
   this.redrawStatusBar()
