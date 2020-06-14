@@ -36,6 +36,7 @@ type
     rootWindow*: Window
     eventManager: XEventManager
     config: Config
+    windowSettings: WindowSettings
     monitors: seq[Monitor]
     selectedMonitor: Monitor
     mouseState: MouseState
@@ -71,6 +72,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
   result.config = config
+  result.windowSettings = config.windowSettings
   # Populate atoms
   xatoms.WMAtoms = xatoms.getWMAtoms(result.display)
   xatoms.NetAtoms = xatoms.getNetAtoms(result.display)
@@ -531,7 +533,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.width = windowAttr.width.uint
   client.height = windowAttr.height.uint
 
-  discard XSetWindowBorder(this.display, window, this.config.borderColorUnfocused)
+  discard XSetWindowBorder(this.display, window, this.windowSettings.borderColorUnfocused)
 
   discard XSelectInput(this.display,
                        window,
@@ -579,7 +581,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
       discard XSetWindowBorder(
         this.display,
         previousMonitor.currClient.get.window,
-        this.config.borderColorUnfocused
+        this.windowSettings.borderColorUnfocused
       )
     # Focus the new monitor's current client
     if this.selectedMonitor.currClient.isSome:
@@ -620,7 +622,7 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   discard XSetWindowBorder(
     this.display,
     client.window,
-    this.config.borderColorFocused
+    this.windowSettings.borderColorFocused
   )
   if this.selectedMonitor.selectedTag.previouslySelectedClient.isSome:
     let previous = this.selectedMonitor.selectedTag.previouslySelectedClient.get
@@ -628,7 +630,7 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       discard XSetWindowBorder(
         this.display,
         previous.window,
-        this.config.borderColorUnfocused
+        this.windowSettings.borderColorUnfocused
       )
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
@@ -735,7 +737,7 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
 
   if not client.isFloating:
     client.isFloating = true
-    client.borderWidth = this.config.borderWidth.int
+    client.borderWidth = this.windowSettings.borderWidth.int
     this.selectedMonitor.doLayout()
 
   let

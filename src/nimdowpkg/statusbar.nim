@@ -5,7 +5,8 @@ import
   area,
   tables,
   tag,
-  client
+  client,
+  config/configloader
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -15,13 +16,12 @@ converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  # TODO: These should all be loaded from the settings or passed in as params
-  fontStrings = ["monospace:size=9", "JoyPixels:pixelsize=10:antialias=true:autohint=true"]
   cellWidth = 21
   rightPadding = 4
 
 type
   StatusBar* = object
+    settings: BarSettings
     status: string
     taggedClients: OrderedTableRef[Tag, seq[Client]]
     selectedClient: Client
@@ -35,7 +35,7 @@ type
     draw: PXftDraw
     visual: PVisual
     colormap: Colormap
-    fgColor*, bgColor*, selectedFgColor*: XftColor
+    fgColor*, bgColor*, selectionColor*: XftColor
     area*: Area
 
 proc createBar(this: StatusBar): Window
@@ -47,9 +47,11 @@ proc newStatusBar*(
     display: PDisplay,
     rootWindow: Window,
     area: Area,
-    taggedClients: OrderedTableRef[Tag, seq[Client]]
+    taggedClients: OrderedTableRef[Tag, seq[Client]],
+    settings: BarSettings
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
+  result.settings = settings
   result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
@@ -61,7 +63,7 @@ proc newStatusBar*(
   result.configureBar()
   result.configureColors()
   result.fonts = @[]
-  for fontString in fontStrings:
+  for fontString in settings.fonts:
     result.fonts.add(result.configureFont(fontString))
 
   discard XSelectInput(
@@ -168,31 +170,40 @@ proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
 proc freeColor(this: StatusBar, color: PXftColor) =
   XftColorFree(this.display, this.visual, this.colormap, color)
 
+proc toRGB(hex: int): tuple[r, g, b: int] =
+  return (
+    (hex shr 16) and 0xff,
+    (hex shr 8) and 0xff,
+    hex and 0xff
+  )
+
 proc configureColors(this: StatusBar) =
-  # TODO: Load colors from a config file
   block foreground:
-    var color: XRenderColor
-    # #fce8c3
-    color.red = 0xfc * 256
-    color.green = 0xe8 * 256
-    color.blue = 0xc3 * 256
+    var
+      color: XRenderColor
+      rgb = toRGB(this.settings.fgColor)
+    color.red = rgb.r.cushort * 256
+    color.green = rgb.g.cushort * 256
+    color.blue = rgb.b.cushort * 256
     this.allocColor(color.addr, this.fgColor.unsafeAddr)
 
   block background:
-    var color: XRenderColor
-    # #1c1b19
-    color.red = 0x1c * 256
-    color.green = 0x1b * 256
-    color.blue = 0x19 * 256
+    var
+      color: XRenderColor
+      rgb = toRGB(this.settings.bgColor)
+    color.red = rgb.r.cushort * 256
+    color.green = rgb.g.cushort * 256
+    color.blue = rgb.b.cushort * 256
     this.allocColor(color.addr, this.bgColor.unsafeAddr)
 
-  block selectedBackground:
-    var color: XRenderColor
-    # #519f50
-    color.red = 0x51 * 256
-    color.green = 0x9f * 256
-    color.blue = 0x50 * 256
-    this.allocColor(color.addr, this.selectedFgColor.unsafeAddr)
+  block selectionColor:
+    var
+      color: XRenderColor
+      rgb = toRGB(this.settings.selectionColor)
+    color.red = rgb.r.cushort * 256
+    color.green = rgb.g.cushort * 256
+    color.blue = rgb.b.cushort * 256
+    this.allocColor(color.addr, this.selectionColor.unsafeAddr)
 
 proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
@@ -304,7 +315,7 @@ proc renderTags(this: StatusBar, selectedTag: int) =
   for tag, clients in this.taggedClients:
     let i = tag.id
     textXPos = cellWidth div 2 + cellWidth * i
-    var color = if i == selectedTag: this.selectedFgColor else: this.fgColor
+    var color = if i == selectedTag: this.selectionColor else: this.fgColor
     this.renderString($(i + 1), textXPos, color)
     if clients.len > 0:
       XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
@@ -317,7 +328,7 @@ proc renderStatus(this: StatusBar) =
 
 proc renderActiveWindowTitle(this: StatusBar) =
   if this.activeWindowTitle.len > 0:
-    this.renderStringCentered(this.activeWindowTitle, this.area.width.int div 2, this.selectedFgColor)
+    this.renderStringCentered(this.activeWindowTitle, this.area.width.int div 2, this.selectionColor)
 
 proc redraw*(this: var StatusBar, selectedTag: int) =
   this.selectedTag = selectedTag
@@ -343,7 +354,7 @@ proc setActiveWindowTitle*(this: var StatusBar, title: string, redraw: bool = tr
 
 proc closeBar*(this: StatusBar) =
   this.freeColor(this.fgColor.unsafeAddr)
-  this.freeColor(this.selectedFgColor.unsafeAddr)
+  this.freeColor(this.selectionColor.unsafeAddr)
   this.freeColor(this.bgColor.unsafeAddr)
 
   for font in this.fonts:

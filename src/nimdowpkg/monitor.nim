@@ -33,7 +33,7 @@ type
     rootWindow: Window
     statusBar*: StatusBar
     area*: Area
-    config: Config
+    config: WindowSettings
     taggedClients*: OrderedTableRef[Tag, seq[Client]]
     selectedTag*: Tag
     layoutOffset: LayoutOffset
@@ -47,8 +47,8 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
   result.rootWindow = rootWindow
   result.area = area
   # TODO: Load bar area size from currentConfig
-  let barArea: Area = (area.x, 0, area.width, 20.uint)
-  result.config = currentConfig
+  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height.uint)
+  result.config = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
   result.taggedClients = newOrderedTable[Tag, seq[Client]]()
@@ -57,8 +57,8 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
       id = i,
       layout = newMasterStackLayout(
         monitorArea = area,
-        gapSize = currentConfig.gapSize,
-        borderWidth = currentConfig.borderWidth,
+        gapSize = currentConfig.windowSettings.gapSize,
+        borderWidth = currentConfig.windowSettings.borderWidth,
         masterSlots = masterSlots
       )
     )
@@ -69,7 +69,8 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
     break
 
   result.updateCurrentDesktopProperty()
-  result.statusBar = display.newStatusBar(rootWindow, barArea, result.taggedClients)
+  result.statusBar =
+    display.newStatusBar(rootWindow, barArea, result.taggedClients, currentConfig.barSettings)
 
 template currTagClients*(this: Monitor): untyped =
   ## Grabs the windows on the current tag.
