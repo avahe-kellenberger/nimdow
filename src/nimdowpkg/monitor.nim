@@ -148,7 +148,6 @@ proc find*(this: Monitor, window: Window): Option[Client] =
   return none(Client)
 
 proc updateCurrentDesktopProperty(this: Monitor) =
-  # TODO: Can remove this since we don't care about atoms anymore.
   var data: array[1, clong] = [this.selectedTag.id]
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -271,7 +270,6 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.updateClientList()
 
 proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
-  # TODO: Can remove this since we don't care about atoms anymore.
   let data: clong = this.selectedTag.id.clong
   discard XChangeProperty(this.display,
                           window,
@@ -356,8 +354,6 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   discard XSync(this.display, false)
 
-  # TODO: We don't need to worry about updating atoms anymore.
-  # Select the "selected" client for the newly viewed tag
   if this.currClient.isSome:
     this.focusWindow(this.currClient.get.window)
   else:

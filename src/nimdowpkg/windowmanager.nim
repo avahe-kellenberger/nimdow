@@ -475,7 +475,6 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   # so we don't have to check which monitor it exists on.
   # This should be changed to be more clear in the future.
 
-  # TODO: We don't need to care about these anymore since we are using our own bar.
   let
     stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
     windowTypeOpt = this.display.getProperty[:Atom](client.window, $NetWMWindowType)
