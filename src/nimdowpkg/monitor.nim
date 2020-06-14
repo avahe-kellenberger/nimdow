@@ -12,7 +12,9 @@ import
   layouts/layout,
   layouts/masterstacklayout,
   keys/keyutils,
-  config/configloader
+  config/configloader,
+  statusbar,
+  utils/optionutils
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -29,11 +31,11 @@ type
   Monitor* = ref object of RootObj
     display: PDisplay
     rootWindow: Window
+    statusBar*: StatusBar
     area*: Area
-    config: Config
-    taggedClients*: OrderedTable[Tag, seq[Client]]
+    config: WindowSettings
+    taggedClients*: OrderedTableRef[Tag, seq[Client]]
     selectedTag*: Tag
-    docks*: Table[Window, Client]
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -44,16 +46,19 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
-  result.config = currentConfig
-  result.docks = initTable[Window, Client]()
-  result.taggedClients = OrderedTable[Tag, seq[Client]]()
+  # TODO: Load bar area size from currentConfig
+  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
+  result.config = currentConfig.windowSettings
+  result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
+
+  result.taggedClients = newOrderedTable[Tag, seq[Client]]()
   for i in 0..<tagCount:
     let tag: Tag = newTag(
       id = i,
       layout = newMasterStackLayout(
         monitorArea = area,
-        gapSize = currentConfig.gapSize,
-        borderWidth = currentConfig.borderWidth,
+        gapSize = currentConfig.windowSettings.gapSize,
+        borderWidth = currentConfig.windowSettings.borderWidth,
         masterSlots = masterSlots
       )
     )
@@ -64,6 +69,29 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
     break
 
   result.updateCurrentDesktopProperty()
+  result.statusBar =
+    display.newStatusBar(rootWindow, barArea, result.taggedClients, currentConfig.barSettings)
+
+template currTagClients*(this: Monitor): untyped =
+  ## Grabs the windows on the current tag.
+  ## This is used like an alias, e.g.:
+  ## `let clients = this.taggedClients[this.selectedTags]`
+  ## `clients` would be a copy of the collection.
+  this.taggedClients[this.selectedTag]
+
+template currClient*(this: Monitor): Option[Client] =
+  this.selectedTag.selectedClient
+
+template withSomeCurrClient*(this: Monitor, client, body: untyped) =
+  ## Executes `body` if `this.currClient.isSome == true`
+  ## with the extracted Client value.
+  if this.currClient.isNone:
+    return
+  var client: Client = this.currClient.get
+  body
+
+proc redrawStatusBar*(this: Monitor) =
+  this.statusBar.redraw(this.selectedTag.id)
 
 proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
   var number: cint
@@ -116,24 +144,6 @@ proc calculateStrutArea*(strut: Strut, displayWidth, displayHeight: int): Area =
     echo "ERROR: No invalid strut!"
   return (0, 0, 0.uint, 0.uint)
 
-template currTagClients*(this: Monitor): untyped =
-  ## Grabs the windows on the current tag.
-  ## This is used like an alias, e.g.:
-  ## `let clients = this.taggedClients[this.selectedTags]`
-  ## `clients` would be a copy of the collection.
-  this.taggedClients[this.selectedTag]
-
-template currClient*(this: Monitor): Option[Client] =
-  this.selectedTag.selectedClient
-
-template withSomeCurrClient*(this: Monitor, client, body: untyped) =
-  ## Executes `body` if `this.currClient.isSome == true`
-  ## with the extracted Client value.
-  if this.currClient.isNone:
-    return
-  var client: Client = this.currClient.get
-  body
-
 proc find*(this: Monitor, window: Window): Option[Client] =
   ## Finds a client based on its window property.
   for tag, clients in this.taggedClients.pairs:
@@ -143,7 +153,6 @@ proc find*(this: Monitor, window: Window): Option[Client] =
   return none(Client)
 
 proc updateCurrentDesktopProperty(this: Monitor) =
-  # TODO: Fix this when we determine how to display tags in a multihead environment.
   var data: array[1, clong] = [this.selectedTag.id]
   discard XChangeProperty(this.display,
                           this.rootWindow,
@@ -169,14 +178,19 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
     echo "Invalid tag number from config:"
     echo getCurrentExceptionMsg()
 
-proc updateLayoutOffset*(this: Monitor) =
-  this.layoutOffset = this.docks.calcLayoutOffset(this.area.width, this.area.height)
-  this.doLayout()
-
-proc focusWindow*(this: Monitor, window: Window) =
+proc focusClient*(this: Monitor, client: Client) =
   discard XSetInputFocus(
     this.display,
-    window,
+    client.window,
+    RevertToPointerRoot,
+    CurrentTime
+  )
+  this.statusBar.setSelectedClient(client)
+
+proc focusRootWindow(this: Monitor) =
+  discard XSetInputFocus(
+    this.display,
+    this.rootWindow,
     RevertToPointerRoot,
     CurrentTime
   )
@@ -184,19 +198,22 @@ proc focusWindow*(this: Monitor, window: Window) =
 proc ensureWindowFocus*(this: Monitor) =
   ## Ensures a window is selected on the current tag.
   if this.currTagClients.len == 0:
-    this.focusWindow(this.rootWindow)
+    this.focusRootWindow()
+    this.statusBar.setSelectedClient(nil)
   else:
     if this.currClient.isSome:
-      this.focusWindow(this.currClient.get.window)
+      this.focusClient(this.currClient.get)
     elif this.selectedTag.previouslySelectedClient.isSome:
-      this.focusWindow(this.selectedTag.previouslySelectedClient.get.window)
+      this.focusClient(this.selectedTag.previouslySelectedClient.get)
     else:
       # Find the first normal client
       let clientIndex = this.currTagClients.findNextNormal(-1)
       if clientIndex >= 0:
-        this.focusWindow(this.currTagClients[clientIndex].window)
+        let client = this.currTagClients[clientIndex]
+        this.focusClient(client)
       else:
-        this.focusWindow(this.rootWindow)
+        this.focusRootWindow()        
+        this.statusBar.setSelectedClient(nil)
 
 proc addWindowToClientListProperty*(this: Monitor, window: Window) =
   ## Adds the window to _NET_CLIENT_LIST
@@ -214,8 +231,6 @@ proc updateClientList(this: Monitor) =
   for clients in this.taggedClients.values:
     for client in clients:
       this.addWindowToClientListProperty(client.window)
-  for window in this.docks.keys:
-    this.addWindowToClientListProperty(window)
 
 proc setActiveWindowProperty*(this: Monitor, window: Window) =
   discard XChangeProperty(
@@ -264,22 +279,14 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
       result = true
 
 proc removeWindow*(this: Monitor, window: Window): bool =
-  ## Removes a window (could be in the tag table or a dock).
   ## Returns if the window was removed.
   ## After a window is removed, you should typically call
   ## doLayout and ensureWindowFocus (unless you have a specific use case).
-  result = false
-  var dock: Client
-  if this.docks.pop(window, dock):
-    this.updateLayoutOffset()
-  else:
-    result = this.removeWindowFromTagTable(window)
-    this.deleteActiveWindowProperty()
-  
+  result = this.removeWindowFromTagTable(window)
+  this.deleteActiveWindowProperty()
   this.updateClientList()
 
 proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
-  # TODO: We should probably define our own per-monitor tag atoms
   let data: clong = this.selectedTag.id.clong
   discard XChangeProperty(this.display,
                           window,
@@ -304,6 +311,10 @@ proc destroySelectedWindow*(this: Monitor) =
   discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
   discard XDestroyWindow(this.display, selectedWin)
 
+proc setSelectedClient*(this: Monitor, client: Client) =
+  this.selectedTag.setSelectedClient(client)
+  this.statusBar.setSelectedClient(client)
+
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   for tag, clients in this.taggedClients.mpairs:
     # This assumes the client is being moved from the current tag to another tag. 
@@ -325,13 +336,11 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
 
   if this.currTagClients.len == 0:
     this.deleteActiveWindowProperty()
+  this.redrawStatusBar()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
-  if this.currClient.isSome:
-    this.moveClientToTag(
-      this.currClient.get,
-      tag
-    )
+  withSome(this.currClient, client):
+    this.moveClientToTag(client, tag)
 
 proc viewTag*(this: Monitor, tag: Tag) =
   ## Views a single tag.
@@ -364,13 +373,15 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   discard XSync(this.display, false)
 
-  # Select the "selected" client for the newly viewed tag
   if this.currClient.isSome:
-    this.focusWindow(this.currClient.get.window)
+    this.focusClient(this.currClient.get)
   else:
     this.deleteActiveWindowProperty()
+    this.statusBar.setActiveWindowTitle("", false)
+    this.statusBar.setSelectedClient(nil, false)
 
   this.updateCurrentDesktopProperty()
+  this.redrawStatusBar()
 
 proc findSelectedAndNextNormalClientIndexes(
   this: Monitor,
@@ -392,9 +403,7 @@ proc focusClient(
 ) =
   let result = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
   if result.nextIndex >= 0:
-    this.focusWindow(
-      this.currTagClients[result.nextIndex].window
-    )
+    this.focusClient(this.currTagClients[result.nextIndex])
 
 proc focusPreviousClient*(this: Monitor) =
   this.focusClient(client.findPreviousNormal)
@@ -412,7 +421,7 @@ proc moveClient(
     this.currTagClients[indexes.selectedIndex] = this.currTagClients[indexes.nextIndex]
     this.currTagClients[indexes.nextIndex] = temp
     this.doLayout()
-    this.focusWindow(this.currTagClients[indexes.nextIndex].window)
+    this.focusClient(this.currTagClients[indexes.nextIndex])
 
 proc moveClientPrevious*(this: Monitor) =
   this.moveClient(client.findPreviousNormal)
@@ -461,7 +470,7 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
 
   client.isFullscreen = not client.isFullscreen
   # Ensure the window has focus
-  this.focusWindow(client.window)
+  this.focusClient(client)
   this.doLayout()
 
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
