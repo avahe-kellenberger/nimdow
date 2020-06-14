@@ -201,7 +201,8 @@ proc initListeners(this: WindowManager) =
       for monitor in this.monitors:
         if monitor.removeWindow(e.xdestroywindow.window):
           monitor.doLayout()
-          monitor.ensureWindowFocus(),
+          monitor.ensureWindowFocus()
+          monitor.redrawStatusBar(),
       DestroyNotify
   )
   this.eventManager.addListener((e: XEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
@@ -265,6 +266,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if this.selectedMonitor.removeWindow(client.window):
     this.selectedMonitor.doLayout()
     this.selectedMonitor.ensureWindowFocus()
+    this.selectedMonitor.redrawStatusBar()
 
   nextMonitor.currTagClients.add(client)
   nextMonitor.doLayout()
@@ -287,7 +289,8 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
 
   this.selectedMonitor = nextMonitor
   this.focusMonitor(monitorIndex)
-  this.selectedMonitor.focusWindow(client.window)
+  this.selectedMonitor.focusClient(client)
+  this.selectedMonitor.redrawStatusBar()
 
 proc moveClientToPreviousMonitor(this: WindowManager) = 
   let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
@@ -553,7 +556,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   discard XMapWindow(this.display, window)
 
   if not client.isFixed:
-    this.selectedMonitor.focusWindow(window)
+    this.selectedMonitor.focusClient(client)
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
 
@@ -580,7 +583,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
       )
     # Focus the new monitor's current client
     if this.selectedMonitor.currClient.isSome:
-      this.selectedMonitor.focusWindow(this.selectedMonitor.currClient.get.window)
+      this.selectedMonitor.focusClient(this.selectedMonitor.currClient.get)
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
@@ -609,11 +612,11 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   let clientOpt = this.selectedMonitor.find(e.window)
   if clientOpt.isNone:
     return
-  
+
   this.selectedMonitor.setActiveWindowProperty(e.window)
 
   let client = clientOpt.get
-  this.selectedMonitor.selectedTag.setSelectedClient(client)
+  this.selectedMonitor.setSelectedClient(client)
   discard XSetWindowBorder(
     this.display,
     client.window,
@@ -659,7 +662,7 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:
-    monitor.statusBar.redraw(monitor.selectedTag.id)
+    monitor.redrawStatusBar()
 
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
   ## Resizes and raises the client.

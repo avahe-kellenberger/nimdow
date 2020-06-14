@@ -2,7 +2,10 @@ import
   x11 / [x, xlib, xutil, xatom, xft, xrender],
   unicode,
   xatoms,
-  area
+  area,
+  tables,
+  tag,
+  client
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -12,7 +15,6 @@ converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  numTags = 9
   # TODO: These should all be loaded from the settings or passed in as params
   fontStrings = ["monospace:size=9", "JoyPixels:pixelsize=10:antialias=true:autohint=true"]
   cellWidth = 21
@@ -21,8 +23,10 @@ const
 type
   StatusBar* = object
     status: string
-    activeWindowTitle: string
+    taggedClients: OrderedTableRef[Tag, seq[Client]]
+    selectedClient: Client
     selectedTag: int
+    activeWindowTitle: string
     display: PDisplay
     screen: cint
     barWindow*: Window
@@ -39,8 +43,14 @@ proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
 proc configureFont(this: StatusBar, fontString: string): PXftFont
 
-proc newStatusBar*(display: PDisplay, rootWindow: Window, area: Area): StatusBar =
+proc newStatusBar*(
+    display: PDisplay,
+    rootWindow: Window,
+    area: Area,
+    taggedClients: OrderedTableRef[Tag, seq[Client]]
+): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
+  result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
   result.colormap = DefaultColormap(display, result.screen)
@@ -262,7 +272,6 @@ proc renderStringCentered*(this: StatusBar, str: string, x: int, color: XftColor
     )
     xLoc += glyph.xOff
 
-
 proc renderString*(this: StatusBar, str: string, x: int, color: XftColor) =
   ## Renders a string at position x.
   var
@@ -290,20 +299,17 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor) =
         break
 
 proc renderTags(this: StatusBar, selectedTag: int) =
-  var
-    tagStr: string
-    textXPos: int
+  var textXPos: int
 
-  for i in countup(0, numTags - 1):
-    # Text x position
+  for tag, clients in this.taggedClients:
+    let i = tag.id
     textXPos = cellWidth div 2 + cellWidth * i
-    tagStr = $(i + 1)
-    let color =
-      if i == selectedTag:
-        this.selectedFgColor
-      else:
-        this.fgColor
-    this.renderString(tagStr, textXPos, color)
+    var color = if i == selectedTag: this.selectedFgColor else: this.fgColor
+    this.renderString($(i + 1), textXPos, color)
+    if clients.len > 0:
+      XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
+      if this.selectedClient == nil or clients.find(this.selectedClient) == -1:
+        XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
 
 proc renderStatus(this: StatusBar) =
   if this.status.len > 0:
@@ -319,6 +325,11 @@ proc redraw*(this: var StatusBar, selectedTag: int) =
   this.renderTags(selectedTag)
   this.renderStatus()
   this.renderActiveWindowTitle()
+
+proc setSelectedClient*(this: var StatusBar, client: Client, redraw: bool = true) =
+  this.selectedClient = client
+  if redraw:
+    this.redraw(this.selectedTag)
 
 proc setStatus*(this: var StatusBar, status: string, redraw: bool = true) =
   this.status = status
