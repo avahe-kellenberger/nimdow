@@ -2,7 +2,7 @@
 
 A window manager written in [Nim](https://nim-lang.org/)
 
-**NOTE: This is a WIP but is very usable. Please report any bugs if you find any.**
+**NOTE: Nimdow is in Beta but is very usable. Please report any bugs you may find.**
 
 I am using this project to learn Nim, x11, and to replace my build of **dwm** (written in C).
 
