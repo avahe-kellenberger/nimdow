@@ -473,6 +473,12 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
   this.focusClient(client)
   this.doLayout()
 
+proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
+  ## Helper function for toggleFullscreen
+  if fullscreen == client.isFullscreen:
+    return
+  this.toggleFullscreen(client)
+
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
   this.withSomeCurrClient(client):
     this.toggleFullscreen(client)
