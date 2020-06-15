@@ -464,16 +464,19 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   for monitor in this.monitors:
-    var clientOpt = monitor.find(e.window)
-    if clientOpt.isNone:
-      continue
-    if e.message_type == $NetWMState:
-      let fullscreenAtom = $NetWMStateFullScreen
-      if e.data.l[1] == fullscreenAtom or
-        e.data.l[2] == fullscreenAtom:
-          monitor.toggleFullscreen(clientOpt.get)
-    # We can stop once we've found the particular client
-    break
+    withSome(monitor.find(e.window), client):
+      if e.message_type == $NetWMState:
+        let fullscreenAtom = $NetWMStateFullScreen
+        if e.data.l[1] == fullscreenAtom or
+          e.data.l[2] == fullscreenAtom:
+          # See the end of this section:
+          # https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html#idm45805407959456
+            var shouldFullscreen = 
+              e.data.l[0] == 1 or
+              e.data.l[0] == 2 and not client.isFullscreen
+            monitor.setFullscreen(client, shouldFullscreen)
+      # We can stop once we've found the particular client
+      break
 
 proc updateWindowType(this: WindowManager, client: var Client) =
   # NOTE: This is only called for newly created windows,
