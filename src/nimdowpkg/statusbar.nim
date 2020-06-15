@@ -263,7 +263,7 @@ proc renderStringCentered*(this: StatusBar, str: string, x: int, color: XftColor
         var glyph: XGlyphInfo
         XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
         runeInfo.add((rune, font, glyph))
-        stringWidth += glyph.width
+        stringWidth += glyph.xOff
         break
 
   xLoc = x - (stringWidth div 2)
