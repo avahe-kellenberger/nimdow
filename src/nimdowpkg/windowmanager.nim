@@ -713,12 +713,17 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   let monitorIndex = this.monitors.find(centerX, centerY)
   if monitorIndex < 0 or this.monitors[monitorIndex] == this.selectedMonitor:
     return
-  let nextMonitor = this.monitors[monitorIndex]
-  let prevMonitor = this.selectedMonitor
+  let 
+    nextMonitor = this.monitors[monitorIndex]
+    prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag
   discard prevMonitor.removeWindow(client.window)
   nextMonitor.currTagClients.add(client)
   nextMonitor.selectedTag.setSelectedClient(client)
+  nextMonitor.statusBar.setSelectedClient(client)
+  withSome(this.display.getWindowName(client.window), title):
+    nextMonitor.statusBar.setActiveWindowTitle(title)
+
   this.selectedMonitor = nextMonitor
   # Unset the client being moved/resized
   this.moveResizingClient = none(Client)
