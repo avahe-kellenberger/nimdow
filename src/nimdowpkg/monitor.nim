@@ -336,6 +336,7 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
 
   if this.currTagClients.len == 0:
     this.deleteActiveWindowProperty()
+    this.statusBar.setActiveWindowTitle("", false)
   this.redrawStatusBar()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
