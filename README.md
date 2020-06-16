@@ -13,8 +13,8 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
   1. [Building from source](#building)
   2. [Arch Linux (AUR)](#aur)
 3. [Command Line Arguments](#cli)
-4. [Status Bar)(#statusbar)
-  1. [Setting the status)(#setting-status)
+4. [Status Bar](#statusbar)
+  1. [Setting the status](#setting-status)
 5. [Roadmap](#roadmap)
 6. [Testing Locally](#testing)
 
