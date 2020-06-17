@@ -278,6 +278,15 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
       this.removeWindowFromTag(tag, clientIndex) 
       result = true
 
+  if this.currTagClients.len == 0:
+    this.statusBar.setSelectedClient(nil, false)
+    this.statusBar.setActiveWindowTitle("")
+  else:
+    withSome(this.selectedTag.selectedClient, client):
+      this.statusBar.setSelectedClient(client)
+      withSome(this.display.getWindowName(client.window), title):
+        this.statusBar.setActiveWindowTitle(title)
+
 proc removeWindow*(this: Monitor, window: Window): bool =
   ## Returns if the window was removed.
   ## After a window is removed, you should typically call
