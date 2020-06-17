@@ -239,6 +239,8 @@ proc findConfigPath(): string =
   let configHome = os.getConfigDir()
   result = configHome & "nimdow/config.toml"
   if not fileExists(result):
+    result = "/usr/share/nimdow/config.default.toml"
+  if not fileExists(result):
     raise newException(Exception, result & " does not exist")
 
 proc loadConfigFile*(filePath: string = ""): TomlTable =
