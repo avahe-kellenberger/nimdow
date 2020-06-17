@@ -12,11 +12,12 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 2. [Installation](#installation)
     1. [Building from source](#building)
     2. [Arch Linux (AUR)](#aur)
-3. [Command Line Arguments](#cli)
-4. [Status Bar](#statusbar)
+3. [Config File](#config)
+4. [Command Line Arguments](#cli)
+5. [Status Bar](#statusbar)
     1. [Setting the status](#setting-status)
-5. [Roadmap](#roadmap)
-6. [Testing Locally](#testing)
+6. [Roadmap](#roadmap)
+7. [Testing Locally](#testing)
 
 
 ## Screenshots
@@ -39,13 +40,20 @@ If you are on an Arch Linux based system, use `nimdow-bin` in the AUR to install
 
 Default config is stored at `/usr/share/nimdow/config.default.toml`
 
+## Config File <a name="config"></a>
+
+Nimdow searches for a config file in 3 locations in this order:
+
+1. `${XDG_CONFIG_HOME}/nimdow/config.toml`
+2. `${HOME}/.config/nimdow/config.toml`
+3. `/usr/share/nimdow/config/config.default.toml`
+
+If no config file is found, Nimdow will not launch.
+
 ## Command line arguments <a name="cli"></a>
 
-Currently the only argument that may be provided is a config file path. This was added for testing purposes.
-
-E.g. `$ nimdow ./some-config.toml`
-
-If no argument is provided, we use the config file mentioned in the *Building from source* section.
+- Providing an alternative config file, e.g. `nimdow ./some-config.toml`
+- Version information: `nimdow -v` or `nimdow --version`
 
 ## Status Bar <a name="statusbar"></a>
 
