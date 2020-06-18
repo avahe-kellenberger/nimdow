@@ -85,10 +85,9 @@ template currClient*(this: Monitor): Option[Client] =
 template withSomeCurrClient*(this: Monitor, client, body: untyped) =
   ## Executes `body` if `this.currClient.isSome == true`
   ## with the extracted Client value.
-  if this.currClient.isNone:
-    return
-  var client: Client = this.currClient.get
-  body
+  if this.currClient.isSome:
+    var client: Client = this.currClient.get
+    body
 
 proc redrawStatusBar*(this: Monitor) =
   this.statusBar.redraw(this.selectedTag.id)
