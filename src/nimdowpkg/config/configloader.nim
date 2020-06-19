@@ -115,9 +115,11 @@ proc configureExternalProcess(this: Config, command: string) =
 
 proc hookConfig*(this: Config, eventManager: XEventManager) =
   let listener: XEventListener = proc(e: XEvent) =
+    echo "Listener: ", e.xkey.keycode
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):
+      echo "Dispatching"
       this.keyComboTable[keyCombo](keyCombo.keycode)
   eventManager.addListener(listener, KeyPress)
 

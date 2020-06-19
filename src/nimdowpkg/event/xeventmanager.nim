@@ -28,10 +28,12 @@ proc removeListener*(this: XEventManager, listener: XEventListener, types: varar
 proc dispatchEvent*(this: XEventManager, e: XEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
 
+  echo "dispatchEvent: ", e.theType
   # We are not listening for this event type - exit.
   if e.theType notin this.listenerMap:
     return
-
+  echo "dispatching..."
+  echo ""
   let listeners = this.listenerMap[e.theType]
   for listener in listeners:
     listener(e)
@@ -40,7 +42,10 @@ proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
   ## This proc will not return unless there is an error.
 
+  discard XSync(display, false.XBool)
   # XNextEvent returns 0 unless there is an error.
   while XNextEvent(display, addr(this.event)) == 0:
     this.dispatchEvent(this.event)
+
+  discard XCloseDisplay(display)
 
