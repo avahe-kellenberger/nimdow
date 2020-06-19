@@ -281,9 +281,11 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
     this.statusBar.setSelectedClient(nil, false)
     this.statusBar.setActiveWindowTitle("")
   else:
-    withSome(this.selectedTag.selectedClient, client):
+    let opt = this.selectedTag.selectedClient
+    withSome(opt, client):
       this.statusBar.setSelectedClient(client)
-      withSome(this.display.getWindowName(client.window), title):
+      let opt = this.display.getWindowName(client.window)
+      withSome(opt, title):
         this.statusBar.setActiveWindowTitle(title)
 
 proc removeWindow*(this: Monitor, window: Window): bool =
