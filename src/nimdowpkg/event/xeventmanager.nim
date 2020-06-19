@@ -31,7 +31,6 @@ proc dispatchEvent*(this: XEventManager, e: XEvent) =
   # We are not listening for this event type - exit.
   if e.theType notin this.listenerMap:
     return
-
   let listeners = this.listenerMap[e.theType]
   for listener in listeners:
     listener(e)
@@ -40,7 +39,10 @@ proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
   ## This proc will not return unless there is an error.
 
+  discard XSync(display, false.XBool)
   # XNextEvent returns 0 unless there is an error.
   while XNextEvent(display, addr(this.event)) == 0:
     this.dispatchEvent(this.event)
+
+  discard XCloseDisplay(display)
 

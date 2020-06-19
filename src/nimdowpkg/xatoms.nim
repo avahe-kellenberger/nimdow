@@ -9,7 +9,7 @@ type
     WMName, WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast
   NetAtom* = enum
     NetActiveWindow, NetSupported,
-    NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
+    # NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
     NetWMName, NetWMState, NetWMStateAbove, NetWMStateSticky,
     NetSupportingWMCheck, NetWMStateFullScreen, NetClientList, NetWMStrutPartial, 
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
@@ -19,7 +19,8 @@ type
     NetWMDesktop, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetDesktopNames,
     NetLast
   XAtom* = enum
-    Manager, Xembed, XembedInfo, XLast
+    Manager, XLast
+    # Xembed, XembedInfo
 
 var WMAtoms*: array[ord(WMLast), Atom]
 var NetAtoms*: array[ord(NetLast), Atom]
@@ -48,10 +49,10 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), Atom] =
   [
     XInternAtom(display, "_NET_ACTIVE_WINDOW", false),
     XInternAtom(display, "_NET_SUPPORTED", false),
-    XInternAtom(display, "_NET_SYSTEM_TRAY_S0", false),
-    XInternAtom(display, "_NET_SYSTEM_TRAY_OPCODE", false),
-    XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION", false),
-    XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION_HORZ", false),
+    # XInternAtom(display, "_NET_SYSTEM_TRAY_S0", false),
+    # XInternAtom(display, "_NET_SYSTEM_TRAY_OPCODE", false),
+    # XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION", false),
+    # XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION_HORZ", false),
     XInternAtom(display, "_NET_WM_NAME", false),
     XInternAtom(display, "_NET_WM_STATE", false),
     XInternAtom(display, "_NET_WM_STATE_ABOVE", false),
@@ -82,8 +83,8 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), Atom] =
 proc getXAtoms*(display: PDisplay): array[ord(XLast), Atom] =
   [
     XInternAtom(display, "MANAGER", false),
-    XInternAtom(display, "_XEMBED", false),
-    XInternAtom(display, "_XEMBED_INFO", false)
+    # XInternAtom(display, "_XEMBED", false),
+    # XInternAtom(display, "_XEMBED_INFO", false)
   ]
 
 proc getProperty*[T](

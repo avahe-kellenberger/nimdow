@@ -487,7 +487,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   for monitor in this.monitors:
-    withSome(monitor.find(e.window), client):
+    let opt = monitor.find(e.window)
+    withSome(opt, client):
       if e.message_type == $NetWMState:
         let fullscreenAtom = $NetWMStateFullScreen
         if e.data.l[1] == fullscreenAtom or
@@ -685,7 +686,8 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
     for monitor in this.monitors:
       monitor.withSomeCurrClient(client):
         if client.window == e.window:
-          withSome(this.display.getWindowName(client.window), title):
+          let opt = this.display.getWindowName(client.window)
+          withSome(opt, title):
             this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
@@ -744,7 +746,8 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   nextMonitor.currTagClients.add(client)
   nextMonitor.selectedTag.setSelectedClient(client)
   nextMonitor.statusBar.setSelectedClient(client)
-  withSome(this.display.getWindowName(client.window), title):
+  let opt = this.display.getWindowName(client.window)
+  withSome(opt, title):
     nextMonitor.statusBar.setActiveWindowTitle(title)
 
   this.selectedMonitor = nextMonitor
