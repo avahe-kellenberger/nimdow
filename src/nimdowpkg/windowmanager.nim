@@ -411,6 +411,21 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   errorMessage.setLen(errorMessage.cstring.len)
   echo "\t", errorMessage
 
+proc configure(this: WindowManager, client: Client) =
+  var event: XConfigureEvent
+  event.theType = ConfigureNotify
+  event.display = this.display
+  event.event = client.window
+  event.window = client.window
+  event.x = client.x
+  event.y = client.y
+  event.width = client.width.cint
+  event.height = client.height.cint
+  event.border_width = client.borderWidth.cint
+  event.above = None
+  event.override_redirect = false
+  discard XSendEvent(this.display, client.window, false, StructureNotifyMask, cast[PXEvent](event.addr))
+
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   var clientOpt: Option[Client]
   var monitorOpt: Option[Monitor]
@@ -426,30 +441,36 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
     if (e.value_mask and CWBorderWidth) != 0 and e.border_width > 0:
       discard XSetWindowBorderWidth(this.display, e.window, e.border_width)
 
-    if (e.value_mask and CWX) != 0:
-      client.x = e.x
-    if (e.value_mask and CWY) != 0:
-      client.y = e.y
-    if (e.value_mask and CWWidth) != 0:
-      client.width = e.width.uint
-    if (e.value_mask and CWHeight) != 0:
-      client.height = e.height.uint
+    if client.isFloating:
+      if (e.value_mask and CWX) != 0:
+        client.x = e.x
+      if (e.value_mask and CWY) != 0:
+        client.y = e.y
+      if (e.value_mask and CWWidth) != 0:
+        client.width = e.width.uint
+      if (e.value_mask and CWHeight) != 0:
+        client.height = e.height.uint
 
-    if not client.isFixed:
-      if client.x == 0:
-        client.x = monitor.area.x + (monitor.area.width.int div 2 - (client.width.int div 2))
-      if client.y == 0:
-        client.y = monitor.area.y + (monitor.area.height.int div 2 - (client.height.int div 2))
+      if not client.isFixed:
+        if client.x == 0:
+          client.x = monitor.area.x + (monitor.area.width.int div 2 - (client.width.int div 2))
+        if client.y == 0:
+          client.y = monitor.area.y + (monitor.area.height.int div 2 - (client.height.int div 2))
 
-    discard XMoveResizeWindow(
-      this.display,
-      e.window,
-      client.x,
-      client.y,
-      client.width.cint,
-      client.height.cint
-    )
-    this.selectedMonitor.doLayout()
+      if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth and CWHeight)) == 0:
+        this.configure(client)
+        discard XMoveResizeWindow(
+          this.display,
+          e.window,
+          client.x,
+          client.y,
+          client.width.cint,
+          client.height.cint
+        )
+      # TODO: Is this needed?
+      this.selectedMonitor.doLayout()
+    else:
+      this.configure(client)
   else: 
     # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
     var changes: XWindowChanges
@@ -461,6 +482,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
     changes.sibling = e.above
     changes.stack_mode = e.detail
     discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
+  
+  discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   for monitor in this.monitors:
@@ -516,13 +539,12 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
       let area = this.selectedMonitor.area
       client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
       client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
-      discard XMoveResizeWindow(this.display,
-                                client.window,
-                                client.x,
-                                client.y,
-                                client.width.cuint,
-                                client.height.cuint
-                               )
+      discard XMoveWindow(
+        this.display,
+        client.window,
+        client.x,
+        client.y
+      )
 
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   # Don't manage the same window twice.
@@ -531,8 +553,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
         return
 
   var client = newClient(window)
-  client.x = windowAttr.x
-  client.y = windowAttr.y
+  client.x = this.selectedMonitor.area.x + windowAttr.x
+  client.y = this.selectedMonitor.area.y + windowAttr.y
   client.width = windowAttr.width.uint
   client.height = windowAttr.height.uint
 
@@ -644,7 +666,8 @@ proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
   monitor.withSomeCurrClient(client):
-    withSome(this.display.getWindowName(client.window), title):
+    let opt = this.display.getWindowName(client.window)
+    withSome(opt, title):
       this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc renderStatus(this: WindowManager) =

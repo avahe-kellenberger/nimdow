@@ -13,6 +13,7 @@ type
     borderWidth*: uint
     isFullscreen*: bool
     isFloating*: bool
+    # Non-resizable
     isFixed*: bool
 
 proc hash*(this: Client): Hash
