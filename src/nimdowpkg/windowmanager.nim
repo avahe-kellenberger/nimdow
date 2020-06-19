@@ -539,13 +539,12 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
       let area = this.selectedMonitor.area
       client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
       client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
-      discard XMoveResizeWindow(this.display,
-                                client.window,
-                                client.x,
-                                client.y,
-                                client.width.cuint,
-                                client.height.cuint
-                               )
+      discard XMoveWindow(
+        this.display,
+        client.window,
+        client.x,
+        client.y
+      )
 
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   # Don't manage the same window twice.
@@ -554,8 +553,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
         return
 
   var client = newClient(window)
-  client.x = windowAttr.x
-  client.y = windowAttr.y
+  client.x = this.selectedMonitor.area.x + windowAttr.x
+  client.y = this.selectedMonitor.area.y + windowAttr.y
   client.width = windowAttr.width.uint
   client.height = windowAttr.height.uint
 
