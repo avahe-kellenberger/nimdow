@@ -19,7 +19,8 @@ type
     NetWMDesktop, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetDesktopNames,
     NetLast
   XAtom* = enum
-    Manager, Xembed, XembedInfo, XLast
+    Manager, XLast
+    # Xembed, XembedInfo
 
 var WMAtoms*: array[ord(WMLast), Atom]
 var NetAtoms*: array[ord(NetLast), Atom]
@@ -82,8 +83,8 @@ proc getNetAtoms*(display: PDisplay): array[ord(NetLast), Atom] =
 proc getXAtoms*(display: PDisplay): array[ord(XLast), Atom] =
   [
     XInternAtom(display, "MANAGER", false),
-    XInternAtom(display, "_XEMBED", false),
-    XInternAtom(display, "_XEMBED_INFO", false)
+    # XInternAtom(display, "_XEMBED", false),
+    # XInternAtom(display, "_XEMBED_INFO", false)
   ]
 
 proc getProperty*[T](
