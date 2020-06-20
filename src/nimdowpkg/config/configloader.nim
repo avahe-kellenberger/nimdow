@@ -268,7 +268,7 @@ proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, actio
   let keys: seq[string] = this.getKeysForAction(configTable, action)
   for key in keys:
     let keycode: int = key.toKeycode(display)
-    result.add((keycode, modifiers))
+    result.add((keycode, cleanMask(modifiers)))
 
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
   var tomlKeys = configTable["keys"]

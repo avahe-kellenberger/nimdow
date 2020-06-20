@@ -13,7 +13,8 @@ import
   area,
   config/configloader,
   event/xeventmanager,
-  layouts/masterstacklayout
+  layouts/masterstacklayout,
+  keys/keyutils
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -371,32 +372,39 @@ proc mapConfigActions*(this: WindowManager) =
     this.selectedMonitor.toggleFloatingForSelectedClient()
 
 proc hookConfigKeys*(this: WindowManager) =
-  # Grab key combos defined in the user's config
+  ## Grabs key combos defined in the user's config
+  updateNumlockMask(this.display)
+  let modifiers = [0.cuint, LockMask.cuint, numlockMask, numlockMask or LockMask.cuint]
+
+  discard XUngrabKey(this.display, AnyKey, AnyModifier, this.rootWindow)
   for keyCombo in this.config.keyComboTable.keys:
-    discard XGrabKey(
-      this.display,
-      keyCombo.keycode,
-      keyCombo.modifiers,
-      this.rootWindow,
-      true,
-      GrabModeAsync,
-      GrabModeAsync
-    )
+    for modifier in modifiers:
+      discard XGrabKey(
+        this.display,
+        keyCombo.keycode,
+        keyCombo.modifiers or modifier,
+        this.rootWindow,
+        true,
+        GrabModeAsync,
+        GrabModeAsync
+      )
 
   # We only care about left and right clicks
+  discard XUngrabButton(this.display, AnyButton, AnyModifier, this.rootWindow)
   for button in @[Button1, Button3]: 
-    discard XGrabButton(
-      this.display,
-      button,
-      Mod4Mask,
-      this.rootWindow,
-      false,
-      ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
-      GrabModeASync,
-      GrabModeASync,
-      None,
-      None
-    )
+    for modifier in modifiers:
+      discard XGrabButton(
+        this.display,
+        button,
+        Mod4Mask or modifier,
+        this.rootWindow,
+        false,
+        ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+        GrabModeASync,
+        GrabModeASync,
+        None,
+        None
+      )
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "Error: "
