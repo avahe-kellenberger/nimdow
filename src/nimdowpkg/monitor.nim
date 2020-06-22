@@ -36,6 +36,7 @@ type
     config: WindowSettings
     taggedClients*: OrderedTableRef[Tag, seq[Client]]
     selectedTag*: Tag
+    previousTag*: Tag
     layoutOffset: LayoutOffset
 
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -68,9 +69,12 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
     result.selectedTag = tag
     break
 
+  result.previousTag = Tag(id: -1)
+
   result.updateCurrentDesktopProperty()
   result.statusBar =
     display.newStatusBar(rootWindow, barArea, result.taggedClients, currentConfig.barSettings)
+
 
 template currTagClients*(this: Monitor): untyped =
   ## Grabs the windows on the current tag.

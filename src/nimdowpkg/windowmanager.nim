@@ -343,8 +343,19 @@ proc mapConfigActions*(this: WindowManager) =
     this.focusNextMonitor()
 
   createControl(keycode, "goToTag"):
-    let tag = this.selectedMonitor.keycodeToTag(keycode)
+    var tag = this.selectedMonitor.keycodeToTag(keycode)
+    if this.selectedMonitor.previousTag.id != -1 and this.selectedMonitor.selectedTag.id == tag.id:
+      tag = this.selectedMonitor.previousTag
+      this.selectedMonitor.previousTag = this.selectedMonitor.selectedTag
+    else:
+      this.selectedMonitor.previousTag = this.selectedMonitor.selectedTag
     this.selectedMonitor.viewTag(tag)
+
+  createControl(keycode, "goToPreviousTag"):
+    let previousTag = this.selectedMonitor.previousTag
+    if previousTag.id != -1:
+      this.selectedMonitor.previousTag = this.selectedMonitor.selectedTag
+      this.selectedMonitor.viewTag(previousTag)
 
   createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient()
