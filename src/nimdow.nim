@@ -1,5 +1,5 @@
 import
-  os, 
+  os,
   parsetoml,
   nimdowpkg/event/xeventmanager,
   nimdowpkg/windowmanager,
@@ -8,7 +8,7 @@ import
 when isMainModule:
   let loadedConfig = newConfig()
   var configTable: TomlTable
-  
+
   var configLoc: string
   when declared(commandLineParams):
     let params = commandLineParams()
@@ -16,7 +16,7 @@ when isMainModule:
       let param = params[0].string
       if param == "-v" or param == "--version":
         echo "Nimdow v0.5.6"
-        quit 0
+        quit
       else:
         # If given a parameter for a config file, use it instead of the default.
         configLoc = params[0].string
