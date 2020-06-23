@@ -344,7 +344,7 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "goToTag"):
     var tag = this.selectedMonitor.keycodeToTag(keycode)
-    if this.selectedMonitor.previousTag.id != -1 and this.selectedMonitor.selectedTag.id == tag.id:
+    if this.selectedMonitor.previousTag != nil and this.selectedMonitor.selectedTag.id == tag.id:
       tag = this.selectedMonitor.previousTag
       this.selectedMonitor.previousTag = this.selectedMonitor.selectedTag
     else:
@@ -353,7 +353,7 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "goToPreviousTag"):
     let previousTag = this.selectedMonitor.previousTag
-    if previousTag.id != -1:
+    if previousTag != nil:
       this.selectedMonitor.previousTag = this.selectedMonitor.selectedTag
       this.selectedMonitor.viewTag(previousTag)
 

@@ -69,8 +69,6 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
     result.selectedTag = tag
     break
 
-  result.previousTag = Tag(id: -1)
-
   result.updateCurrentDesktopProperty()
   result.statusBar =
     display.newStatusBar(rootWindow, barArea, result.taggedClients, currentConfig.barSettings)
