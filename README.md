@@ -46,7 +46,7 @@ Nimdow searches for a config file in 3 locations in this order:
 
 1. `${XDG_CONFIG_HOME}/nimdow/config.toml`
 2. `${HOME}/.config/nimdow/config.toml`
-3. `/usr/share/nimdow/config/config.default.toml`
+3. `/usr/share/nimdow/config.default.toml`
 
 If no config file is found, Nimdow will not launch.
 
