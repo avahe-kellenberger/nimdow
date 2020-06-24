@@ -579,6 +579,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.height = windowAttr.height.uint
 
   discard XSetWindowBorder(this.display, window, this.windowSettings.borderColorUnfocused)
+  
+  this.configure(client)
 
   discard XSelectInput(this.display,
                        window,
@@ -590,6 +592,9 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   this.selectedMonitor.addWindowToClientListProperty(window)
 
+  this.updateWindowType(client)
+  this.updateSizeHints(client)
+
   discard XMoveResizeWindow(this.display,
                             window,
                             client.x,
@@ -597,8 +602,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
                             client.width.cuint,
                             client.height.cuint)
 
-  this.updateWindowType(client)
-  this.updateSizeHints(client)
   this.selectedMonitor.doLayout()
   discard XMapWindow(this.display, window)
 

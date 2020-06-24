@@ -454,20 +454,9 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
+    client.borderWidth = this.config.borderWidth
     client.adjustToState(this.display)
   else:
-    # Don't invoke client.adjustToState here,
-    # since we want to be able to return the client to its normal state
-    # when/if this proc is invoked again.
-    discard XSetWindowBorderWidth(this.display, client.window, 0)
-    discard XMoveResizeWindow(
-      this.display,
-      client.window,
-      this.area.x,
-      this.area.y,
-      this.area.width.cuint,
-      this.area.height.cuint
-    )
     var arr = [$NetWMStateFullScreen]   
     discard XChangeProperty(
       this.display,
@@ -479,6 +468,12 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar](arr.addr),
       1
     )
+    client.x = this.area.x
+    client.y = this.area.y
+    client.width = this.area.width
+    client.height = this.area.height
+    client.borderWidth = 0
+    client.adjustToState(this.display)
     discard XRaiseWindow(this.display, client.window)
 
   client.isFullscreen = not client.isFullscreen
