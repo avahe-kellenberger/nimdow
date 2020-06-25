@@ -486,7 +486,6 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
           client.width.cint,
           client.height.cint
         )
-      # TODO: Is this needed?
       this.selectedMonitor.doLayout()
     else:
       this.configure(client)

@@ -454,7 +454,11 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
-    client.borderWidth = this.config.borderWidth
+    client.x = client.oldX
+    client.y = client.oldY
+    client.width = client.oldWidth
+    client.height = client.oldHeight
+    client.borderWidth = client.oldBorderWidth
     client.adjustToState(this.display)
   else:
     var arr = [$NetWMStateFullScreen]   
@@ -468,6 +472,12 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar](arr.addr),
       1
     )
+    client.oldX = client.x
+    client.oldY = client.y
+    client.oldWidth = client.width
+    client.oldHeight = client.height
+    client.oldBorderWidth = client.borderWidth
+
     client.x = this.area.x
     client.y = this.area.y
     client.width = this.area.width
