@@ -7,10 +7,15 @@ type
   Client* = ref object of RootObj
     window*: Window
     x*: int
+    oldX*: int
     y*: int
+    oldY*: int
     width*: uint
+    oldWidth*: uint
     height*: uint
+    oldHeight*: uint
     borderWidth*: uint
+    oldBorderWidth*: uint
     isFullscreen*: bool
     isFloating*: bool
     # Non-resizable
