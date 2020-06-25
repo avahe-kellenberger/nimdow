@@ -675,11 +675,10 @@ proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
-  if this.mouseState != Normal or
-      e.detail == NotifyPointer or
-      e.window == this.rootWindow:
-    # Clear the window title (no windows are focused)
-    this.selectedMonitor.statusBar.setActiveWindowTitle("")
+  if this.mouseState != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
+    if this.selectedMonitor.currClient.isNone:
+      # Clear the window title (no windows are focused)
+      this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
   let clientOpt = this.selectedMonitor.find(e.window)

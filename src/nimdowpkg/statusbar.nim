@@ -338,16 +338,22 @@ proc redraw*(this: var StatusBar, selectedTag: int) =
   this.renderActiveWindowTitle()
 
 proc setSelectedClient*(this: var StatusBar, client: Client, redraw: bool = true) =
+  if this.selectedClient == client:
+    return
   this.selectedClient = client
   if redraw:
     this.redraw(this.selectedTag)
 
 proc setStatus*(this: var StatusBar, status: string, redraw: bool = true) =
+  if this.status == status:
+    return
   this.status = status
   if redraw:
     this.redraw(this.selectedTag)
 
 proc setActiveWindowTitle*(this: var StatusBar, title: string, redraw: bool = true) =
+  if this.activeWindowTitle == title:
+    return
   this.activeWindowTitle = title
   if redraw:
     this.redraw(this.selectedTag)
