@@ -44,8 +44,8 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
 
 proc newMasterStackLayout*(
   monitorArea: Area,
-  gapSize: uint, 
-  borderWidth: uint, 
+  gapSize: uint,
+  borderWidth: uint,
   masterSlots: uint
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
@@ -109,7 +109,7 @@ proc layoutMultipleClients(
   let stackClientCount = max(0, clientCount.int - this.masterSlots.int).uint
 
   # If there are only master clients, take up all horizontal space.
-  let clientWidth = if masterClientCount == clientCount or masterClientCount == 0: 
+  let clientWidth = if masterClientCount == clientCount or masterClientCount == 0:
     this.calcClientWidth(screenWidth) * 2 else:
       this.calcClientWidth(screenWidth)
 
@@ -118,7 +118,7 @@ proc layoutMultipleClients(
 
   let stackRoundingErr: int = this.calcRoundingErr(stackClientCount, stackClientHeight, screenHeight)
   let masterRoundingErr: int = this.calcRoundingErr(masterClientCount, masterClientHeight, screenHeight)
- 
+
   let stackXPos: uint =
     if masterClientCount == 0:
       this.gapSize else:

@@ -95,13 +95,13 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
   let ewmhWindow = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
 
   discard XChangeProperty(result.display,
-                          result.rootWindow, 
+                          result.rootWindow,
                           $NetSupportingWMCheck,
                           XA_WINDOW,
                           32,
                           PropModeReplace,
                           cast[Pcuchar](ewmhWindow.unsafeAddr),
-                          1)  
+                          1)
 
   discard XChangeProperty(result.display,
                           ewmhWindow,
@@ -113,7 +113,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
                           1)
 
   discard XChangeProperty(result.display,
-                          ewmhWindow, 
+                          ewmhWindow,
                           $NetWMName,
                           XInternAtom(result.display, "UTF8_STRING", false),
                           8,
@@ -122,7 +122,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
                           wmName.len)
 
   discard XChangeProperty(result.display,
-                          result.rootWindow, 
+                          result.rootWindow,
                           $NetWMName,
                           XInternAtom(result.display, "UTF8_STRING", false),
                           8,
@@ -131,7 +131,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
                           wmName.len)
 
   discard XChangeProperty(result.display,
-                          result.rootWindow, 
+                          result.rootWindow,
                           $NetSupported,
                           XA_ATOM,
                           32,
@@ -296,11 +296,11 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   this.selectedMonitor.focusClient(client)
   this.selectedMonitor.redrawStatusBar()
 
-proc moveClientToPreviousMonitor(this: WindowManager) = 
+proc moveClientToPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
   this.moveClientToMonitor(previousMonitorIndex)
 
-proc moveClientToNextMonitor(this: WindowManager) = 
+proc moveClientToNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
   this.moveClientToMonitor(nextMonitorIndex)
 
@@ -403,7 +403,7 @@ proc hookConfigKeys*(this: WindowManager) =
 
   # We only care about left and right clicks
   discard XUngrabButton(this.display, AnyButton, AnyModifier, this.rootWindow)
-  for button in @[Button1, Button3]: 
+  for button in @[Button1, Button3]:
     for modifier in modifiers:
       discard XGrabButton(
         this.display,
@@ -513,7 +513,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       this.selectedMonitor.doLayout()
     else:
       this.configure(client)
-  else: 
+  else:
     # TODO: Handle xembed windows: https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html
     var changes: XWindowChanges
     changes.x = e.detail
@@ -524,7 +524,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
     changes.sibling = e.above
     changes.stack_mode = e.detail
     discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
-  
+
   discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
@@ -537,7 +537,7 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
           e.data.l[2] == fullscreenAtom:
           # See the end of this section:
           # https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html#idm45805407959456
-            var shouldFullscreen = 
+            var shouldFullscreen =
               e.data.l[0] == 1 or
               e.data.l[0] == 2 and not client.isFullscreen
             monitor.setFullscreen(client, shouldFullscreen)
@@ -602,7 +602,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.height = windowAttr.height.uint
 
   discard XSetWindowBorder(this.display, window, this.windowSettings.borderColorUnfocused)
-  
+
   this.configure(client)
 
   discard XSelectInput(this.display,
@@ -782,7 +782,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   let monitorIndex = this.monitors.find(centerX, centerY)
   if monitorIndex < 0 or this.monitors[monitorIndex] == this.selectedMonitor:
     return
-  let 
+  let
     nextMonitor = this.monitors[monitorIndex]
     prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag

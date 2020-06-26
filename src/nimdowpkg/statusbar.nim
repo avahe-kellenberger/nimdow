@@ -154,7 +154,7 @@ proc configureBar(this: StatusBar) =
     PropModeReplace,
     cast[Pcuchar](strut.addr),
     12
-  )  
+  )
 
 proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
   let result = XftColorAllocValue(

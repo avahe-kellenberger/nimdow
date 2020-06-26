@@ -11,7 +11,7 @@ type
     NetActiveWindow, NetSupported,
     # NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
     NetWMName, NetWMState, NetWMStateAbove, NetWMStateSticky,
-    NetSupportingWMCheck, NetWMStateFullScreen, NetClientList, NetWMStrutPartial, 
+    NetSupportingWMCheck, NetWMStateFullScreen, NetClientList, NetWMStrutPartial,
     NetWMWindowType, NetWMWindowTypeNormal, NetWMWindowTypeDialog, NetWMWindowTypeUtility,
     NetWMWindowTypeToolbar, NetWMWindowTypeSplash, NetWMWindowTypeMenu,
     NetWMWindowTypeDropdownMenu, NetWMWindowTypePopupMenu, NetWMWindowTypeTooltip,
