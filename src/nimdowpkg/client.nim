@@ -88,4 +88,4 @@ proc findPreviousNormal*(clients: openArray[Client], i: int = 0): int =
 
 proc toArea*(this: Client): Area = (this.x, this.y, this.width, this.height)
 
-proc hash*(this: Client): Hash = !$Hash(this.window) 
+proc hash*(this: Client): Hash = !$Hash(this.window)

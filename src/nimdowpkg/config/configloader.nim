@@ -74,7 +74,7 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     echo "Invalid autostart table"
     return
   if not autoStartTable.tableVal[].hasKey("exec"):
-    echo "Autostart table does not have exec key" 
+    echo "Autostart table does not have exec key"
     return
   for cmd in autoStartTable.tableVal[]["exec"].arrayVal:
     if cmd.kind != TomlValueKind.String:

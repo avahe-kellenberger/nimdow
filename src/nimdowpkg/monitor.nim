@@ -213,7 +213,7 @@ proc ensureWindowFocus*(this: Monitor) =
         let client = this.currTagClients[clientIndex]
         this.focusClient(client)
       else:
-        this.focusRootWindow()        
+        this.focusRootWindow()
         this.statusBar.setSelectedClient(nil)
 
 proc addWindowToClientListProperty*(this: Monitor, window: Window) =
@@ -276,7 +276,7 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   for tag, clients in this.taggedClients.pairs:
     let clientIndex = clients.find(window)
     if clientIndex >= 0:
-      this.removeWindowFromTag(tag, clientIndex) 
+      this.removeWindowFromTag(tag, clientIndex)
       result = true
 
   if this.currTagClients.len == 0:
@@ -315,7 +315,7 @@ proc setSelectedClient*(this: Monitor, client: Client) =
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   for tag, clients in this.taggedClients.mpairs:
-    # This assumes the client is being moved from the current tag to another tag. 
+    # This assumes the client is being moved from the current tag to another tag.
     if tag == destinationTag:
       if not clients.contains(client):
         clients.add(client)
@@ -447,7 +447,7 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
     client.borderWidth = client.oldBorderWidth
     client.adjustToState(this.display)
   else:
-    var arr = [$NetWMStateFullScreen]   
+    var arr = [$NetWMStateFullScreen]
     discard XChangeProperty(
       this.display,
       client.window,
