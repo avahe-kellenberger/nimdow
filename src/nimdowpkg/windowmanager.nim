@@ -52,6 +52,7 @@ proc mapConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): Window
 proc hookConfigKeys*(this: WindowManager)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
+proc destroySelectedWindow*(this: WindowManager)
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
@@ -377,7 +378,7 @@ proc mapConfigActions*(this: WindowManager) =
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
   createControl(keycode, "destroySelectedWindow"):
-    this.selectedMonitor.destroySelectedWindow()
+    this.destroySelectedWindow()
 
   createControl(keycode, "toggleFloating"):
     this.selectedMonitor.toggleFloatingForSelectedClient()
@@ -429,6 +430,29 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
   echo "\t", errorMessage
+
+proc destroySelectedWindow*(this: WindowManager) =
+  var selectedWin: Window
+  var selectionState: cint
+  discard XGetInputFocus(this.display, addr(selectedWin), addr(selectionState))
+  var event = XEvent()
+  event.xclient.theType = ClientMessage
+  event.xclient.window = selectedWin
+  event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", false)
+  event.xclient.format = 32
+  event.xclient.data.l[0] = ($WMDelete).cint
+  event.xclient.data.l[1] = CurrentTime
+  event.xclient.data.l[2] = 0
+  event.xclient.data.l[3] = 0
+  if XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event)) != 1:
+    discard XGrabServer(this.display)
+    proc dummy(display: PDisplay, e: PXErrorEvent): cint {.cdecl.} = 0.cint
+    discard XSetErrorHandler(dummy)
+    discard XSetCloseDownMode(this.display, DestroyAll)
+    discard XKillClient(this.display, selectedWin)
+    discard XSync(this.display, false)
+    discard XSetErrorHandler(errorHandler)
+    discard XUngrabServer(this.display)
 
 proc configure(this: WindowManager, client: Client) =
   var event: XConfigureEvent
