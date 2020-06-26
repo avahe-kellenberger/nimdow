@@ -309,20 +309,6 @@ proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
                           cast[Pcuchar](data.unsafeAddr),
                           1)
 
-proc destroySelectedWindow*(this: Monitor) =
-  var selectedWin: Window
-  var selectionState: cint
-  discard XGetInputFocus(this.display, addr(selectedWin), addr(selectionState))
-  var event = XEvent()
-  event.xclient.theType = ClientMessage
-  event.xclient.window = selectedWin
-  event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", true)
-  event.xclient.format = 32
-  event.xclient.data.l[0] = ($WMDelete).cint
-  event.xclient.data.l[1] = CurrentTime
-  discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
-  discard XDestroyWindow(this.display, selectedWin)
-
 proc setSelectedClient*(this: Monitor, client: Client) =
   this.selectedTag.setSelectedClient(client)
   this.statusBar.setSelectedClient(client)
