@@ -139,7 +139,6 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
                           cast[Pcuchar](xatoms.NetAtoms.unsafeAddr),
                           ord(NetLast))
 
-
   # We need to map this window to be able to set the input focus to it if no other window is available to be focused.
   discard XMapWindow(result.display, ewmhWindow)
   var changes: XWindowChanges
@@ -545,10 +544,6 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
       break
 
 proc updateWindowType(this: WindowManager, client: var Client) =
-  # NOTE: This is only called for newly created windows,
-  # so we don't have to check which monitor it exists on.
-  # This should be changed to be more clear in the future.
-
   let
     stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
     windowTypeOpt = this.display.getProperty[:Atom](client.window, $NetWMWindowType)
@@ -556,11 +551,11 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   let state = if stateOpt.isSome: stateOpt.get else: None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
 
-  this.selectedMonitor.currTagClients.add(client)
-  this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
-
   if state == $NetWMStateFullScreen:
-    this.selectedMonitor.toggleFullscreen(client)
+    for monitor in this.monitors:
+      withSome(monitor.find(client.window), c):
+        monitor.toggleFullscreen(c)
+        break
 
   if not client.isFloating:
     client.isFloating = windowType != None and
@@ -589,6 +584,27 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
         client.y
       )
 
+proc updateWMHints(this: WindowManager, client: Client) =
+  var hints: PXWMHints = XGetWMHints(this.display, client.window)
+  if hints != nil:
+    if this.selectedMonitor.find(client.window).isSome:
+      hints[].flags = hints[].flags and (not XUrgencyHint)
+      discard XSetWMHints(this.display, client.window, hints)
+    discard XFree(hints)
+
+proc setClientState(this: WindowManager, client: Client, state: int) =
+  var state = [state, None]
+  discard XChangeProperty(
+    this.display,
+    client.window,
+    $WMState,
+    $WMState,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](state.addr),
+    2
+  )
+
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   # Don't manage the same window twice.
   for monitor in this.monitors:
@@ -605,18 +621,23 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   this.configure(client)
 
-  discard XSelectInput(this.display,
-                       window,
-                       StructureNotifyMask or
-                       PropertyChangeMask or
-                       ResizeRedirectMask or
-                       EnterWindowMask or
-                       FocusChangeMask)
+  discard XSelectInput(
+    this.display,
+    window,
+    StructureNotifyMask or
+    PropertyChangeMask or
+    ResizeRedirectMask or
+    EnterWindowMask or
+    FocusChangeMask
+  )
 
+  this.selectedMonitor.currTagClients.add(client)
+  this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
   this.selectedMonitor.addWindowToClientListProperty(window)
 
   this.updateWindowType(client)
   this.updateSizeHints(client)
+  this.updateWMHints(client)
 
   discard XMoveResizeWindow(this.display,
                             window,
@@ -625,6 +646,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
                             client.width.cuint,
                             client.height.cuint)
 
+  this.setClientState(client, NormalState)
   this.selectedMonitor.doLayout()
   discard XMapWindow(this.display, window)
 
