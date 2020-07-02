@@ -15,7 +15,7 @@ when isMainModule:
     if params.len == 1:
       let param = params[0].string
       if param == "-v" or param == "--version":
-        echo "Nimdow v0.5.8"
+        echo "Nimdow v0.5.9"
         quit()
       else:
         # If given a parameter for a config file, use it instead of the default.
