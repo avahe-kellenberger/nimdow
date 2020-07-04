@@ -3,17 +3,15 @@ import
   hashes,
   area
 
+converter intToCint(x: int): cint = x.cint
+converter uintToCint(x: uint): cint = x.cint
+converter uintToCUint(x: uint): cuint = x.cuint
+
 type
   Client* = ref object of RootObj
     window*: Window
-    x*: int
-    oldX*: int
-    y*: int
-    oldY*: int
-    width*: uint
-    oldWidth*: uint
-    height*: uint
-    oldHeight*: uint
+    area*: Area
+    oldArea*: Area
     borderWidth*: uint
     oldBorderWidth*: uint
     isFullscreen*: bool
@@ -26,23 +24,43 @@ proc hash*(this: Client): Hash
 proc newClient*(window: Window): Client =
   Client(window: window)
 
+# Area helper procs
+proc x*(this: Client): int = this.area.x
+proc `x=`*(this: Client, x: int) {.inline.} = this.area.x = x
+proc y*(this: Client): int = this.area.y
+proc `y=`*(this: Client, y: int) {.inline.} = this.area.y = y
+proc width*(this: Client): uint = this.area.width
+proc `width=`*(this: Client, width: uint) {.inline.} = this.area.width = width
+proc height*(this: Client): uint = this.area.height
+proc `height=`*(this: Client, height: uint) {.inline.} = this.area.height = height
+
+# Old area helper procs
+proc oldX*(this: Client): int = this.oldArea.x
+proc `oldx=`*(this: Client, x: int) {.inline.} = this.oldArea.x = x
+proc oldY*(this: Client): int = this.oldArea.y
+proc `oldy=`*(this: Client, y: int) {.inline.} = this.oldArea.y = y
+proc oldWidth*(this: Client): uint = this.oldArea.width
+proc `oldwidth=`*(this: Client, width: uint) {.inline.} = this.oldArea.width = width
+proc oldHeight*(this: Client): uint = this.oldArea.height
+proc `oldheight=`*(this: Client, height: uint) {.inline.} = this.oldArea.height = height
+
 proc adjustToState*(this: Client, display: PDisplay) =
   ## Changes the client's location, size, and border based on the client's internal state.
   discard XMoveResizeWindow(
     display,
     this.window,
-    this.x.cint,
-    this.y.cint,
-    this.width.cuint,
-    this.height.cuint
+    this.area.x,
+    this.area.y,
+    this.area.width,
+    this.area.height
   )
   discard XSetWindowBorderWidth(display, this.window, this.borderWidth.cuint)
 
   var windowChanges: XWindowChanges
-  windowChanges.x = this.x.cint
-  windowChanges.y = this.y.cint
-  windowChanges.width = this.width.cint
-  windowChanges.height = this.height.cint
+  windowChanges.x = this.area.x
+  windowChanges.y = this.area.y
+  windowChanges.width = this.area.width
+  windowChanges.height = this.area.height
   windowChanges.border_width = this.borderWidth.cint
   discard XConfigureWindow(
     display,
@@ -86,6 +104,5 @@ proc findPreviousNormal*(clients: openArray[Client], i: int = 0): int =
       return j
   return -1
 
-proc toArea*(this: Client): Area = (this.x, this.y, this.width, this.height)
-
 proc hash*(this: Client): Hash = !$Hash(this.window)
+

@@ -3,6 +3,7 @@ import
   unicode,
   xatoms,
   area,
+  strut,
   tables,
   tag,
   client,
@@ -177,33 +178,19 @@ proc toRGB(hex: int): tuple[r, g, b: int] =
     hex and 0xff
   )
 
+template configureColor(this: StatusBar, hexColor: int, xftColor: XftColor) =
+  var
+    color: XRenderColor
+    rgb = toRGB(hexColor)
+  color.red = rgb.r.cushort * 256
+  color.green = rgb.g.cushort * 256
+  color.blue = rgb.b.cushort * 256
+  this.allocColor(color.addr, xftColor.unsafeAddr)
+
 proc configureColors(this: StatusBar) =
-  block foreground:
-    var
-      color: XRenderColor
-      rgb = toRGB(this.settings.fgColor)
-    color.red = rgb.r.cushort * 256
-    color.green = rgb.g.cushort * 256
-    color.blue = rgb.b.cushort * 256
-    this.allocColor(color.addr, this.fgColor.unsafeAddr)
-
-  block background:
-    var
-      color: XRenderColor
-      rgb = toRGB(this.settings.bgColor)
-    color.red = rgb.r.cushort * 256
-    color.green = rgb.g.cushort * 256
-    color.blue = rgb.b.cushort * 256
-    this.allocColor(color.addr, this.bgColor.unsafeAddr)
-
-  block selectionColor:
-    var
-      color: XRenderColor
-      rgb = toRGB(this.settings.selectionColor)
-    color.red = rgb.r.cushort * 256
-    color.green = rgb.g.cushort * 256
-    color.blue = rgb.b.cushort * 256
-    this.allocColor(color.addr, this.selectionColor.unsafeAddr)
+  this.configureColor(this.settings.fgColor, this.fgColor)
+  this.configureColor(this.settings.bgColor, this.bgColor)
+  this.configureColor(this.settings.selectionColor, this.selectionColor)
 
 proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)

@@ -18,6 +18,7 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
+converter cintToUint(x: cint): uint = x.uint
 converter cintToCUint(x: cint): cuint = x.cuint
 converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
@@ -94,52 +95,63 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
   # Supporting window for NetWMCheck
   let ewmhWindow = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
 
-  discard XChangeProperty(result.display,
-                          result.rootWindow,
-                          $NetSupportingWMCheck,
-                          XA_WINDOW,
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](ewmhWindow.unsafeAddr),
-                          1)
+  discard XChangeProperty(
+    result.display,
+    result.rootWindow,
+    $NetSupportingWMCheck,
+    XA_WINDOW,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](ewmhWindow.unsafeAddr),
+    1
+  )
 
-  discard XChangeProperty(result.display,
-                          ewmhWindow,
-                          $NetSupportingWMCheck,
-                          XA_WINDOW,
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](ewmhWindow.unsafeAddr),
-                          1)
+  discard XChangeProperty(
+    result.display,
+    ewmhWindow,
+    $NetSupportingWMCheck,
+    XA_WINDOW,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](ewmhWindow.unsafeAddr),
+    1
+  )
 
-  discard XChangeProperty(result.display,
-                          ewmhWindow,
-                          $NetWMName,
-                          XInternAtom(result.display, "UTF8_STRING", false),
-                          8,
-                          PropModeReplace,
-                          cast[Pcuchar](wmName),
-                          wmName.len)
+  discard XChangeProperty(
+    result.display,
+    ewmhWindow,
+    $NetWMName,
+    XInternAtom(result.display, "UTF8_STRING", false),
+    8,
+    PropModeReplace,
+    cast[Pcuchar](wmName),
+    wmName.len
+  )
 
-  discard XChangeProperty(result.display,
-                          result.rootWindow,
-                          $NetWMName,
-                          XInternAtom(result.display, "UTF8_STRING", false),
-                          8,
-                          PropModeReplace,
-                          cast[Pcuchar](wmName),
-                          wmName.len)
+  discard XChangeProperty(
+    result.display,
+    result.rootWindow,
+    $NetWMName,
+    XInternAtom(result.display, "UTF8_STRING", false),
+    8,
+    PropModeReplace,
+    cast[Pcuchar](wmName),
+    wmName.len
+  )
 
-  discard XChangeProperty(result.display,
-                          result.rootWindow,
-                          $NetSupported,
-                          XA_ATOM,
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](xatoms.NetAtoms.unsafeAddr),
-                          ord(NetLast))
+  discard XChangeProperty(
+    result.display,
+    result.rootWindow,
+    $NetSupported,
+    XA_ATOM,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](xatoms.NetAtoms.unsafeAddr),
+    ord(NetLast)
+  )
 
-  # We need to map this window to be able to set the input focus to it if no other window is available to be focused.
+  # We need to map this window to be able to set the input focus to it
+  # when no other window is available to be focused.
   discard XMapWindow(result.display, ewmhWindow)
   var changes: XWindowChanges
   changes.stack_mode = Below
@@ -147,14 +159,16 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
 
   block setNumberOfDesktops:
     let data: array[1, clong] = [9]
-    discard XChangeProperty(result.display,
-                            result.rootWindow,
-                            $NetNumberOfDesktops,
-                            XA_CARDINAL,
-                            32,
-                            PropModeReplace,
-                            cast[Pcuchar](data.unsafeAddr),
-                            1)
+    discard XChangeProperty(
+      result.display,
+      result.rootWindow,
+      $NetNumberOfDesktops,
+      XA_CARDINAL,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](data.unsafeAddr),
+      1
+    )
 
   block setDesktopNames:
     var tags: array[tagCount, cstring] =
@@ -168,26 +182,31 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
        "8".cstring,
        "9".cstring]
     var text: XTextProperty
-    discard Xutf8TextListToTextProperty(result.display,
-                                        cast[PPChar](tags[0].addr),
-                                        tagCount,
-                                        XUTF8StringStyle,
-                                        text.unsafeAddr)
+    discard Xutf8TextListToTextProperty(
+      result.display,
+      cast[PPChar](tags[0].addr),
+      tagCount,
+      XUTF8StringStyle,
+      text.unsafeAddr
+    )
     XSetTextProperty(result.display,
-                     result.rootWindow,
-                     text.unsafeAddr,
-                     $NetDesktopNames)
+      result.rootWindow,
+      text.unsafeAddr,
+      $NetDesktopNames
+    )
 
   block setDesktopViewport:
     let data: array[2, clong] = [0, 0]
-    discard XChangeProperty(result.display,
-                            result.rootWindow,
-                            $NetDesktopViewport,
-                            XA_CARDINAL,
-                            32,
-                            PropModeReplace,
-                            cast[Pcuchar](data.unsafeAddr),
-                            2)
+    discard XChangeProperty(
+      result.display,
+      result.rootWindow,
+      $NetDesktopViewport,
+      XA_CARDINAL,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](data.unsafeAddr),
+      2
+    )
 
 proc initListeners(this: WindowManager) =
   discard XSetErrorHandler(errorHandler)
@@ -277,18 +296,21 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if client.isFloating:
     let deltaX = client.x - this.selectedMonitor.area.x
     let deltaY = client.y - this.selectedMonitor.area.y
-    this.resize(client,
-                nextMonitor.area.x + deltaX,
-                nextMonitor.area.y + deltaY,
-                client.width,
-                client.height)
+    this.resize(
+      client,
+      nextMonitor.area.x + deltaX,
+      nextMonitor.area.y + deltaY,
+      client.width,
+      client.height
+    )
   elif client.isFullscreen:
-    this.resize(client,
-                nextMonitor.area.x,
-                nextMonitor.area.y,
-                nextMonitor.area.width,
-                nextMonitor.area.height
-               )
+    this.resize(
+      client,
+      nextMonitor.area.x,
+      nextMonitor.area.y,
+      nextMonitor.area.width,
+      nextMonitor.area.height
+     )
 
   this.selectedMonitor = nextMonitor
   this.focusMonitor(monitorIndex)
@@ -566,9 +588,10 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
   var sizeHints = XAllocSizeHints()
   var returnMask: int
   discard XGetWMNormalHints(this.display, client.window, sizeHints, returnMask.addr)
-  if (sizeHints.min_width > 0 and sizeHints.min_width ==
-          sizeHints.max_width and sizeHints.min_height > 0 and
-          sizeHints.min_height == sizeHints.max_height):
+
+  if sizeHints.min_width > 0 and sizeHints.min_width == sizeHints.max_width and
+     sizeHints.min_height > 0 and sizeHints.min_height == sizeHints.max_height:
+
     client.isFloating = true
     client.width = sizeHints.min_width.uint
     client.height = sizeHints.min_height.uint
@@ -614,10 +637,14 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   var client = newClient(window)
   client.x = this.selectedMonitor.area.x + windowAttr.x
   client.y = this.selectedMonitor.area.y + windowAttr.y
-  client.width = windowAttr.width.uint
-  client.height = windowAttr.height.uint
+  client.width = windowAttr.width
+  client.height = windowAttr.height
 
-  discard XSetWindowBorder(this.display, window, this.windowSettings.borderColorUnfocused)
+  discard XSetWindowBorder(
+    this.display,
+    window,
+    this.windowSettings.borderColorUnfocused
+  )
 
   this.configure(client)
 
@@ -639,12 +666,14 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   this.updateSizeHints(client)
   this.updateWMHints(client)
 
-  discard XMoveResizeWindow(this.display,
-                            window,
-                            client.x,
-                            client.y,
-                            client.width.cuint,
-                            client.height.cuint)
+  discard XMoveResizeWindow(
+    this.display,
+    window,
+    client.x,
+    client.y,
+    client.width.cuint,
+    client.height.cuint
+  )
 
   this.setClientState(client, NormalState)
   this.selectedMonitor.doLayout()
@@ -775,7 +804,7 @@ proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   let client = this.selectedMonitor.currClient.get
   this.moveResizingClient = client.option
   this.lastMousePress = (e.x.int, e.y.int)
-  this.lastMoveResizeClientState = client.toArea()
+  this.lastMoveResizeClientState = client.area
 
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   case e.button:
@@ -845,15 +874,19 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
     deltaY = e.y - this.lastMousePress.y
 
   if this.mouseState == Moving:
-    this.resize(client,
-                this.lastMoveResizeClientState.x + deltaX,
-                this.lastMoveResizeClientState.y + deltaY,
-                this.lastMoveResizeClientState.width,
-                this.lastMoveResizeClientState.height)
+    this.resize(
+      client,
+      this.lastMoveResizeClientState.x + deltaX,
+      this.lastMoveResizeClientState.y + deltaY,
+      this.lastMoveResizeClientState.width,
+      this.lastMoveResizeClientState.height
+    )
   elif this.mouseState == Resizing:
-    this.resize(client,
-                this.lastMoveResizeClientState.x,
-                this.lastMoveResizeClientState.y,
-                this.lastMoveResizeClientState.width.int + deltaX,
-                this.lastMoveResizeClientState.height.int + deltaY)
+    this.resize(
+      client,
+      this.lastMoveResizeClientState.x,
+      this.lastMoveResizeClientState.y,
+      this.lastMoveResizeClientState.width.int + deltaX,
+      this.lastMoveResizeClientState.height.int + deltaY
+    )
 

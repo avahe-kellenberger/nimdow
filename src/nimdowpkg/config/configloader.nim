@@ -93,9 +93,11 @@ proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:
     raise newException(Exception, "Invalid key configuration: " &
                        repr(modifier) & " is not a string")
+
   if not ModifierTable.hasKey(modifier.stringVal):
     raise newException(Exception, "Invalid key configuration: " &
                        repr(modifier) & " is not a a valid key modifier")
+
   return ModifierTable[modifier.stringVal]
 
 proc bitorModifiers(modifiers: openarray[TomlValueRef]): int =

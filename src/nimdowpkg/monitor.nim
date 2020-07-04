@@ -9,6 +9,7 @@ import
   tag,
   client,
   area,
+  strut,
   layouts/layout,
   layouts/masterstacklayout,
   keys/keyutils,
@@ -71,7 +72,12 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
 
   result.updateCurrentDesktopProperty()
   result.statusBar =
-    display.newStatusBar(rootWindow, barArea, result.taggedClients, currentConfig.barSettings)
+    display.newStatusBar(
+      rootWindow,
+      barArea,
+      result.taggedClients,
+      currentConfig.barSettings
+    )
 
 
 template currTagClients*(this: Monitor): untyped =
@@ -155,14 +161,16 @@ proc find*(this: Monitor, window: Window): Option[Client] =
 
 proc updateCurrentDesktopProperty(this: Monitor) =
   var data: array[1, clong] = [this.selectedTag.id]
-  discard XChangeProperty(this.display,
-                          this.rootWindow,
-                          $NetCurrentDesktop,
-                          XA_CARDINAL,
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](data[0].addr),
-                          1)
+  discard XChangeProperty(
+    this.display,
+    this.rootWindow,
+    $NetCurrentDesktop,
+    XA_CARDINAL,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](data[0].addr),
+    1
+  )
 
 proc keycodeToTag*(this: Monitor, keycode: int): Tag =
   try:
@@ -218,14 +226,16 @@ proc ensureWindowFocus*(this: Monitor) =
 
 proc addWindowToClientListProperty*(this: Monitor, window: Window) =
   ## Adds the window to _NET_CLIENT_LIST
-  discard XChangeProperty(this.display,
-                          this.rootWindow,
-                          $NetClientList,
-                          XA_WINDOW,
-                          32,
-                          PropModeAppend,
-                          cast[Pcuchar](window.unsafeAddr),
-                          1)
+  discard XChangeProperty(
+    this.display,
+    this.rootWindow,
+    $NetClientList,
+    XA_WINDOW,
+    32,
+    PropModeAppend,
+    cast[Pcuchar](window.unsafeAddr),
+    1
+  )
 
 proc updateClientList(this: Monitor) =
   discard XDeleteProperty(this.display, this.rootWindow, $NetClientList)
@@ -235,14 +245,15 @@ proc updateClientList(this: Monitor) =
 
 proc setActiveWindowProperty*(this: Monitor, window: Window) =
   discard XChangeProperty(
-      this.display,
-      this.rootWindow,
-      $NetActiveWindow,
-      XA_WINDOW,
-      32,
-      PropModeReplace,
-      cast[Pcuchar](window.unsafeAddr),
-      1)
+    this.display,
+    this.rootWindow,
+    $NetActiveWindow,
+    XA_WINDOW,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](window.unsafeAddr),
+    1
+  )
 
 proc deleteActiveWindowProperty(this: Monitor) =
   discard XDeleteProperty(this.display, this.rootWindow, $NetActiveWindow)
@@ -300,14 +311,16 @@ proc removeWindow*(this: Monitor, window: Window): bool =
 
 proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
   let data: clong = this.selectedTag.id.clong
-  discard XChangeProperty(this.display,
-                          window,
-                          $NetWMDesktop,
-                          XA_CARDINAL,
-                          32,
-                          PropModeReplace,
-                          cast[Pcuchar](data.unsafeAddr),
-                          1)
+  discard XChangeProperty(
+    this.display,
+    window,
+    $NetWMDesktop,
+    XA_CARDINAL,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](data.unsafeAddr),
+    1
+  )
 
 proc setSelectedClient*(this: Monitor, client: Client) =
   this.selectedTag.setSelectedClient(client)
@@ -531,3 +544,4 @@ proc find*(monitors: openArray[Monitor], x, y: int): int =
     if monitor.area.contains(x, y):
       return i
   return -1
+
