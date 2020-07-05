@@ -79,6 +79,13 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
       currentConfig.barSettings
     )
 
+proc setConfig*(this: Monitor, config: Config) =
+  this.config = config.windowSettings
+  for tag in this.taggedClients.keys():
+    tag.layout.gapSize = this.config.gapSize
+    tag.layout.borderWidth = this.config.borderWidth
+  this.doLayout()
+  this.statusBar.setConfig(config.barSettings)
 
 template currTagClients*(this: Monitor): untyped =
   ## Grabs the windows on the current tag.

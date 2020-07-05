@@ -69,13 +69,23 @@ proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 proc renderStatus(this: WindowManager)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 
-proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManager =
+proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
-  result.config = config
-  result.windowSettings = config.windowSettings
+  discard XSetErrorHandler(errorHandler)
+
+  # Config setup
+  result.config = newConfig()
+  let configTable = configloader.loadConfigFile()
+  result.config.populateGeneralSettings(configTable)
+  result.mapConfigActions()
+  result.config.populateKeyComboTable(configTable, result.display)
+  result.config.hookConfig(eventManager)
+  result.hookConfigKeys()
+
+  result.windowSettings = result.config.windowSettings
   # Populate atoms
   xatoms.WMAtoms = xatoms.getWMAtoms(result.display)
   xatoms.NetAtoms = xatoms.getNetAtoms(result.display)
@@ -85,7 +95,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
   # Create monitors
   for area in result.display.getMonitorAreas(result.rootWindow):
     result.monitors.add(
-      newMonitor(result.display, result.rootWindow, area, config)
+      newMonitor(result.display, result.rootWindow, area, result.config)
     )
 
   result.renderStatus()
@@ -208,8 +218,23 @@ proc newWindowManager*(eventManager: XEventManager, config: Config): WindowManag
       2
     )
 
+proc reloadConfig*(this: WindowManager) =
+  # Remove old config listener.
+  this.eventManager.removeListener(this.config.listener, KeyPress)
+
+  this.config = newConfig()
+  let configTable = configloader.loadConfigFile()
+  this.config.populateGeneralSettings(configTable)
+  this.mapConfigActions()
+  this.config.populateKeyComboTable(configTable, this.display)
+  this.config.hookConfig(this.eventManager)
+  this.hookConfigKeys()
+
+  this.windowSettings = this.config.windowSettings
+  for monitor in this.monitors:
+    monitor.setConfig(this.config)
+
 proc initListeners(this: WindowManager) =
-  discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
   this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
@@ -346,6 +371,9 @@ template createControl(keycode: untyped, id: string, action: untyped) =
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
+  createControl(keycode, "reloadConfig"):
+    this.reloadConfig()
+
   createControl(keycode, "increaseMasterCount"):
     this.increaseMasterCount()
 
