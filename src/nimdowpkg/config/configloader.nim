@@ -8,6 +8,16 @@ import
   "../keys/keyutils",
   "../event/xeventmanager"
 
+proc findConfigPath*(): string =
+  let configHome = os.getConfigDir()
+  result = configHome & "nimdow/config.toml"
+  if not fileExists(result):
+    result = "/usr/share/nimdow/config.default.toml"
+  if not fileExists(result):
+    raise newException(Exception, result & " does not exist")
+
+var configLoc*: string = findConfigPath()
+
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
   Action* = proc(keycode: int): void
@@ -27,6 +37,7 @@ type
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
     barSettings*: BarSettings
+    listener*: XEventListener
 
 proc newConfig*(): Config =
   Config(
@@ -54,7 +65,6 @@ proc newConfig*(): Config =
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config, eventManager: XEventManager)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
-proc findConfigPath(): string
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
@@ -116,12 +126,12 @@ proc configureExternalProcess(this: Config, command: string) =
         echo "Failed to start command: ", command
 
 proc hookConfig*(this: Config, eventManager: XEventManager) =
-  let listener: XEventListener = proc(e: XEvent) =
+  this.listener = proc(e: XEvent) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):
       this.keyComboTable[keyCombo](keyCombo.keycode)
-  eventManager.addListener(listener, KeyPress)
+  eventManager.addListener(this.listener, KeyPress)
 
 proc populateControlsTable(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("controls"):
@@ -237,20 +247,11 @@ proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisp
   this.populateControlsTable(configTable, display)
   this.populateExternalProcessSettings(configTable, display)
 
-proc findConfigPath(): string =
-  let configHome = os.getConfigDir()
-  result = configHome & "nimdow/config.toml"
-  if not fileExists(result):
-    result = "/usr/share/nimdow/config.default.toml"
-  if not fileExists(result):
-    raise newException(Exception, result & " does not exist")
-
-proc loadConfigFile*(filePath: string = ""): TomlTable =
+proc loadConfigFile*(): TomlTable =
   ## Reads the user's configuration file into a table.
-  ## If a filePath is given, that path will be used to load the config.
-  ## Otherwise, we find the user's configuration file.
-  let configPath = if filePath.len == 0: findConfigPath() else: filepath
-  let loadedConfig = parsetoml.parseFile(configPath)
+  ## Set configLoc before calling this procedure,
+  ## if you would like to use an alternate config file.
+  let loadedConfig = parsetoml.parseFile(configLoc)
   if loadedConfig.kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid config file!")
   return loadedConfig.tableVal[]

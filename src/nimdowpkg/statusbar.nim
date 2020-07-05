@@ -42,7 +42,9 @@ type
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
-proc configureFont(this: StatusBar, fontString: string): PXftFont
+proc configureFonts(this: var StatusBar)
+proc freeAllColors(this: StatusBar)
+proc redraw*(this: var StatusBar, selectedTag: int)
 
 proc newStatusBar*(
     display: PDisplay,
@@ -63,9 +65,7 @@ proc newStatusBar*(
 
   result.configureBar()
   result.configureColors()
-  result.fonts = @[]
-  for fontString in settings.fonts:
-    result.fonts.add(result.configureFont(fontString))
+  result.configureFonts()
 
   discard XSelectInput(
     display,
@@ -171,6 +171,11 @@ proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
 proc freeColor(this: StatusBar, color: PXftColor) =
   XftColorFree(this.display, this.visual, this.colormap, color)
 
+proc freeAllColors(this: StatusBar) =
+  this.freeColor(this.fgColor.unsafeAddr)
+  this.freeColor(this.selectionColor.unsafeAddr)
+  this.freeColor(this.bgColor.unsafeAddr)
+
 proc toRGB(hex: int): tuple[r, g, b: int] =
   return (
     (hex shr 16) and 0xff,
@@ -198,6 +203,23 @@ proc configureFont(this: StatusBar, fontString: string): PXftFont =
     result = XftFontOpenName(this.display, this.screen, fontString)
   if result == nil:
     quit "Failed to load font"
+
+proc configureFonts(this: var StatusBar) =
+  this.fonts = @[]
+  for fontString in this.settings.fonts:
+    this.fonts.add(this.configureFont(fontString))
+
+proc setConfig*(this: var StatusBar, config: BarSettings, redraw: bool = true) =
+  this.freeAllColors()
+  for font in this.fonts:
+    XftFontClose(this.display, font)
+
+  this.settings = config
+  this.configureColors()
+  this.configureFonts()
+
+  if redraw:
+    this.redraw(this.selectedTag)
 
 ######################
 ### Rendering procs ##
@@ -346,13 +368,9 @@ proc setActiveWindowTitle*(this: var StatusBar, title: string, redraw: bool = tr
     this.redraw(this.selectedTag)
 
 proc closeBar*(this: StatusBar) =
-  this.freeColor(this.fgColor.unsafeAddr)
-  this.freeColor(this.selectionColor.unsafeAddr)
-  this.freeColor(this.bgColor.unsafeAddr)
-
+  this.freeAllColors()
   for font in this.fonts:
     XftFontClose(this.display, font)
   XftDrawDestroy(this.draw)
   discard XDestroyWindow(this.display, this.barWindow)
-  discard XCloseDisplay(this.display)
 

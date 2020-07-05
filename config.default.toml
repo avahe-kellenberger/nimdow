@@ -44,6 +44,10 @@ exec = [
 
 # Window manager controls
 [controls]
+  [controls.reloadConfig]
+  keys = [ "r" ]
+  modifiers = [ "super", "shift" ]
+
   [controls.focusPrevious]
   keys = [ "k" ]
   modifiers = [ "super" ]
