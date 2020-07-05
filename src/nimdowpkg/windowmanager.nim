@@ -74,6 +74,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.eventManager = eventManager
+  discard XSetErrorHandler(errorHandler)
 
   # Config setup
   result.config = newConfig()
@@ -234,7 +235,6 @@ proc reloadConfig*(this: WindowManager) =
     monitor.setConfig(this.config)
 
 proc initListeners(this: WindowManager) =
-  discard XSetErrorHandler(errorHandler)
   this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
   this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
