@@ -493,7 +493,7 @@ proc destroySelectedWindow*(this: WindowManager) =
   event.xclient.data.l[1] = CurrentTime
   event.xclient.data.l[2] = 0
   event.xclient.data.l[3] = 0
-  if XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event)) != 1:
+  if XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event)) != 0:
     discard XGrabServer(this.display)
     proc dummy(display: PDisplay, e: PXErrorEvent): cint {.cdecl.} = 0.cint
     discard XSetErrorHandler(dummy)
