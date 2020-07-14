@@ -316,7 +316,6 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
     this.selectedMonitor.redrawStatusBar()
 
   nextMonitor.currTagClients.add(client)
-  nextMonitor.doLayout()
 
   if client.isFloating:
     let deltaX = client.x - this.selectedMonitor.area.x
@@ -336,10 +335,13 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
       nextMonitor.area.width,
       nextMonitor.area.height
      )
+  else:
+    nextMonitor.doLayout()
 
   this.selectedMonitor = nextMonitor
   this.focusMonitor(monitorIndex)
   this.selectedMonitor.focusClient(client)
+  this.selectedMonitor.ensureWindowFocus()
   this.selectedMonitor.redrawStatusBar()
 
 proc moveClientToPreviousMonitor(this: WindowManager) =
