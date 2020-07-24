@@ -87,6 +87,11 @@ proc getXAtoms*(display: PDisplay): array[ord(XLast), Atom] =
     # XInternAtom(display, "_XEMBED_INFO", false)
   ]
 
+proc initAtoms*(display: PDisplay) =
+  WMAtoms = getWMAtoms(display)
+  NetAtoms = getNetAtoms(display)
+  XAtoms = getXAtoms(display)
+
 proc getProperty*[T](
   display: PDisplay,
   window: Window,
