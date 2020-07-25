@@ -1,5 +1,5 @@
 import
-  x11 / [x, xlib, xutil, xatom],
+  x11 / [x, xlib, xutil, xatom, xft],
   math,
   strformat
 
@@ -27,6 +27,19 @@ const
   TAG_COUNT = 9
   TAGS = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   MODKEY = Mod4Mask
+  SYSTEM_TRAY_REQUEST_DOCK = 0
+  # XEMBED messages
+  XEMBED_EMBEDDED_NOTIFY = 0
+  XEMBED_WINDOW_ACTIVATE = 1
+  XEMBED_FOCUS_IN = 4
+  XEMBED_MODALITY_ON = 10
+  # TODO: This different for cint?
+  XEMBED_MAPPED = 1 shl 0
+  XEMBED_WINDOW_ACTIVATE = 1
+  XEMBED_WINDOW_DEACTIVATE = 2
+  VERSION_MAJOR = 0
+  VERSION_MINOR = 0
+  XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
 const
   colorBorder: uint = 0
@@ -63,6 +76,7 @@ type
 
   Client = ref object of RootObj
     x, y, width, height: int
+    oldX, oldY, oldWidth, oldHeight: int
     next: Client
     stackNext: Client
     monitor: Monitor
@@ -98,6 +112,10 @@ type
     button: int
     callback: proc()
 
+  Systray = object
+    window: Window
+    icons: Client
+
 # Function declarations
 proc applyRules(client: var Client)
 proc applySizeHints(client: Client, x, y, width, height: var int, interact: bool): bool
@@ -109,6 +127,9 @@ proc attachStack(client: var Client)
 proc buttonPress(e: XEvent)
 proc checkOtherWM()
 proc cleanup()
+proc cleanupMonitor(monitor: var Monitor)
+proc clientMessage(e: PXEvent)
+proc configure(client: Client)
 
 proc focus(client: var Client)
 proc getRootPointer(x, y: ptr int): bool
@@ -117,10 +138,29 @@ proc intersect(monitor: Monitor, x, y, width, height: int): int
 proc isVisible(client: Client): bool
 proc moveMouse()
 proc rectToMonitor(x, y, width, height: int): Monitor
+proc resizeBar(monitor: Monitor)
 proc restack(monitor: Monitor)
+proc sendEvent(
+  window: Window,
+  atom: Atom,
+  mask: int,
+  data0: clong,
+  data1: clong,
+  data2: clong,
+  data3: clong,
+  data4: clong
+): bool
+proc setClientState(client: Client, state: int)
+proc setFullscreen(client: Client, shouldFullscreen: bool)
+proc setUrgent(client: Client, shouldBeUrgent: bool)
 proc showhide(client: Client)
 proc textWidth(str: string): uint
 proc unfocus(client: Client, setFocus: bool)
+proc unmanage(client: Client, destroyed: bool)
+proc updateSizeHints(client: Client)
+proc updateSystray()
+proc updateSystrayIconGeom(client: Client, width, height: int)
+proc view(ui: cuint)
 proc windowToClient(window: Window): Client
 proc windowToMonitor(window: Window): Monitor
 proc xError(display: PDisplay, event: PXErrorEvent): cint {.cdecl}
@@ -138,6 +178,7 @@ var
   running: bool = true
   monitors, selectedMonitor: Monitor
   root, wmCheckWindow: Window
+  systray: Systray
   useARGB: bool = false
   visual: PVisual
   depth: int
@@ -145,10 +186,12 @@ var
   # TODO: Better name?
   draw: Drw = newDrw(display, root)
   xErrorHandler: XErrorHandler
+  backgroundColor: XftColor
 
 # config.h vars
 var
   respectResizeHints: bool = false
+  showSystray: bool = true
   # Button defs
   buttons: array[1, Button] =
     [
@@ -319,7 +362,156 @@ proc checkOtherWM() =
   discard XSync(display, false)
 
 proc cleanup() =
-  discard
+  var monitor: Monitor = monitors
+
+  view(cuint.high)
+  selectedMonitor.layout = nil
+
+  while monitor != nil:
+    while monitor.clientStack != nil:
+      unmanage(monitor.clientStack, false)
+    monitor = monitor.next
+
+  discard XUngrabKey(display, AnyKey, AnyModifier, root)
+
+  while monitors != nil:
+    cleanupMonitor(monitors)
+
+  if showSystray:
+    discard XUnmapWindow(display, systray.window)
+    discard XDestroyWindow(display, systray.window)
+
+  discard XDestroyWindow(display, wmCheckWindow)
+  discard XSync(display, false)
+  discard XSetInputFocus(display, PointerRoot, RevertToPointerRoot, CurrentTime)
+  discard XDeleteProperty(display, root, $NetActiveWindow)
+
+proc cleanupMonitor(monitor: var Monitor) =
+  if monitor == monitors:
+    monitors = monitors.next
+  else:
+    var m: Monitor = monitors
+
+    while m != nil and m.next != monitor:
+      m = monitor.next
+    m.next = monitor.next
+
+  discard XUnmapWindow(display, monitor.bar)
+  discard XDestroyWindow(display, monitor.bar)
+
+proc clientMessage(e: PXEvent) =
+  let
+    event: XClientMessageEvent = e.xclient
+
+  var
+    client: Client = windowToClient(event.window)
+    winAttr: XWindowAttributes
+    setWinAttr: XSetWindowAttributes
+
+  if showSystray and
+     event.window == systray.window and
+     event.message_type == $NetSystemTrayOP:
+    # Add systray icons
+    if event.data.l[1] == SYSTEM_TRAY_REQUEST_DOCK:
+      client.window = event.data.l[2]
+      if client.window == 0:
+        return
+      client.monitor = selectedMonitor
+      client.next = systray.icons
+      systray.icons = client
+      discard XGetWindowAttributes(display, client.window, winAttr.addr)
+      client.width = winAttr.width
+      client.oldWidth = client.width
+      client.height = winAttr.height
+      client.oldHeight = client.height
+      client.oldBorderWidth = winAttr.border_width
+      client.borderWidth = 0
+      client.isFloating = true
+      # Reuse tags field as mapped status
+      client.tags = 1
+      updateSizeHints(client)
+      updateSystrayIconGeom(client, client.width, client.height)
+      discard XAddToSaveSet(display, client.window)
+      discard XSelectInput(
+        display,
+        client.window,
+        StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
+      )
+      discard XReparentWindow(display, client.window, systray.window, 0, 0)
+      # Use parent's background color
+      setWinAttr.background_pixel = backgroundColor.pixel
+      discard XChangeWindowAttributes(
+        display,
+        client.window,
+        CWBackPixel,
+        setWinAttr.addr
+      )
+      discard sendEvent(
+        client.window,
+        $Xembed,
+        StructureNotifyMask,
+        CurrentTime,
+        XEMBED_EMBEDDED_NOTIFY,
+        0,
+        systray.window.clong,
+        XEMBED_EMBEDDED_VERSION
+      )
+      # FIXME not sure if I have to send these events, too
+      discard sendevent(
+        client.window,
+        $Xembed,
+        StructureNotifyMask,
+        CurrentTime,
+        XEMBED_FOCUS_IN,
+        0,
+        systray.window.clong,
+        XEMBED_EMBEDDED_VERSION
+      )
+      discard sendevent(
+        client.window,
+        $Xembed,
+        StructureNotifyMask,
+        CurrentTime,
+        XEMBED_WINDOW_ACTIVATE,
+        0,
+        systray.window.clong,
+        XEMBED_EMBEDDED_VERSION
+      )
+      discard sendevent(
+        client.window,
+        $Xembed,
+        StructureNotifyMask,
+        CurrentTime,
+        XEMBED_MODALITY_ON,
+        0,
+        systray.window.clong,
+        XEMBED_EMBEDDED_VERSION
+      )
+      discard XSync(display, false)
+      resizeBar(selectedMonitor)
+      updateSystray()
+      setClientState(client, NormalState)
+    return
+
+  if client == nil:
+    return
+
+  if event.message_type == $NetWMState:
+    if event.data.l[1] == $NetWMStateFullScreen or
+       event.data.l[2] == $NetWMStateFullScreen:
+      let shouldFullscreen =
+        # _NET_WM_STATE_ADD
+        event.data.l[0] == 1  or
+        # _NET_WM_STATE_TOGGLE
+        event.data.l[0] == 2 and not client.isFullscreen
+      setFullscreen(client, shouldFullscreen)
+  elif event.message_type == $NetActiveWindow:
+    if client != selectedMonitor.selectedClient and not client.isUrgent:
+      setUrgent(client, true)
+
+proc configure(client: Client) =
+  var event: XConfigureEvent
+  # TODO
 
 proc focus(client: var Client) =
   if client == nil or not client.isVisible():
@@ -378,16 +570,40 @@ proc rectToMonitor(x, y, width, height: int): Monitor =
   result = selectedMonitor
   var
     monitor = selectedMonitor
-    a, area: int
+    maxArea, area: int
 
   while monitor != nil:
-    a = monitor.intersect(x, y, width, height)
-    if a > area:
-      area = a
+    maxArea = monitor.intersect(x, y, width, height)
+    if maxArea > area:
+      area = maxArea
       result = monitor
     monitor = monitor.next
 
+proc resizeBar(monitor: Monitor) =
+  discard
+
 proc restack(monitor: Monitor) =
+  discard
+
+proc sendEvent(
+  window: Window,
+  atom: Atom,
+  mask: int,
+  data0: clong,
+  data1: clong,
+  data2: clong,
+  data3: clong,
+  data4: clong
+): bool =
+  return true
+
+proc setClientState(client: Client, state: int) =
+  discard
+
+proc setFullscreen(client: Client, shouldFullscreen: bool) =
+  discard
+
+proc setUrgent(client: Client, shouldBeUrgent: bool) =
   discard
 
 proc showhide(client: Client) =
@@ -418,6 +634,21 @@ proc unfocus(client: Client, setFocus: bool) =
       root,
       $NetActiveWindow
     )
+
+proc unmanage(client: Client, destroyed: bool) =
+  discard
+
+proc updateSizeHints(client: Client) =
+  discard
+
+proc updateSystray() =
+  discard
+
+proc updateSystrayIconGeom(client: Client, width, height: int) =
+  discard
+
+proc view(ui: cuint) =
+  discard
 
 proc windowToClient(window: Window): Client =
   var
