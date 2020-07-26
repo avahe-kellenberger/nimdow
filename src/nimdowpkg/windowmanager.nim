@@ -364,7 +364,7 @@ proc decreaseMasterCount(this: WindowManager) =
   var layout = this.selectedMonitor.selectedTag.layout
   if layout of MasterStackLayout:
     var masterStackLayout = MasterStackLayout(layout)
-    if masterStackLayout.masterSlots > 0:
+    if masterStackLayout.masterSlots.int > 0:
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
@@ -459,7 +459,7 @@ proc hookConfigKeys*(this: WindowManager) =
       discard XGrabButton(
         this.display,
         button,
-        Mod4Mask or modifier,
+        Mod4Mask or modifier.int,
         this.rootWindow,
         false,
         ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
@@ -584,8 +584,8 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
     withSome(opt, client):
       if e.message_type == $NetWMState:
         let fullscreenAtom = $NetWMStateFullScreen
-        if e.data.l[1] == fullscreenAtom or
-          e.data.l[2] == fullscreenAtom:
+        if e.data.l[1] == fullscreenAtom.clong or
+          e.data.l[2] == fullscreenAtom.clong:
           # See the end of this section:
           # https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html#idm45805407959456
             var shouldFullscreen =
