@@ -41,6 +41,9 @@ proc fontsetGetWidth*(this: Drw, text: string): uint =
     return 0
   return this.text(0, 0, 0, 0, 0, text, false)
 
+proc resize*(this: Drw, screenWidth, barHeight: int) =
+  discard
+
 proc text*(
   this: Drw,
   x,

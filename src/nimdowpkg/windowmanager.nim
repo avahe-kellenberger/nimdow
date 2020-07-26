@@ -130,6 +130,11 @@ proc cleanup()
 proc cleanupMonitor(monitor: var Monitor)
 proc clientMessage(e: PXEvent)
 proc configure(client: Client)
+proc configureNotify(e: PXEvent)
+proc configureRequest(e: PXEvent)
+proc createMonitor(): Monitor
+proc destroyNotify(e: PXEvent)
+proc detach(client: Client)
 
 proc focus(client: var Client)
 proc getRootPointer(x, y: ptr int): bool
@@ -138,7 +143,15 @@ proc intersect(monitor: Monitor, x, y, width, height: int): int
 proc isVisible(client: Client): bool
 proc moveMouse()
 proc rectToMonitor(x, y, width, height: int): Monitor
+proc removeSystrayIcon(client: Client)
 proc resizeBar(monitor: Monitor)
+proc resizeClient(
+  client: Client,
+  x: int,
+  y: int,
+  width: int,
+  height: int
+)
 proc restack(monitor: Monitor)
 proc sendEvent(
   window: Window,
@@ -157,12 +170,15 @@ proc showhide(client: Client)
 proc textWidth(str: string): uint
 proc unfocus(client: Client, setFocus: bool)
 proc unmanage(client: Client, destroyed: bool)
+proc updateBars()
+proc updateGeom(): bool
 proc updateSizeHints(client: Client)
 proc updateSystray()
 proc updateSystrayIconGeom(client: Client, width, height: int)
 proc view(ui: cuint)
 proc windowToClient(window: Window): Client
 proc windowToMonitor(window: Window): Monitor
+proc windowToSystrayIcon(window: Window): Client
 proc xError(display: PDisplay, event: PXErrorEvent): cint {.cdecl}
 proc xErrorStart(display: PDisplay, e: PXErrorEvent): cint {.cdecl}
 
@@ -197,6 +213,15 @@ var
     [
       Button(click: ClkClientWin, eventMask: MODKEY, button: Button1, callback: movemouse)
     ]
+  mFactor = 0.5
+  numMasterWindows = 1
+  showBar = true
+  topBar = true
+  gapInnerHorizontal = 24
+  gapInnerVertical = 24
+  gapOuterHorizontal = 24
+  gapOuterVertical = 24
+  smartGaps = true
 
 # TODO: Need to invoke xatoms.initAtoms
 
@@ -207,6 +232,12 @@ template cleanMask(mask: uint): uint =
 template NIL[T](): var T =
   var dummyT: T
   dummyT
+
+template totalWidth(client: Client): int =
+  client.width + client.borderWidth.int * 2
+
+template totalHeight(client: Client): int =
+  client.height + client.borderWidth.int * 2
 
 proc applyRules(client: var Client) =
   # We don't care about dwm rules currently
@@ -510,8 +541,174 @@ proc clientMessage(e: PXEvent) =
       setUrgent(client, true)
 
 proc configure(client: Client) =
-  var event: XConfigureEvent
-  # TODO
+  var event: PXConfigureEvent
+  event.theType = ConfigureNotify
+  event.display = display
+  event.event = client.window
+  event.window = client.window
+  event.x = client.x
+  event.y = client.y
+  event.width = client.width
+  event.height = client.height
+  event.border_width = client.borderWidth.cint
+  event.above = None;
+  event.override_redirect = false;
+
+  discard XSendEvent(
+    display,
+    client.window,
+    false,
+    StructureNotifyMask,
+    cast[PXEvent](event)
+  )
+
+proc configureNotify(e: PXEvent) =
+  var
+    monitor: Monitor
+    client: Client
+    event: PXConfigureEvent = e.xconfigure.addr
+    dirty: bool
+
+  # TODO: updategeom handling sucks, needs to be simplified
+  if event.window != root:
+    return
+
+  dirty = screenWidth != event.width or screenHeight != event.height
+  screenWidth = event.width
+  screenHeight = event.height
+  if updateGeom() or dirty:
+    draw.resize(screenWidth, barHeight)
+    updateBars()
+    monitor = monitors
+    while monitor != nil:
+      client = monitor.clients
+      while client != nil:
+        if client.isFullscreen:
+          resizeClient(
+            client,
+            monitor.screenX,
+            monitor.screenY,
+            monitor.screenWidth,
+            monitor.screenHeight
+          )
+        client = client.next
+      monitor = monitor.next
+
+    focus(NIL[Client])
+    arrange(NIL[Monitor])
+
+proc configureRequest(e: PXEvent) =
+  var
+    client: Client
+    monitor: Monitor
+    event: PXConfigureRequestEvent = e.xconfigurerequest.addr
+    winChanges: XWindowChanges
+
+  client = windowToClient(event.window)
+  if client != nil:
+    if (event.value_mask or CWBorderWidth) != 0:
+      client.borderWidth = event.border_width
+    elif client.isFloating:
+      monitor = client.monitor
+
+      if (event.value_mask and CWX) != 0:
+        client.oldX = client.x
+        client.x = monitor.screenX + event.x
+      if (event.value_mask and CWY) != 0:
+        client.oldY = client.y
+        client.y = monitor.screenY + event.y
+      if (event.value_mask and CWWidth) != 0:
+        client.oldWidth = client.width
+        client.width = event.width
+      if (event.value_mask and CWHeight) != 0:
+        client.oldHeight = client.height
+        client.height = event.height
+
+      if (client.x + client.width) > monitor.screenX + monitor.screenWidth:
+        # Center in the x direction
+        client.x = monitor.screenX + (monitor.screenWidth div 2 - totalWidth(client) div 2)
+        # Center in the y direction
+        client.y = monitor.screenY + (monitor.screenHeight div 2 - totalHeight(client) div 2)
+
+        if (event.value_mask and (CWX or CWY)) != 0 and not
+           (event.value_mask and (CWWidth or CWHeight)) != 0:
+          configure(client)
+
+        if isVisible(client):
+          discard XMoveResizeWindow(
+            display,
+            client.window,
+            client.x,
+            client.y,
+            client.width,
+            client.height
+          )
+        else:
+          client.needsResize = true
+      else:
+        configure(client)
+    else:
+      winChanges.x = event.x
+      winChanges.y = event.y
+      winChanges.width = event.width
+      winChanges.height = event.height
+      winChanges.border_width = event.border_width
+      winChanges.sibling = event.above
+      winChanges.stack_mode = event.detail
+      discard XConfigureWindow(
+        display,
+        event.window,
+        event.value_mask.cuint,
+        winChanges.addr
+      )
+  discard XSync(display, false)
+
+proc createMonitor(): Monitor =
+  result.tagset[0] = 1
+  result.tagset[1] = 1
+  result.mFactor = mFactor
+  result.numMasterWindows = numMasterWindows
+  result.showBar = showBar
+  result.topBar = topBar
+  result.gapInnerHorizontal = gapInnerHorizontal
+  result.gapInnerVertical = gapInnerVertical
+  result.gapOuterHorizontal = gapOuterHorizontal
+  result.gapOuterVertical = gapOuterVertical
+
+  result.pertag.currentTag = 1
+  result.pertag.previousTag = 1
+
+  for i in 0..TAGS.high:
+    result.pertag.numMasterWindows[i] = result.numMasterWindows
+    result.pertag.mFactors[i] = result.mFactor
+    result.pertag.selectedLayouts[i] = result.selectedLayout
+    result.pertag.showBars[i] = result.showBar
+
+proc destroyNotify(e: PXEvent) =
+  var
+    event: PXDestroyWindowEvent = e.xdestroywindow
+    client: Client = windowToClient(event.window)
+
+  if client != nil:
+    unmanage(client, true)
+  else:
+    client = windowToSystrayIcon(event.window)
+    if client != nil:
+      removeSystrayIcon(client)
+      resizeBar(selectedMonitor)
+      updateSystray()
+
+proc detach(client: Client) =
+  var tempClient = client.monitor.clients
+
+  # TODO: Not sure what this function is supposed to do,
+  # or if this translated code is correct.
+  while tempClient != nil and tempClient != client:
+    tempClient = tempClient.next
+  tempClient = client.next
+
+proc detachStack(client: Client) =
+  discard
 
 proc focus(client: var Client) =
   if client == nil or not client.isVisible():
@@ -579,7 +776,19 @@ proc rectToMonitor(x, y, width, height: int): Monitor =
       result = monitor
     monitor = monitor.next
 
+proc removeSystrayIcon(client: Client) =
+  discard
+
 proc resizeBar(monitor: Monitor) =
+  discard
+
+proc resizeClient(
+  client: Client,
+  x: int,
+  y: int,
+  width: int,
+  height: int
+) =
   discard
 
 proc restack(monitor: Monitor) =
@@ -638,6 +847,12 @@ proc unfocus(client: Client, setFocus: bool) =
 proc unmanage(client: Client, destroyed: bool) =
   discard
 
+proc updateBars() =
+  discard
+
+proc updateGeom(): bool =
+  return true
+
 proc updateSizeHints(client: Client) =
   discard
 
@@ -684,6 +899,9 @@ proc windowToMonitor(window: Window): Monitor =
     return client.monitor
 
   return selectedMonitor
+
+proc windowToSystrayIcon(window: Window): Client =
+  discard
 
 proc xError(display: PDisplay, event: PXErrorEvent): cint {.cdecl} =
   ## There's no way to check accesses to destroyed windows, thus those cases are
