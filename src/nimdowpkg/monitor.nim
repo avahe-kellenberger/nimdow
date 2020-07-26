@@ -149,7 +149,7 @@ proc calculateStrutArea*(strut: Strut, displayWidth, displayHeight: int): Area =
   elif strut.bottom != 0:
     return (
       strut.bottomStartX.int,
-      (displayHeight - strut.bottom).int,
+      displayHeight - strut.bottom.int,
       strut.bottomEndX - strut.bottomStartX + 1,
       strut.bottom
     )
