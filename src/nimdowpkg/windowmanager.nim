@@ -1,5 +1,6 @@
 import
   x11 / [x, xlib, xutil, xatom, xft],
+  std/decls,
   math,
   strformat
 
@@ -699,16 +700,22 @@ proc destroyNotify(e: PXEvent) =
       updateSystray()
 
 proc detach(client: Client) =
-  var tempClient = client.monitor.clients
-
-  # TODO: Not sure what this function is supposed to do,
-  # or if this translated code is correct.
+  var tempClient {.byaddr.} = client.monitor.clients
   while tempClient != nil and tempClient != client:
     tempClient = tempClient.next
   tempClient = client.next
 
 proc detachStack(client: Client) =
-  discard
+  var clientRef {.byaddr.} = client.monitor.clientStack
+  while clientRef != nil and clientRef != client:
+    clientRef = clientRef.next
+  clientRef = client.stackNext
+
+  if client == client.monitor.selectedClient:
+    var tempClient = client.monitor.clientStack
+    while tempClient != nil and not isVisible(tempClient):
+      tempClient = tempClient.stackNext
+    client.monitor.selectedClient = tempClient
 
 proc focus(client: var Client) =
   if client == nil or not client.isVisible():
