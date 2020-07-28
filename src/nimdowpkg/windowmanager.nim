@@ -45,9 +45,12 @@ const
 const
   colorBorder: uint = 0
 
-type Click = enum
-  ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-  ClkClientWin, ClkRootWin, ClkLast
+type
+  Click = enum
+    ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
+    ClkClientWin, ClkRootWin, ClkLast
+  ColorScheme = enum
+    SchemeNorm, SchemeSel
 
 type
   Monitor = ref object of RootObj
@@ -210,6 +213,7 @@ var
   draw: Drw = newDrw(display, root)
   xErrorHandler: XErrorHandler
   backgroundColor: XftColor
+  scheme: seq[PXftColor]
 
 # config.h vars
 var
@@ -245,6 +249,9 @@ template totalWidth(client: Client): int =
 
 template totalHeight(client: Client): int =
   client.height + client.borderWidth.int * 2
+
+template `$`(scheme: ColorScheme): int =
+  ord(scheme)
 
 proc applyRules(client: var Client) =
   # We don't care about dwm rules currently
@@ -748,7 +755,7 @@ proc drawBar(monitor: Monitor) =
     systrayWidth = getSystrayWidth()
 
   # Draw status first so it can be overdrawn by tags later
-  # drw_setscheme(drw, scheme[SchemeNorm]); # TODO
+  draw.setScheme(scheme[$SchemeNorm])
   statusWidth = textWidth(statusText) - lrpad div 2 + 2 # 2px right padding
   discard draw.text(
     monitor.windowAreaWidth - screenWidth - systrayWidth.int,
@@ -775,10 +782,14 @@ proc drawBar(monitor: Monitor) =
 
   for i in 0..TAGS.high:
     width = textWidth(TAGS[i]).int
-    # drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]); TODO
+
     let
       isUrgent = (urgent and 1).shl(i) != 0
       isOccupied = (occupied and 1).shl(i) != 0
+      tagMask = (monitor.tagset[monitor.selectedTags] and 1).shl(i)
+      schemeIndex = if tagMask != 0: $SchemeSel else: $SchemeNorm
+
+    draw.setScheme(scheme[schemeIndex])
 
     discard draw.text(x, 0, width, barHeight, lrpad div 2, TAGS[i], isUrgent)
 
@@ -794,21 +805,23 @@ proc drawBar(monitor: Monitor) =
 
   width = 0
   barLW = 0
-  # drw_setscheme(drw, scheme[SchemeNorm]); TODO
+  draw.setScheme(scheme[$SchemeNorm])
   x = draw.text(x, 0, width, barHeight, lrpad div 2, "", false).int
 
   width = monitor.windowAreaWidth - screenWidth - systrayWidth.int - x
 
   if width > barHeight:
     if monitor.selectedClient != nil:
-      let middle =
-        (monitor.windowAreaWidth - textWidth(monitor.selectedClient.name)) div 2 - x + lrpad div 2
-      # drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]); TODO
+      let schemeIndex = if monitor == selectedMonitor: $SchemeSel else: $SchemeNorm
+      draw.setScheme(scheme[schemeIndex])
+
+      let middle = (monitor.windowAreaWidth - textWidth(monitor.selectedClient.name)) div 2 - x + lrpad div 2
       discard draw.text(x, 0, width, barHeight, middle, monitor.selectedClient.name, false)
+
       if monitor.selectedClient.isFloating:
         draw.rect(x + boxs.int, boxs.int, boxWidth, boxWidth, monitor.selectedClient.isFixed, false)
     else:
-      # drw_setscheme(drw, scheme[SchemeNorm]); TODO
+      draw.setScheme(scheme[$SchemeNorm])
       draw.rect(x, 0, width, barHeight, true, true)
 
   draw.map(monitor.bar, 0, 0, monitor.windowAreaWidth - systrayWidth, barHeight)

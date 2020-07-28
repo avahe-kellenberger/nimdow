@@ -27,6 +27,7 @@ proc fontsetGetWidth*(this: Drw, text: string): uint
 proc map*(this: Drw, window: Window, x, y: int, width, height: uint)
 proc rect*(this: Drw, x, y: int, width, height: uint, filled, invert: bool)
 proc resize*(this: Drw, screenWidth, barHeight: int)
+proc setScheme*(this: Drw, color: PXftColor)
 proc text*(
   this: Drw,
   x,
@@ -60,6 +61,9 @@ proc rect*(this: Drw, x, y: int, width, height: uint, filled, invert: bool) =
   discard
 
 proc resize*(this: Drw, screenWidth, barHeight: int) =
+  discard
+
+proc setScheme*(this: Drw, color: PXftColor) =
   discard
 
 proc text*(
