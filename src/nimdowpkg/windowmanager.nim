@@ -96,6 +96,7 @@ type
       neverFocus, isFullscreen,
       needsResize: bool
     oldState: int
+    name: string
 
   Layout = ref object of RootObj
 
@@ -136,9 +137,12 @@ proc configureRequest(e: PXEvent)
 proc createMonitor(): Monitor
 proc destroyNotify(e: PXEvent)
 proc detach(client: Client)
+proc directionToMonitor(dir: int): Monitor
+proc drawBar(monitor: Monitor)
 
 proc focus(client: var Client)
 proc getRootPointer(x, y: ptr int): bool
+proc getSystrayWidth(): uint
 proc grabButtons(client: Client, focused: bool)
 proc intersect(monitor: Monitor, x, y, width, height: int): int
 proc isVisible(client: Client): bool
@@ -168,6 +172,7 @@ proc setClientState(client: Client, state: int)
 proc setFullscreen(client: Client, shouldFullscreen: bool)
 proc setUrgent(client: Client, shouldBeUrgent: bool)
 proc showhide(client: Client)
+proc systrayToMonitor(monitor: Monitor): Monitor
 proc textWidth(str: string): uint
 proc unfocus(client: Client, setFocus: bool)
 proc unmanage(client: Client, destroyed: bool)
@@ -185,10 +190,11 @@ proc xErrorStart(display: PDisplay, e: PXErrorEvent): cint {.cdecl}
 
 var
   display: PDisplay
-  sText: string # ?
+  statusText: string
   screen: int
   screenWidth, screenHeight: int
-  barHeight, barWidth: int = 0
+  # TODO: barLeftWidth? LayoutWidth (symbol)?
+  barHeight, barLW: int = 0
   enableGaps: bool = true
   lrpad: uint # sum of left and right padding for text
   numlockMask: uint = 0
@@ -717,6 +723,96 @@ proc detachStack(client: Client) =
       tempClient = tempClient.stackNext
     client.monitor.selectedClient = tempClient
 
+proc directionToMonitor(dir: int): Monitor =
+  if dir > 0:
+    result = selectedMonitor.next
+    if result == nil:
+      result = monitors
+  elif selectedMonitor == monitors:
+    result = monitors
+    while result.next != nil:
+      result = result.next
+  else:
+    result = monitors
+    while result.next != selectedMonitor:
+      result = result.next
+
+proc drawBar(monitor: Monitor) =
+  var
+    systrayWidth: uint
+    statusWidth: uint
+    occupied: uint
+    urgent: uint
+
+  if showSystray and monitor == systrayToMonitor(monitor):
+    systrayWidth = getSystrayWidth()
+
+  # Draw status first so it can be overdrawn by tags later
+  # drw_setscheme(drw, scheme[SchemeNorm]); # TODO
+  statusWidth = textWidth(statusText) - lrpad div 2 + 2 # 2px right padding
+  discard draw.text(
+    monitor.windowAreaWidth - screenWidth - systrayWidth.int,
+    0,
+    screenWidth,
+    barHeight,
+    lrpad div 2 - 2,
+    statusText,
+    false
+  )
+  resizeBar(monitor)
+
+  var client = monitor.clients
+  while client != nil:
+    occupied = occupied or client.tags
+    if client.isUrgent:
+      urgent = urgent or client.tags
+    client = client.next
+
+  var
+    x, width: int
+    boxs = draw.fonts.height div 9
+    boxWidth = draw.fonts.height div 6 + 2
+
+  for i in 0..TAGS.high:
+    width = textWidth(TAGS[i]).int
+    # drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]); TODO
+    let
+      isUrgent = (urgent and 1).shl(i) != 0
+      isOccupied = (occupied and 1).shl(i) != 0
+
+    discard draw.text(x, 0, width, barHeight, lrpad div 2, TAGS[i], isUrgent)
+
+    if isOccupied:
+      let
+        filled = monitor == selectedMonitor and
+                 selectedMonitor.selectedClient != nil and
+                 (selectedMonitor.selectedClient.tags and 1).shl(i) != 0
+
+      draw.rect(x + boxs.int, boxs.int, boxWidth, boxWidth, filled, isUrgent)
+
+    x.inc(width)
+
+  width = 0
+  barLW = 0
+  # drw_setscheme(drw, scheme[SchemeNorm]); TODO
+  x = draw.text(x, 0, width, barHeight, lrpad div 2, "", false).int
+
+  width = monitor.windowAreaWidth - screenWidth - systrayWidth.int - x
+
+  if width > barHeight:
+    if monitor.selectedClient != nil:
+      let middle =
+        (monitor.windowAreaWidth - textWidth(monitor.selectedClient.name)) div 2 - x + lrpad div 2
+      # drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]); TODO
+      discard draw.text(x, 0, width, barHeight, middle, monitor.selectedClient.name, false)
+      if monitor.selectedClient.isFloating:
+        draw.rect(x + boxs.int, boxs.int, boxWidth, boxWidth, monitor.selectedClient.isFixed, false)
+    else:
+      # drw_setscheme(drw, scheme[SchemeNorm]); TODO
+      draw.rect(x, 0, width, barHeight, true, true)
+
+  draw.map(monitor.bar, 0, 0, monitor.windowAreaWidth - systrayWidth, barHeight)
+
 proc focus(client: var Client) =
   if client == nil or not client.isVisible():
     client = selectedMonitor.clientStack
@@ -759,6 +855,9 @@ proc getRootPointer(x, y: ptr int): bool =
     cast[Pcuint](dui.addr)
   )
   return res != 0
+
+proc getSystrayWidth(): uint =
+  discard
 
 proc grabButtons(client: Client, focused: bool) =
   discard
@@ -823,6 +922,9 @@ proc setUrgent(client: Client, shouldBeUrgent: bool) =
   discard
 
 proc showhide(client: Client) =
+  discard
+
+proc systrayToMonitor(monitor: Monitor): Monitor =
   discard
 
 proc textWidth(str: string): uint =
