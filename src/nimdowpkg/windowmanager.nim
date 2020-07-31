@@ -142,8 +142,14 @@ proc destroyNotify(e: PXEvent)
 proc detach(client: Client)
 proc directionToMonitor(dir: int): Monitor
 proc drawBar(monitor: Monitor)
-
+proc drawBars()
+proc enterNotify(e: PXEvent)
+proc expose(e: PXEvent)
 proc focus(client: var Client)
+proc focusIn(e: PXEvent)
+proc focusMonitor(direction: int)
+proc focusStack(forward: bool)
+
 proc getRootPointer(x, y: ptr int): bool
 proc getSystrayWidth(): uint
 proc grabButtons(client: Client, focused: bool)
@@ -172,6 +178,7 @@ proc sendEvent(
   data4: clong
 ): bool
 proc setClientState(client: Client, state: int)
+proc setFocus(client: Client)
 proc setFullscreen(client: Client, shouldFullscreen: bool)
 proc setUrgent(client: Client, shouldBeUrgent: bool)
 proc showhide(client: Client)
@@ -185,6 +192,7 @@ proc updateSizeHints(client: Client)
 proc updateSystray()
 proc updateSystrayIconGeom(client: Client, width, height: int)
 proc view(ui: cuint)
+proc warp(client: Client)
 proc windowToClient(window: Window): Client
 proc windowToMonitor(window: Window): Monitor
 proc windowToSystrayIcon(window: Window): Client
@@ -826,11 +834,97 @@ proc drawBar(monitor: Monitor) =
 
   draw.map(monitor.bar, 0, 0, monitor.windowAreaWidth - systrayWidth, barHeight)
 
+proc drawBars() =
+  var monitor = monitors
+  while monitor != nil:
+    drawBar(monitor)
+    monitor = monitor.next
+
+proc enterNotify(e: PXEvent) =
+  let event = e.xcrossing
+
+  if (event.mode != NotifyNormal or event.detail == NotifyInferior) and
+     event.window != root:
+    return
+
+  var client = windowToClient(event.window)
+  let monitor = if client != nil: client.monitor else: windowToMonitor(event.window)
+
+  if monitor != selectedMonitor:
+    unfocus(selectedMonitor.selectedClient, true)
+    selectedMonitor = monitor
+  elif client == nil or client == selectedMonitor.selectedClient:
+    return
+
+  focus(client)
+
+proc expose(e: PXEvent) =
+  let
+    event = e.xexpose
+    monitor = windowToMonitor(event.window)
+
+  if event.count == 0 and monitor != nil:
+    drawBar(monitor)
+    if monitor == selectedMonitor:
+      updateSystray()
+
 proc focus(client: var Client) =
   if client == nil or not client.isVisible():
     client = selectedMonitor.clientStack
     while client != nil and not client.isVisible():
       client = client.stackNext
+
+proc focusIn(e: PXEvent) =
+  # There are some broken focus acquiring clients needing extra handling
+  let event = e.xfocus
+
+  if selectedMonitor.selectedClient != nil and
+     event.window != selectedMonitor.selectedClient.window:
+    setFocus(selectedMonitor.selectedClient)
+
+proc focusMonitor(direction: int) =
+  if monitors.next == nil:
+    return
+  let monitor = directionToMonitor(direction)
+  if monitor == selectedMonitor:
+    return
+
+  unfocus(selectedMonitor.selectedClient, false)
+  selectedMonitor = monitor
+  focus(NIL[Client])
+  warp(selectedMonitor.selectedClient)
+
+proc focusStack(forward: bool) =
+  # TODO: 1 forward, -1 backward (in C)
+  var client: Client
+  if selectedMonitor.selectedClient == nil:
+    return
+  if forward:
+    client = selectedMonitor.selectedClient.next
+    while client != nil and not isVisible(client):
+      client = client.next
+    if client == nil:
+      client = selectedMonitor.clients
+      while client != nil and not isVisible(client):
+        client = client.next
+  else:
+    var tempClient: Client = selectedMonitor.clients
+    while tempClient != selectedMonitor.selectedClient:
+      if isVisible(tempClient):
+        client = tempClient
+      if client == nil:
+        while tempClient != nil:
+          if isVisible(tempClient):
+            client = tempClient
+          tempClient = tempClient.next
+      tempClient = tempClient.next
+
+  if client != nil:
+    focus(client)
+    restack(selectedMonitor)
+
+proc getAtomProp(client: Client, prop: Atom): Atom =
+
 
 proc intersect(monitor: Monitor, x, y, width, height: int): int =
   ## Gets the intersection if the two rects.
@@ -928,6 +1022,9 @@ proc sendEvent(
 proc setClientState(client: Client, state: int) =
   discard
 
+proc setFocus(client: Client) =
+  discard
+
 proc setFullscreen(client: Client, shouldFullscreen: bool) =
   discard
 
@@ -985,6 +1082,9 @@ proc updateSystrayIconGeom(client: Client, width, height: int) =
   discard
 
 proc view(ui: cuint) =
+  discard
+
+proc warp(client: Client) =
   discard
 
 proc windowToClient(window: Window): Client =
