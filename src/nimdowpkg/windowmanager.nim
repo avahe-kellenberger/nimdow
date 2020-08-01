@@ -1,8 +1,9 @@
 import
-  x11 / [x, xlib, xutil, xatom, xft],
+  x11 / [x, xlib, xutil, xatom, xft, keysym, xinerama],
   std/decls,
   math,
-  strformat
+  strformat,
+  options
 
 import
   Xproto,
@@ -41,6 +42,7 @@ const
   VERSION_MAJOR = 0
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
+  BUTTONMASK = ButtonPressMask or ButtonReleaseMask
 
 const
   colorBorder: uint = 0
@@ -98,7 +100,7 @@ type
       isFloating, isUrgent,
       neverFocus, isFullscreen,
       needsResize: bool
-    oldState: int
+    oldState: bool
     name: string
 
   Layout = ref object of RootObj
@@ -117,13 +119,25 @@ type
     button: int
     callback: proc()
 
+  Key = object
+    modifier: int
+    keysym: KeySym
+    callback: proc()
+
   Systray = object
     window: Window
     icons: Client
 
 # Function declarations
 proc applyRules(client: var Client)
-proc applySizeHints(client: Client, x, y, width, height: var int, interact: bool): bool
+proc applySizeHints(
+  client: Client,
+  x,
+  y,
+  width,
+  height: var int,
+  interact: bool
+): bool
 proc arrange(monitor: var Monitor)
 proc arrangeMonitor(monitor: Monitor)
 proc attach(client: var Client)
@@ -149,12 +163,27 @@ proc focus(client: var Client)
 proc focusIn(e: PXEvent)
 proc focusMonitor(direction: int)
 proc focusStack(forward: bool)
-
+proc getProperty*[T](
+  window: Window,
+  property: Atom,
+): Option[T]
 proc getRootPointer(x, y: ptr int): bool
+proc getState(window: Window): Option[Atom]
 proc getSystrayWidth(): uint
+proc getTextProperty*(
+  window: Window,
+  property: Atom,
+): Option[string]
 proc grabButtons(client: Client, focused: bool)
+proc grabKeys()
+proc incrementNumMasterWindows(delta: int)
 proc intersect(monitor: Monitor, x, y, width, height: int): int
+proc isUniqueGeom(unique: openArray[XineramaScreenInfo], info: XineramaScreenInfo): bool
 proc isVisible(client: Client): bool
+proc keyPress(e: PXEvent)
+proc killClient()
+proc manage(window: Window, winAttr: PXWindowAttributes)
+
 proc moveMouse()
 proc rectToMonitor(x, y, width, height: int): Monitor
 proc removeSystrayIcon(client: Client)
@@ -188,15 +217,20 @@ proc unfocus(client: Client, setFocus: bool)
 proc unmanage(client: Client, destroyed: bool)
 proc updateBars()
 proc updateGeom(): bool
+proc updateNumlockMask()
 proc updateSizeHints(client: Client)
 proc updateSystray()
 proc updateSystrayIconGeom(client: Client, width, height: int)
+proc updateTitle(client: Client)
+proc updateWindowType(client: Client)
+proc updateWMHints(client: Client)
 proc view(ui: cuint)
 proc warp(client: Client)
 proc windowToClient(window: Window): Client
 proc windowToMonitor(window: Window): Monitor
 proc windowToSystrayIcon(window: Window): Client
 proc xError(display: PDisplay, event: PXErrorEvent): cint {.cdecl}
+proc xErrorDummy(display: PDisplay, event: PXErrorEvent): cint {.cdecl}
 proc xErrorStart(display: PDisplay, e: PXErrorEvent): cint {.cdecl}
 
 var
@@ -227,11 +261,6 @@ var
 var
   respectResizeHints: bool = false
   showSystray: bool = true
-  # Button defs
-  buttons: array[1, Button] =
-    [
-      Button(click: ClkClientWin, eventMask: MODKEY, button: Button1, callback: movemouse)
-    ]
   mFactor = 0.5
   numMasterWindows = 1
   showBar = true
@@ -241,6 +270,19 @@ var
   gapOuterHorizontal = 24
   gapOuterVertical = 24
   smartGaps = true
+  systraySpacing = 2
+
+  # Button defs
+  buttons: array[1, Button] =
+    [
+      Button(click: ClkClientWin, eventMask: MODKEY, button: Button1, callback: movemouse)
+    ]
+
+  # TODO: Populate the keys
+  keys: array[1, Key] =
+    [
+      Key(modifier: MODKEY, keysym: XK_j, callback: proc() = focusStack(true))
+    ]
 
 # TODO: Need to invoke xatoms.initAtoms
 
@@ -265,7 +307,14 @@ proc applyRules(client: var Client) =
   # We don't care about dwm rules currently
   discard
 
-proc applySizeHints(client: Client, x, y, width, height: var int, interact: bool): bool =
+proc applySizeHints(
+  client: Client,
+  x,
+  y,
+  width,
+  height: var int,
+  interact: bool
+): bool =
   var
     baseIsMin: bool
     monitor: Monitor = client.monitor
@@ -923,8 +972,165 @@ proc focusStack(forward: bool) =
     focus(client)
     restack(selectedMonitor)
 
-proc getAtomProp(client: Client, prop: Atom): Atom =
+proc getProperty*[T](
+  window: Window,
+  property: Atom,
+): Option[T] =
+  # NOTE: This is my own code, not translated from dwm
+  var
+    actualTypeReturn: Atom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    propReturn: ptr T
 
+  discard XGetWindowProperty(
+    display,
+    window,
+    property,
+    0,
+    0.clong.high,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn.addr)
+  )
+  if numItemsReturn > 0.culong:
+    return propReturn[].option
+  else:
+    return none(T)
+
+proc getRootPointer(x, y: ptr int): bool =
+  var
+    di: int
+    dui: uint
+    dummy: Window
+  let res = XQueryPointer(
+    display,
+    root,
+    dummy.addr,
+    dummy.addr,
+    cast[Pcint](x),
+    cast[Pcint](y),
+    cast[Pcint](di.addr),
+    cast[Pcint](di.addr),
+    cast[Pcuint](dui.addr)
+  )
+  return res != 0
+
+proc getState(window: Window): Option[Atom] =
+  return getProperty[Atom](window, $WMState)
+
+proc getSystrayWidth(): uint =
+  var width: uint
+
+  if showSystray:
+    var i = systray.icons
+    while i != nil:
+      width += i.width + systraySpacing
+      i = i.next
+    width += systraySpacing
+
+  return max(1.uint, width)
+
+proc getTextProperty*(
+  window: Window,
+  property: Atom,
+): Option[string] =
+  var
+    actualTypeReturn: Atom
+    actualFormatReturn: cint
+    numItemsReturn: culong
+    bytesAfterReturn: culong
+    str: string = newString(300)
+    propReturn = cast[ptr cstring](addr str)
+
+  discard XGetWindowProperty(
+    display,
+    window,
+    property,
+    0,
+    0.clong.high,
+    false,
+    AnyPropertyType,
+    actualTypeReturn.addr,
+    actualFormatReturn.addr,
+    numItemsReturn.addr,
+    bytesAfterReturn.addr,
+    cast[PPcuchar](propReturn)
+  )
+
+  if numItemsReturn > 0.culong:
+    let val = $propReturn[]
+    return val.option
+  else:
+    return none(string)
+
+proc grabButtons(client: Client, focused: bool) =
+  updateNumlockMask()
+
+  discard XUngrabButton(display, AnyButton, AnyModifier, client.window)
+
+  if not focused:
+    discard XGrabButton(
+      display,
+      AnyButton,
+      AnyModifier,
+      client.window,
+      false,
+      BUTTONMASK,
+      GrabModeSync,
+      GrabModeSync,
+      None,
+      None
+    )
+
+  const modifiers = [uint 0, LockMask, numlockMask, numlockMask or LockMask]
+
+  for button in buttons:
+    if button.click == ClkClientWin:
+      for modifier in modifiers:
+        discard XGrabButton(
+          display,
+          button.button.cint,
+          (button.eventMask or modifier).cint,
+          client.window,
+          false,
+          BUTTONMASK,
+          GrabModeAsync,
+          GrabModeSync,
+          None,
+          None
+        )
+
+proc grabKeys() =
+  updateNumlockMask()
+  const modifiers = [uint 0, LockMask, numlockMask, numlockMask or LockMask]
+  discard XUngrabKey(display, AnyKey, AnyModifier, root)
+
+  var keycode: KeyCode
+  for key in keys:
+    keycode = XKeySymToKeycode(display, key.key)
+    if keycode == 0:
+      continue
+    for modifier in modifiers:
+      discard XGrabKey(
+        display,
+        keycode.cint,
+        (key.modifier or modifier).cint,
+        root,
+        true,
+        GrabModeAsync,
+        GrabModeAsync
+      )
+
+proc incrementNumMasterWindows(delta: int) =
+  let numMasterWindows = max(0, selectedMonitor.numMasterWindows + delta)
+  selectedMonitor.numMasterWindows = numMasterWindows
+  selectedMonitor.pertag.numMasterWindows[selectedMonitor.pertag.currentTag] = numMasterWindows
 
 proc intersect(monitor: Monitor, x, y, width, height: int): int =
   ## Gets the intersection if the two rects.
@@ -945,33 +1151,157 @@ proc intersect(monitor: Monitor, x, y, width, height: int): int =
 
   return xIntersection * yIntersection
 
-proc getRootPointer(x, y: ptr int): bool =
-  var
-    di: int
-    dui: uint
-    dummy: Window
-  let res = XQueryPointer(
-    display,
-    root,
-    dummy.addr,
-    dummy.addr,
-    cast[Pcint](x),
-    cast[Pcint](y),
-    cast[Pcint](di.addr),
-    cast[Pcint](di.addr),
-    cast[Pcuint](dui.addr)
-  )
-  return res != 0
-
-proc getSystrayWidth(): uint =
-  discard
-
-proc grabButtons(client: Client, focused: bool) =
-  discard
+proc isUniqueGeom(unique: openArray[XineramaScreenInfo], info: XineramaScreenInfo): bool =
+  # TODO: Not sure this is correctly translated
+  # Why does the C code iterate over this in reverse?
+  for i in unique.len..0:
+    let uniqueInfo = unique[i]
+    if uniqueInfo.x_org == info.x_org and
+       uniqueInfo.y_org == info.y_org and
+       uniqueInfo.width == info.width and
+       uniqueInfo.height == info.height:
+      return false
+  return true
 
 proc isVisible(client: Client): bool =
   let mask = client.tags and client.monitor.tagset[client.monitor.selectedTags]
   return mask != 0
+
+proc keyPress(e: PXEvent) =
+  let
+    event = e.xkey
+    keysym = XKeycodeToKeysym(display, event.keycode.KeyCode, 0)
+
+  for key in keys:
+    if keysym == key.keysym and
+       cleanMask(key.modifier) == cleanMask(event.state):
+      key.callback()
+
+proc killClient() =
+  if selectedMonitor.selectedClient == nil:
+    return
+
+  let eventWasSent = sendEvent(
+    selectedMonitor.selectedClient.window,
+    $WMDelete,
+    NoEventMask,
+    ($WMDelete).clong,
+    CurrentTime,
+    0,
+    0,
+    0
+  )
+
+  if not eventWasSent:
+    discard XGrabServer(display)
+    discard XSetErrorHandler(xErrorDummy)
+    discard XSetCloseDownMode(display, DestroyAll)
+    discard XKillClient(display, selectedMonitor.selectedClient.window)
+    discard XSync(display, false)
+    discard XSetErrorHandler(xerror)
+    discard XUngrabServer(display)
+
+# TODO: Skipping xrdb for now
+
+proc manage(window: Window, winAttr: PXWindowAttributes) =
+  var
+    client, transientClient: Client
+    transientWindow: Window = None
+
+  client.window = window
+  client.x = winAttr.x
+  client.oldX = winAttr.x
+  client.y = winAttr.y
+  client.oldY = winAttr.y
+  client.width = winAttr.width
+  client.oldWidth = winAttr.width
+  client.height = winAttr.height
+  client.oldHeight = winAttr.height
+  client.oldBorderWidth = winAttr.border_width
+
+  updateTitle(client)
+  let isTransient = XGetTransientForHint(display, window, transientWindow.addr) != 0
+  transientClient = windowToClient(transientWindow)
+  if isTransient and transientClient != nil:
+    client.monitor = transientClient.monitor
+    client.tags = transientClient.tags
+  else:
+    client.monitor = selectedMonitor
+    applyRules(client)
+
+  if client.x + totalWidth(client) > client.monitor.screenX + client.monitor.screenWidth:
+    client.x = client.monitor.screenX + client.monitor.screenWidth - totalWidth(client)
+  if client.y + totalHeight(client) > client.monitor.screenY + client.monitor.screenHeight:
+    client.y = client.monitor.screenY + client.monitor.screenHeight - totalHeight(client)
+  client.x = max(client.x, client.monitor.screenX)
+
+  # Only fix client y-offset, if the client center might cover the bar
+  if client.monitor.barY == client.monitor.screenY and
+     client.x + (client.width div 2) >= client.monitor.windowAreaX and
+     client.x + client.width div 2 < client.monitor.windowAreaX + client.monitor.windowAreaWidth:
+    client.y = max(client.y, barHeight)
+  else:
+    client.y = max(client.y, client.monitor.screenY)
+
+  if client.isCentered:
+    client.x = (client.monitor.screenWidth - totalWidth(client)) div 2
+    client.y = (client.monitor.screenHeight - totalHeight(client)) div 2
+
+  var winChanges: XWindowChanges
+  winChanges.border_width = client.borderWidth.cint
+  discard XConfigureWindow(display, window, CWBorderWidth, winChanges.addr)
+  # TODO: scheme[SchemeNorm][ColBorder].pixel how to handle this?
+  discard XSetWindowBorder(display, window, scheme[$SchemeNorm].pixel)
+  # Propagates border_width, if size doesn't change
+  configure(client)
+
+  updateWindowType(client)
+  updateSizeHints(client)
+  updateWMHints(client)
+
+  discard XSelectInput(
+    display,
+    window,
+    EnterWindowMask or FocusChangeMask or PropertyChangeMask or StructureNotifyMask
+  )
+  grabButtons(client, false)
+
+  if not client.isFloating:
+    client.isFloating = transientWindow != None or client.isFixed
+    client.oldState = client.isFloating
+
+  if client.isFloating:
+    discard XRaiseWindow(display, window)
+
+  attachBelow(client)
+  attachStack(client)
+  discard XChangeProperty(
+    display,
+    root,
+    $NetClientList,
+    XA_WINDOW,
+    32,
+    PropModeAppend,
+    cast[Pcuchar](client.window.addr),
+    1
+  )
+  discard XMoveResizeWindow(
+    display,
+    client.window,
+    client.x + 2 * screenWidth,
+    client.y,
+    client.width,
+    client.height
+  )
+  setClientState(client, NormalState)
+
+  if client.monitor == selectedMonitor:
+    unfocus(selectedMonitor.selectedClient, false)
+
+  client.monitor.selectedClient = client
+  arrange(client.monitor)
+  discard XMapWindow(display, client.window)
+  focus(NIL[Client])
 
 proc moveMouse() =
   discard
@@ -1072,6 +1402,9 @@ proc updateBars() =
 proc updateGeom(): bool =
   return true
 
+proc updateNumlockMask() =
+  discard
+
 proc updateSizeHints(client: Client) =
   discard
 
@@ -1079,6 +1412,15 @@ proc updateSystray() =
   discard
 
 proc updateSystrayIconGeom(client: Client, width, height: int) =
+  discard
+
+proc updateTitle(client: Client) =
+  discard
+
+proc updateWindowType(client: Client) =
+  discard
+
+proc updateWMHints(client: Client) =
   discard
 
 proc view(ui: cuint) =
@@ -1141,6 +1483,9 @@ proc xError(display: PDisplay, event: PXErrorEvent): cint {.cdecl} =
     return 0
   echo fmt("nimdow: fatal error: request_code={event.request_code}, error_code={event.error_code}")
   return xErrorHandler(display, event)
+
+proc xErrorDummy(display: PDisplay, event: PXErrorEvent): cint {.cdecl} =
+  return 0
 
 proc xErrorStart(display: PDisplay, e: PXErrorEvent): cint {.cdecl} =
   quit("nimdow: another window manager is already running", 1)
