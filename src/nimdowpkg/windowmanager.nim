@@ -43,6 +43,7 @@ const
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
   BUTTONMASK = ButtonPressMask or ButtonReleaseMask
+  MOUSEMASK = BUTTONMASK or PointerMotionMask
 
 const
   colorBorder: uint = 0
@@ -176,6 +177,7 @@ proc getTextProperty*(
 ): Option[string]
 proc grabButtons(client: Client, focused: bool)
 proc grabKeys()
+proc handleEvent(e: PXEvent)
 proc incrementNumMasterWindows(delta: int)
 proc intersect(monitor: Monitor, x, y, width, height: int): int
 proc isUniqueGeom(unique: openArray[XineramaScreenInfo], info: XineramaScreenInfo): bool
@@ -183,10 +185,17 @@ proc isVisible(client: Client): bool
 proc keyPress(e: PXEvent)
 proc killClient()
 proc manage(window: Window, winAttr: PXWindowAttributes)
-
+proc mappingNotify(e: PXEvent)
+proc mapRequest(e: PXEvent)
+proc monocle(monitor: Monitor)
+proc motionNotify(e: PXEvent)
 proc moveMouse()
+proc nextTiled(client: Client): Client
+proc pop(client: var Client)
+
 proc rectToMonitor(x, y, width, height: int): Monitor
 proc removeSystrayIcon(client: Client)
+proc resize(client: Client, x, y, width, height: var int, interact: bool)
 proc resizeBar(monitor: Monitor)
 proc resizeClient(
   client: Client,
@@ -206,6 +215,7 @@ proc sendEvent(
   data3: clong,
   data4: clong
 ): bool
+proc sendMonitor(client: Client, monitor: Monitor)
 proc setClientState(client: Client, state: int)
 proc setFocus(client: Client)
 proc setFullscreen(client: Client, shouldFullscreen: bool)
@@ -213,6 +223,7 @@ proc setUrgent(client: Client, shouldBeUrgent: bool)
 proc showhide(client: Client)
 proc systrayToMonitor(monitor: Monitor): Monitor
 proc textWidth(str: string): uint
+proc toggleFloating()
 proc unfocus(client: Client, setFocus: bool)
 proc unmanage(client: Client, destroyed: bool)
 proc updateBars()
@@ -256,6 +267,7 @@ var
   xErrorHandler: XErrorHandler
   backgroundColor: XftColor
   scheme: seq[PXftColor]
+  cursor: Cursor
 
 # config.h vars
 var
@@ -271,6 +283,7 @@ var
   gapOuterVertical = 24
   smartGaps = true
   systraySpacing = 2
+  snap = 0
 
   # Button defs
   buttons: array[1, Button] =
@@ -302,6 +315,11 @@ template totalHeight(client: Client): int =
 
 template `$`(scheme: ColorScheme): int =
   ord(scheme)
+
+template doWhile(a, b: untyped): untyped =
+  b
+  while a:
+    b
 
 proc applyRules(client: var Client) =
   # We don't care about dwm rules currently
@@ -1126,6 +1144,8 @@ proc grabKeys() =
         GrabModeAsync,
         GrabModeAsync
       )
+proc handleEvent(e: PXEvent) =
+  discard
 
 proc incrementNumMasterWindows(delta: int) =
   let numMasterWindows = max(0, selectedMonitor.numMasterWindows + delta)
@@ -1303,8 +1323,158 @@ proc manage(window: Window, winAttr: PXWindowAttributes) =
   discard XMapWindow(display, client.window)
   focus(NIL[Client])
 
+proc mappingNotify(e: PXEvent) =
+  let event: PXMappingEvent = e.xmapping.addr
+  discard XRefreshKeyboardMapping(event)
+  if event.request == MappingKeyboard:
+    grabKeys()
+
+proc mapRequest(e: PXEvent) =
+  let event = e.xmaprequest
+
+  let client = windowToSystrayIcon(event.window)
+  if client != nil:
+    discard sendEvent(
+      client.window,
+      $Xembed,
+      StructureNotifyMask,
+      CurrentTime,
+      XEMBED_WINDOW_ACTIVATE,
+      0,
+      systray.window.clong,
+      XEMBED_EMBEDDED_VERSION
+    )
+
+  var winAttr: XWindowAttributes
+  if XGetWindowAttributes(display, event.window, winAttr.addr) == 0 or
+     winAttr.override_redirect:
+    return
+
+  if windowToClient(event.window) == nil:
+    manage(event.window, winAttr.addr)
+
+proc monocle(monitor: Monitor) =
+  var
+    client: Client = monitor.clients
+
+  while client != nil:
+    client = nextTiled(monitor.clients)
+    while client != nil:
+      client = nextTiled(client.next)
+    var
+      x = monitor.windowAreaX
+      y = monitor.windowAreaY
+      width = monitor.windowAreaWidth - 2 * client.borderWidth.int
+      height = monitor.windowAreaHeight - 2 * client.borderWidth.int
+    resize(client, x, y, width, height, false)
+    client = client.next
+
+# Static var in dwm for motionNotify
+var previousMonitor: Monitor
+proc motionNotify(e: PXEvent) =
+  let event = e.xmotion
+
+  if event.window != root:
+    return
+
+  var
+    monitor = rectToMonitor(event.x_root, event.y_root, 1, 1)
+  if monitor != previousMonitor and previousMonitor != nil:
+    unfocus(selectedMonitor.selectedClient, true)
+    selectedMonitor = monitor
+    focus(NIL[Client])
+  previousMonitor = monitor
+
 proc moveMouse() =
-  discard
+  var
+    client = selectedMonitor.selectedClient
+
+  if client == nil or client.isFullscreen:
+    return
+
+  var
+    ocx, ocy, x, y: int
+
+  restack(selectedMonitor)
+  ocx = client.x
+  ocy = client.y
+
+  if XGrabPointer(
+    display,
+    root,
+    false,
+    MOUSEMASK,
+    GrabModeAsync,
+    GrabModeAsync,
+    None,
+    cursor,
+    CurrentTime
+  ) != GrabSuccess:
+    return
+
+  if not getRootPointer(x.addr, y.addr):
+    return
+
+  var
+    event: XEvent
+    lastTime: Time
+    newX, newY: int
+
+  doWhile(event.theType != ButtonRelease):
+    discard XMaskEvent(
+      display,
+      MOUSEMASK or ExposureMask or SubstructureRedirectMask,
+      event.addr
+    )
+
+    case event.theType:
+      of ConfigureRequest,
+         Expose,
+         MapRequest:
+        handleEvent(event.addr)
+      of MotionNotify:
+        if (event.xmotion.time - lastTime).float <= (1000 / 60):
+          return
+        lastTime = event.xmotion.time
+        newX = ocx + (event.xmotion.x - x)
+        newY = ocy + (event.xmotion.y - y)
+
+        if abs(selectedMonitor.windowAreaX - newX) < snap:
+          newX = selectedMonitor.windowAreaX
+        elif abs((selectedMonitor.windowAreaX + selectedMonitor.windowAreaWidth) - (newX + totalWidth(client))) < snap:
+          newX = selectedMonitor.windowAreaX + selectedMonitor.windowAreaWidth - totalWidth(client)
+
+        if abs(selectedMonitor.windowAreaY - newY) < snap:
+          newY = selectedMonitor.windowAreaY
+        elif abs((selectedMonitor.windowAreaY + selectedMonitor.windowAreaHeight) - (newY + totalHeight(client))) < snap:
+          newY = selectedMonitor.windowAreaY + selectedMonitor.windowAreaHeight - totalHeight(client)
+
+        if not client.isFloating and (abs(newX - client.x) > snap or abs(newY - client.y) > snap):
+          toggleFloating()
+
+        if client.isFloating:
+          resize(client, newX, newY, client.width, client.height, true)
+      else:
+        discard
+
+    discard XUngrabPointer(display, CurrentTime)
+
+    let monitor = rectToMonitor(client.x, client.y, client.width, client.height)
+    if monitor != selectedMonitor:
+      sendMonitor(client, monitor)
+      selectedMonitor = monitor
+      focus(NIL[Client])
+
+proc nextTiled(client: Client): Client =
+  result = client
+  while result != nil and (result.isFloating or not isVisible(result)):
+    result = client.next
+
+proc pop(client: var Client) =
+  detach(client)
+  attach(client)
+  focus(client)
+  arrange(client.monitor)
 
 proc rectToMonitor(x, y, width, height: int): Monitor =
   result = selectedMonitor
@@ -1321,6 +1491,10 @@ proc rectToMonitor(x, y, width, height: int): Monitor =
 
 proc removeSystrayIcon(client: Client) =
   discard
+
+proc resize(client: Client, x, y, width, height: var int, interact: bool) =
+  if applySizeHints(client, x, y, width, height, interact):
+    resizeClient(client, x, y, width, height)
 
 proc resizeBar(monitor: Monitor) =
   discard
@@ -1349,6 +1523,9 @@ proc sendEvent(
 ): bool =
   return true
 
+proc sendMonitor(client: Client, monitor: Monitor) =
+  discard
+
 proc setClientState(client: Client, state: int) =
   discard
 
@@ -1369,6 +1546,9 @@ proc systrayToMonitor(monitor: Monitor): Monitor =
 
 proc textWidth(str: string): uint =
   draw.fontsetGetWidth(str) + lrpad
+
+proc toggleFloating() =
+  discard
 
 proc unfocus(client: Client, setFocus: bool) =
   if client == nil:
