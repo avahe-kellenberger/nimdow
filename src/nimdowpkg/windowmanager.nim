@@ -207,8 +207,9 @@ proc resizeClient(
 )
 proc resizeRequest(e: PXEvent)
 proc resizeMouse
-
 proc restack(monitor: Monitor)
+proc run
+
 proc sendEvent(
   window: Window,
   atom: Atom,
@@ -1668,7 +1669,70 @@ proc resizeMouse =
     focus(NIL[Client])
 
 proc restack(monitor: Monitor) =
-  discard
+  drawBar(monitor)
+
+  if monitor.selectedClient == nil:
+    return
+
+  if monitor.selectedClient.isFloating:
+    discard XRaiseWindow(display, monitor.selectedClient.window)
+
+  var winChanges: XWindowChanges
+  winChanges.stack_mode = Below
+  winChanges.sibling = monitor.bar
+
+  var client = monitor.clientStack
+  while client != nil:
+    if not client.isFloating and isVisible(client):
+      discard XConfigureWindow(
+        display,
+        client.window,
+        CWSibling or CWStackMode,
+        winChanges.addr
+      )
+    client = client.next
+
+  discard XSync(display, false)
+
+  var event: XEvent
+  while XCheckMaskEvent(display, EnterWindowMask, event.addr):
+    discard
+
+  if monitor == selectedMonitor and
+     (monitor.tagset[monitor.selectedTags] and monitor.selectedClient.tags) != 0:
+    warp(monitor.selectedClient)
+
+proc run =
+  discard XSync(display, false)
+
+  # Main event loop
+  var event: XEvent
+  while running and XNextEvent(display, event.addr) != 0:
+    handleEvent(event.addr)
+
+proc scan =
+  var
+    num: uint
+    d1, d2: Window
+    windows: PWindow
+
+  if XQueryTree(display, root, d1.addr, d2.addr, windows.addr, cast[Pcuint](num.addr)) == 0:
+    return
+
+  var winAttr: XWindowAttributes
+  let wins = cast[ptr UncheckedArray[Window]](windows)
+  for i in 0..<num:
+    if XGetWindowAttributes(display, wins[i], winAttr.addr) == 0 or
+       winAttr.override_redirect or
+       XGetTransientForHint(display, wins[i], d1.addr) != 0:
+      continue
+    let state = getState(wins[i])
+    if winAttr.map_state == IsViewable or
+       state.isSome and state.get == IconicState:
+      manage(wins[i], winAttr.addr)
+
+  if wins != nil:
+    discard XFree(wins)
 
 proc sendEvent(
   window: Window,
