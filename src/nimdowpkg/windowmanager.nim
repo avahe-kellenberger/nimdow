@@ -192,7 +192,8 @@ proc motionNotify(e: PXEvent)
 proc moveMouse()
 proc nextTiled(client: Client): Client
 proc pop(client: var Client)
-
+proc propertyNotify(e: PXEvent)
+proc quit
 proc rectToMonitor(x, y, width, height: int): Monitor
 proc removeSystrayIcon(client: Client)
 proc resize(client: Client, x, y, width, height: var int, interact: bool)
@@ -204,6 +205,9 @@ proc resizeClient(
   width: int,
   height: int
 )
+proc resizeRequest(e: PXEvent)
+proc resizeMouse
+
 proc restack(monitor: Monitor)
 proc sendEvent(
   window: Window,
@@ -230,8 +234,10 @@ proc updateBars()
 proc updateGeom(): bool
 proc updateNumlockMask()
 proc updateSizeHints(client: Client)
+proc updateStatus()
 proc updateSystray()
 proc updateSystrayIconGeom(client: Client, width, height: int)
+proc updateSystrayIconState(client: Client, event: XPropertyEvent)
 proc updateTitle(client: Client)
 proc updateWindowType(client: Client)
 proc updateWMHints(client: Client)
@@ -316,10 +322,11 @@ template totalHeight(client: Client): int =
 template `$`(scheme: ColorScheme): int =
   ord(scheme)
 
-template doWhile(a, b: untyped): untyped =
-  b
-  while a:
+template doWhile(a: typed, b: untyped): untyped =
+  while true:
     b
+    if not a:
+      break
 
 proc applyRules(client: var Client) =
   # We don't care about dwm rules currently
@@ -1393,11 +1400,11 @@ proc moveMouse() =
     return
 
   var
-    ocx, ocy, x, y: int
+    oldClientX, oldClientY, x, y: int
 
   restack(selectedMonitor)
-  ocx = client.x
-  ocy = client.y
+  oldClientX = client.x
+  oldClientY = client.y
 
   if XGrabPointer(
     display,
@@ -1433,11 +1440,11 @@ proc moveMouse() =
          MapRequest:
         handleEvent(event.addr)
       of MotionNotify:
-        if (event.xmotion.time - lastTime).float <= (1000 / 60):
-          return
+        if (event.xmotion.time - lastTime).float <= MIN_UPDATE_INTERVAL:
+          continue
         lastTime = event.xmotion.time
-        newX = ocx + (event.xmotion.x - x)
-        newY = ocy + (event.xmotion.y - y)
+        newX = oldClientX + (event.xmotion.x - x)
+        newY = oldClientY + (event.xmotion.y - y)
 
         if abs(selectedMonitor.windowAreaX - newX) < snap:
           newX = selectedMonitor.windowAreaX
@@ -1476,6 +1483,57 @@ proc pop(client: var Client) =
   focus(client)
   arrange(client.monitor)
 
+proc propertyNotify(e: PXEvent) =
+  let event = e.xproperty
+  var client = windowToSystrayIcon(event.window)
+
+  if client != nil:
+    if event.atom == XA_WM_NORMAL_HINTS:
+      updateSizeHints(client)
+      updateSystrayIconGeom(client, client.width, client.height)
+    else:
+      updateSystrayIconState(client, event)
+
+    resizeBar(selectedMonitor)
+    updateSystray()
+
+  if event.window == root and event.atom == XA_WM_NAME:
+    updateStatus()
+  elif event.state == PropertyDelete:
+    return
+  else:
+    client = windowToClient(event.window)
+    if client == nil:
+      return
+
+    case event.atom:
+      of XA_WM_TRANSIENT_FOR:
+        var trans: Window
+        if not client.isFloating and XGetTransientForHint(display, client.window, trans.addr) != 0:
+          client.isFloating = (windowToClient(trans) != nil)
+          if client.isFloating:
+            arrange(client.monitor)
+
+      of XA_WM_NORMAL_HINTS:
+        updateSizeHints(client)
+
+      of XA_WM_HINTS:
+        updateWMHints(client)
+        drawBars()
+      else:
+        discard
+
+    if event.atom == XA_WM_NAME or event.atom == $NetWMName:
+      updateTitle(client)
+      if client == client.monitor.selectedClient:
+        drawBar(client.monitor)
+
+    if event.atom == $NetWMWindowType:
+      updateWindowType(client)
+
+proc quit =
+  running = false
+
 proc rectToMonitor(x, y, width, height: int): Monitor =
   result = selectedMonitor
   var
@@ -1507,6 +1565,107 @@ proc resizeClient(
   height: int
 ) =
   discard
+
+proc resizeRequest(e: PXEvent) =
+  let
+    event = e.xresizerequest
+    client = windowToSystrayIcon(event.window)
+
+  if client != nil:
+    updateSystrayIconGeom(client, event.width, event.height)
+    resizeBar(selectedMonitor)
+    updateSystray()
+
+proc resizeMouse =
+  let client = selectedMonitor.selectedClient
+  if client == nil or client.isFullscreen:
+    return
+
+  restack(selectedMonitor)
+  if XGrabPointer(
+    display,
+    root,
+    false,
+    MOUSEMASK,
+    GrabModeAsync,
+    GrabModeAsync,
+    None,
+    cursor,
+    CurrentTime
+  ) != GrabSuccess:
+    return
+
+  discard XWarpPointer(
+    display,
+    None,
+    client.window,
+    0,
+    0,
+    0,
+    0,
+    client.width + client.borderWidth.int - 1,
+    client.height + client.borderWidth.int - 1
+  )
+
+  let
+    oldClientX = client.x
+    oldClientY = client.y
+  var
+    event: XEvent
+    lastTime: Time
+    newWidth, newHeight: int
+
+  doWhile(event.theType != ButtonRelease):
+    discard XMaskEvent(display, MOUSEMASK or ExposureMask or SubstructureRedirectMask, event.addr)
+    case event.theType:
+
+      of ConfigureRequest, Expose, MapRequest:
+        handleEvent(event.addr)
+
+      of MotionNotify:
+        if (event.xmotion.time - lastTime) <= MIN_UPDATE_INTERVAL:
+          continue
+        lastTime = event.xmotion.time
+
+        newWidth = max(event.xmotion.x - oldClientX - 2 * client.borderWidth.int + 1, 1)
+        newHeight = max(event.xmotion.y - oldClientY - 2 * client.borderWidth.int + 1, 1)
+
+        if client.monitor.windowAreaX + newWidth >= selectedMonitor.windowAreaX and
+           client.monitor.windowAreaX + newWidth <= selectedMonitor.windowAreaX + selectedMonitor.windowAreaWidth and
+           client.monitor.windowAreaY + newHeight >= selectedMonitor.windowAreaY and
+           client.monitor.windowAreaY + newHeight <= selectedMonitor.windowAreaY + selectedMonitor.windowAreaHeight:
+          if not client.isFloating and
+             abs(newWidth - client.width) > snap or
+             abs(newHeight - client.height) > snap:
+               toggleFloating()
+
+        if client.isFloating:
+          resize(client, client.x, client.y, newWidth, newHeight, true)
+
+      else:
+        discard
+
+  discard XWarpPointer(
+    display,
+    None,
+    client.window,
+    0,
+    0,
+    0,
+    0,
+    client.width + client.borderWidth.int - 1,
+    client.height + client.borderWidth.int - 1
+  )
+  discard XUngrabPointer(display, CurrentTime)
+
+  while XCheckMaskEvent(display, EnterWindowMask, event.addr):
+    discard
+
+  let monitor = rectToMonitor(client.x, client.y, client.width, client.height)
+  if monitor != selectedMonitor:
+    sendMonitor(client, monitor)
+    selectedMonitor = monitor
+    focus(NIL[Client])
 
 proc restack(monitor: Monitor) =
   discard
@@ -1588,10 +1747,16 @@ proc updateNumlockMask() =
 proc updateSizeHints(client: Client) =
   discard
 
+proc updateStatus() =
+  discard
+
 proc updateSystray() =
   discard
 
 proc updateSystrayIconGeom(client: Client, width, height: int) =
+  discard
+
+proc updateSystrayIconState(client: Client, event: XPropertyEvent) =
   discard
 
 proc updateTitle(client: Client) =
