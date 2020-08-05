@@ -209,10 +209,9 @@ proc resizeRequest(e: PXEvent)
 proc resizeMouse
 proc restack(monitor: Monitor)
 proc run
-
 proc sendEvent(
   window: Window,
-  atom: Atom,
+  protocol: Atom,
   mask: int,
   data0: clong,
   data1: clong,
@@ -220,7 +219,7 @@ proc sendEvent(
   data3: clong,
   data4: clong
 ): bool
-proc sendMonitor(client: Client, monitor: Monitor)
+proc sendMonitor(client: var Client, monitor: Monitor)
 proc setClientState(client: Client, state: int)
 proc setFocus(client: Client)
 proc setFullscreen(client: Client, shouldFullscreen: bool)
@@ -1736,7 +1735,7 @@ proc scan =
 
 proc sendEvent(
   window: Window,
-  atom: Atom,
+  protocol: Atom,
   mask: int,
   data0: clong,
   data1: clong,
@@ -1744,19 +1743,142 @@ proc sendEvent(
   data3: clong,
   data4: clong
 ): bool =
-  return true
+  var
+    event: XEvent
+    protocols: PAtom
+    messageType: Atom
+    numProtocols: int
 
-proc sendMonitor(client: Client, monitor: Monitor) =
-  discard
+  if protocol == $WMTakeFocus or protocol == $WMDelete:
+    messageType = $WMProtocols
+    if XGetWMProtocols(display, window, protocols.addr, cast[Pcint](numProtocols.addr)) != 0:
+      let protocolsArr = cast[ptr UncheckedArray[Atom]](protocols)
+      while not result and numProtocols > 0:
+        result = protocolsArr[numProtocols] == protocol
+        numProtocols.dec
+      discard XFree(protocols)
+  else:
+    result = true
+    messageType = protocol
+
+  if result:
+    event.theType = ClientMessage
+    event.xclient.window = window
+    event.xclient.message_type = messageType
+    event.xclient.format = 32
+    event.xclient.data.l[0] = data0
+    event.xclient.data.l[1] = data1
+    event.xclient.data.l[2] = data2
+    event.xclient.data.l[3] = data3
+    event.xclient.data.l[4] = data4
+    discard XSendEvent(display, window, false, mask, event.addr)
+
+proc sendMonitor(client: var Client, monitor: Monitor) =
+  if client.monitor == monitor:
+    return
+
+  unfocus(client, true)
+  detach(client)
+  detachStack(client)
+  client.monitor = monitor
+  # Assign tags of target monitor
+  client.tags = monitor.tagset[monitor.selectedTags]
+  attachBelow(client)
+  attachStack(client)
+  focus(NIL[Client])
+  arrange(NIL[Monitor])
 
 proc setClientState(client: Client, state: int) =
-  discard
+  var data = [state.clong, None.clong]
+
+  discard XChangeProperty(
+    display,
+    client.window,
+    $WMState,
+    $WMState,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](data.addr),
+    2
+  )
 
 proc setFocus(client: Client) =
-  discard
+  if not client.neverFocus:
+    discard XSetInputFocus(display, client.window, RevertToPointerRoot, CurrentTime)
+    discard XChangeProperty(
+      display,
+      root,
+      $NetActiveWindow,
+      XA_WINDOW,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](client.window.addr),
+      1
+    )
+
+  discard sendEvent(
+    client.window,
+    $WMTakeFocus,
+    NoEventMask,
+    ($WMTakeFocus).clong,
+    CurrentTime.clong,
+    0.clong,
+    0.clong,
+    0.clong
+  )
 
 proc setFullscreen(client: Client, shouldFullscreen: bool) =
-  discard
+  if shouldFullscreen and not client.isFullscreen:
+    discard XChangeProperty(
+      display,
+      client.window,
+      $NetWMState,
+      XA_ATOM,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](($NetWMStateFullScreen).addr),
+      1
+    )
+    client.isFullscreen = true
+    client.oldState = client.isFloating
+    client.oldBorderWidth = client.borderWidth
+    client.borderWidth = 0
+    client.isFloating = true
+    resizeClient(
+      client,
+      client.monitor.screenX,
+      client.monitor.screenY,
+      client.monitor.screenWidth,
+      client.monitor.screenHeight
+    )
+    discard XRaiseWindow(display, client.window)
+
+  elif not shouldFullscreen and client.isFullscreen:
+    discard XChangeProperty(
+      display,
+      client.window,
+      $NetWMState,
+      XA_ATOM,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](0),
+      0
+    )
+    client.isFullscreen = false
+    client.isFloating = client.oldState
+    client.borderWidth = client.oldBorderWidth
+    client.x = client.oldX
+    client.y = client.oldY
+    client.width = client.oldWidth
+    client.height = client.oldHeight
+    resizeClient(
+      client,
+      client.x,
+      client.y,
+      client.width,
+      client.height
+    )
+    arrange(client.monitor)
 
 proc setUrgent(client: Client, shouldBeUrgent: bool) =
   discard
