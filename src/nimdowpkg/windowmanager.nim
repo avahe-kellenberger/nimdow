@@ -223,6 +223,13 @@ proc sendMonitor(client: var Client, monitor: Monitor)
 proc setClientState(client: Client, state: int)
 proc setFocus(client: Client)
 proc setFullscreen(client: Client, shouldFullscreen: bool)
+proc setGaps(
+  outerHorizontal,
+  outerVertical,
+  innerHorizontal,
+  innerVertical: uint
+)
+
 proc setUrgent(client: Client, shouldBeUrgent: bool)
 proc showhide(client: Client)
 proc systrayToMonitor(monitor: Monitor): Monitor
@@ -1880,11 +1887,53 @@ proc setFullscreen(client: Client, shouldFullscreen: bool) =
     )
     arrange(client.monitor)
 
+proc setGaps(
+  outerHorizontal,
+  outerVertical,
+  innerHorizontal,
+  innerVertical: uint
+) =
+  selectedMonitor.gapOuterHorizontal = outerHorizontal.int
+  selectedMonitor.gapOuterVertical = outerVertical.int
+  selectedMonitor.gapInnerHorizontal = innerHorizontal.int
+  selectedMonitor.gapInnerVertical = innerVertical.int
+  arrange(selectedMonitor)
+
 proc setUrgent(client: Client, shouldBeUrgent: bool) =
-  discard
+  client.isUrgent = shouldBeUrgent
+
+  let hints = XGetWMHints(display, client.window)
+  if hints == nil:
+    return
+  hints.flags =
+    if shouldBeUrgent:
+      hints.flags or XUrgencyHint
+    else:
+      hints.flags and (not XUrgencyHint)
+  discard XSetWMHints(display, client.window, hints)
+  discard XFree(hints)
 
 proc showhide(client: Client) =
-  discard
+  if client == nil:
+    return
+
+  if isVisible(client):
+    # Show clients top down
+    discard XMoveWindow(display, client.window, client.x, client.y)
+    if client.needsResize:
+      client.needsResize = false
+      discard XMoveResizeWindow(display, client.window, client.x, client.y, client.width, client.height)
+    else:
+      discard XMoveWindow(display, client.window, client.x, client.y)
+
+    if client.isFloating and not client.isFullscreen:
+      resize(client, client.x, client.y, client.width, client.height, false)
+
+    showhide(client.stackNext)
+  else:
+    # Hide clients bottom up
+    showhide(client.stackNext)
+    discard XMoveWindow(display, client.window, totalWidth(client) * -2, client.y)
 
 proc systrayToMonitor(monitor: Monitor): Monitor =
   discard
