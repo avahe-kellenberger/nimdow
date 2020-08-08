@@ -69,6 +69,10 @@ exec = [
   modifiers = [ "super" ]
 
   [controls.destroySelectedWindow]
+  keys = [ "c" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.destroySelectedProgram]
   keys = [ "q" ]
   modifiers = [ "super", "shift" ]
 
