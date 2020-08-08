@@ -483,27 +483,43 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   echo "\t", errorMessage
 
 proc destroySelectedWindow*(this: WindowManager) =
-  var selectedWin: Window
-  var selectionState: cint
-  discard XGetInputFocus(this.display, addr(selectedWin), addr(selectionState))
-  var event = XEvent()
-  event.xclient.theType = ClientMessage
-  event.xclient.window = selectedWin
-  event.xclient.message_type = XInternAtom(this.display, "WM_PROTOCOLS", false)
-  event.xclient.format = 32
-  event.xclient.data.l[0] = ($WMDelete).cint
-  event.xclient.data.l[1] = CurrentTime
-  event.xclient.data.l[2] = 0
-  event.xclient.data.l[3] = 0
-  if XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event)) != 0:
-    discard XGrabServer(this.display)
-    proc dummy(display: PDisplay, e: PXErrorEvent): cint {.cdecl.} = 0.cint
-    discard XSetErrorHandler(dummy)
-    discard XSetCloseDownMode(this.display, DestroyAll)
-    discard XKillClient(this.display, selectedWin)
-    discard XSync(this.display, false)
-    discard XSetErrorHandler(errorHandler)
-    discard XUngrabServer(this.display)
+  let selectedClient = this.selectedMonitor.currClient
+  withSome(selectedClient, client):
+    var
+      selectedWin = client.window
+      event = XEvent()
+      numProtocols: int
+      exists: bool
+      protocols: PAtom
+
+    if XGetWMProtocols(this.display, selectedWin, protocols.addr, cast[Pcint](numProtocols.addr)) != 0:
+      let protocolsArr = cast[ptr UncheckedArray[Atom]](protocols)
+      while not exists and numProtocols > 0:
+        numProtocols.dec
+        exists = protocolsArr[numProtocols] == $WMDelete
+      discard XFree(protocols)
+
+    if exists:
+      event.xclient.theType = ClientMessage
+      event.xclient.window = selectedWin
+      event.xclient.message_type = $WMProtocols
+      event.xclient.format = 32
+      event.xclient.data.l[0] = ($WMDelete).cint
+      event.xclient.data.l[1] = CurrentTime
+      event.xclient.data.l[2] = 0
+      event.xclient.data.l[3] = 0
+      event.xclient.data.l[4] = 0
+      discard XSendEvent(this.display, selectedWin, false, NoEventMask, addr(event))
+
+    if not exists:
+      discard XGrabServer(this.display)
+      proc dummy(display: PDisplay, e: PXErrorEvent): cint {.cdecl.} = 0.cint
+      discard XSetErrorHandler(dummy)
+      discard XSetCloseDownMode(this.display, DestroyAll)
+      discard XKillClient(this.display, selectedWin)
+      discard XSync(this.display, false)
+      discard XSetErrorHandler(errorHandler)
+      discard XUngrabServer(this.display)
 
 proc configure(this: WindowManager, client: Client) =
   var event: XConfigureEvent
