@@ -1,5 +1,6 @@
 import
   x11 / [x, xlib, xutil, xatom],
+  parsetoml,
   math,
   sugar,
   options,
@@ -69,7 +70,7 @@ proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 proc renderStatus(this: WindowManager)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 
-proc newWindowManager*(eventManager: XEventManager): WindowManager =
+proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
@@ -77,8 +78,7 @@ proc newWindowManager*(eventManager: XEventManager): WindowManager =
   discard XSetErrorHandler(errorHandler)
 
   # Config setup
-  result.config = newConfig()
-  let configTable = configloader.loadConfigFile()
+  result.config = config
   result.config.populateGeneralSettings(configTable)
   result.mapConfigActions()
   result.config.populateKeyComboTable(configTable, result.display)
@@ -286,7 +286,7 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
   let center = monitor.area.center()
   discard XWarpPointer(
     this.display,
-    None,
+    x.None,
     this.rootWindow,
     0,
     0,
@@ -465,8 +465,8 @@ proc hookConfigKeys*(this: WindowManager) =
         ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
         GrabModeASync,
         GrabModeASync,
-        None,
-        None
+        x.None,
+        x.None
       )
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
@@ -532,7 +532,7 @@ proc configure(this: WindowManager, client: Client) =
   event.width = client.width.cint
   event.height = client.height.cint
   event.border_width = client.borderWidth.cint
-  event.above = None
+  event.above = x.None
   event.override_redirect = false
   discard XSendEvent(this.display, client.window, false, StructureNotifyMask, cast[PXEvent](event.addr))
 
@@ -616,8 +616,8 @@ proc updateWindowType(this: WindowManager, client: var Client) =
     stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
     windowTypeOpt = this.display.getProperty[:Atom](client.window, $NetWMWindowType)
 
-  let state = if stateOpt.isSome: stateOpt.get else: None
-  let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: None
+  let state = if stateOpt.isSome: stateOpt.get else: x.None
+  let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: x.None
 
   if state == $NetWMStateFullScreen:
     for monitor in this.monitors:
@@ -626,7 +626,7 @@ proc updateWindowType(this: WindowManager, client: var Client) =
         break
 
   if not client.isFloating:
-    client.isFloating = windowType != None and
+    client.isFloating = windowType != x.None and
                         windowType != $NetWMWindowTypeNormal and
                         windowType != $NetWMWindowType
 
@@ -662,7 +662,7 @@ proc updateWMHints(this: WindowManager, client: Client) =
     discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
-  var state = [state, None]
+  var state = [state, x.None]
   discard XChangeProperty(
     this.display,
     client.window,
