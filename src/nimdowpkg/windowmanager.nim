@@ -67,8 +67,12 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
-proc renderStatus(this: WindowManager)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
+proc renderStatus(this: WindowManager)
+proc windowToClient(
+  this: WindowManager,
+  window: Window
+): tuple[clientOpt: Option[Client], monitor: Monitor]
 
 proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
   result = WindowManager()
@@ -625,15 +629,14 @@ proc updateWindowType(this: WindowManager, client: var Client) =
         monitor.toggleFullscreen(c)
         break
 
-  if not client.isFloating:
-    client.isFloating = windowType != x.None and
-                        windowType != $NetWMWindowTypeNormal and
-                        windowType != $NetWMWindowType
+  if windowType == $NetWMWindowTypeDialog:
+    client.isFloating = true
 
 proc updateSizeHints(this: WindowManager, client: var Client) =
   var sizeHints = XAllocSizeHints()
   var returnMask: int
-  discard XGetWMNormalHints(this.display, client.window, sizeHints, returnMask.addr)
+  if XGetWMNormalHints(this.display, client.window, sizeHints, returnMask.addr) == 0:
+    sizeHints.flags = PSize
 
   if sizeHints.min_width > 0 and sizeHints.min_width == sizeHints.max_width and
      sizeHints.min_height > 0 and sizeHints.min_height == sizeHints.max_height:
@@ -656,10 +659,11 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints != nil:
-    if this.selectedMonitor.find(client.window).isSome:
-      hints[].flags = hints[].flags and (not XUrgencyHint)
-      discard XSetWMHints(this.display, client.window, hints)
-    discard XFree(hints)
+    this.selectedMonitor.withSomeCurrClient(c):
+      if c == client and (hints.flags and XUrgencyHint) != 0:
+        hints[].flags = hints[].flags and (not XUrgencyHint)
+        discard XSetWMHints(this.display, client.window, hints)
+      discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
   var state = [state, x.None]
@@ -675,16 +679,19 @@ proc setClientState(this: WindowManager, client: Client, state: int) =
   )
 
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
-  # Don't manage the same window twice.
-  for monitor in this.monitors:
-    if monitor.find(window).isSome:
-        return
-
-  var client = newClient(window)
+  var
+    client = newClient(window)
+    transientWin: Window
   client.x = this.selectedMonitor.area.x + windowAttr.x
   client.y = this.selectedMonitor.area.y + windowAttr.y
   client.width = windowAttr.width
   client.height = windowAttr.height
+
+  let (clientOpt, mon) = this.windowToClient(window)
+  if clientOpt.isNone:
+    this.selectedMonitor.currTagClients.add(client)
+    this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
+    this.selectedMonitor.addWindowToClientListProperty(window)
 
   discard XSetWindowBorder(
     this.display,
@@ -703,10 +710,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     EnterWindowMask or
     FocusChangeMask
   )
-
-  this.selectedMonitor.currTagClients.add(client)
-  this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
-  this.selectedMonitor.addWindowToClientListProperty(window)
 
   this.updateWindowType(client)
   this.updateSizeHints(client)
@@ -820,16 +823,52 @@ proc renderStatus(this: WindowManager) =
     for monitor in this.monitors:
       monitor.statusBar.setStatus(status)
 
+proc windowToClient(
+  this: WindowManager,
+  window: Window
+): tuple[clientOpt: Option[Client], monitor: Monitor] =
+  var clientOpt: Option[Client]
+  for monitor in this.monitors:
+    clientOpt = monitor.find(window)
+    if clientOpt.isSome:
+      return (clientOpt, monitor)
+
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
-  if e.window == this.rootWindow and e.atom == $WMName:
+  if e.window == this.rootWindow and e.atom == XA_WM_NAME:
     this.renderStatus()
-  elif e.atom == $NetWMName:
-    for monitor in this.monitors:
-      monitor.withSomeCurrClient(client):
-        if client.window == e.window:
-          let opt = this.display.getWindowName(client.window)
-          withSome(opt, title):
-            this.selectedMonitor.statusBar.setActiveWindowTitle(title)
+  elif e.state == PropertyDelete:
+    return
+  else:
+    var (clientOpt, monitor) = this.windowToClient(e.window)
+    if clientOpt.isNone:
+      return
+
+    var client = clientOpt.get
+
+    case e.atom:
+      of XA_WM_TRANSIENT_FOR:
+        var transientWin: Window
+        if not client.isFloating and XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
+          let c = this.windowToClient(transientWin)
+          client.isFloating = c.clientOpt.isSome
+          if client.isFloating:
+            monitor.doLayout()
+      of XA_WM_NORMAL_HINTS:
+        this.updateSizeHints(client)
+      of XA_WM_HINTS:
+        this.updateWMHints(client)
+        for monitor in this.monitors:
+          monitor.redrawStatusBar()
+      else:
+        discard
+
+    if e.atom == XA_WM_NAME or e.atom == $NetWMName:
+      let opt = this.display.getWindowName(client.window)
+      withSome(opt, title):
+        monitor.statusBar.setActiveWindowTitle(title)
+
+    if e.atom == $NetWMWindowType:
+      this.updateWindowType(client)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:
