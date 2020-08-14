@@ -963,15 +963,15 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
       client,
       this.lastMoveResizeClientState.x + deltaX,
       this.lastMoveResizeClientState.y + deltaY,
-      this.lastMoveResizeClientState.width,
-      this.lastMoveResizeClientState.height
+      max(1, this.lastMoveResizeClientState.width.int),
+      max(1, this.lastMoveResizeClientState.height.int)
     )
   elif this.mouseState == Resizing:
     this.resize(
       client,
       this.lastMoveResizeClientState.x,
       this.lastMoveResizeClientState.y,
-      this.lastMoveResizeClientState.width.int + deltaX,
-      this.lastMoveResizeClientState.height.int + deltaY
+      max(1, this.lastMoveResizeClientState.width.int + deltaX),
+      max(1, this.lastMoveResizeClientState.height.int + deltaY)
     )
 
