@@ -48,7 +48,6 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
-  # TODO: Load bar area size from currentConfig
   let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
   result.config = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
@@ -65,10 +64,18 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
       )
     )
     result.taggedClients[tag] = @[]
+
+  var i = 0
   # View first tag by default
+  # Second tag is the `previousTag` by default.
   for tag in result.taggedClients.keys():
-    result.selectedTag = tag
-    break
+    if i == 0:
+      result.selectedTag = tag
+    elif i == 1:
+      result.previousTag = tag
+    else:
+      break
+    i.inc
 
   result.updateCurrentDesktopProperty()
   result.statusBar =
