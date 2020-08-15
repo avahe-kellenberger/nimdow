@@ -105,7 +105,7 @@ template withSomeCurrClient*(this: Monitor, client, body: untyped) =
     body
 
 proc redrawStatusBar*(this: Monitor) =
-  this.statusBar.redraw()
+  this.statusBar.setSelectedTag(this.selectedTag.id)
 
 proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
   var number: cint
