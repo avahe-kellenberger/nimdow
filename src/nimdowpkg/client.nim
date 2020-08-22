@@ -1,11 +1,11 @@
 import
   x11 / [x, xlib],
   hashes,
-  area
+  area,
+  xatoms
 
 converter intToCint(x: int): cint = x.cint
 converter uintToCint(x: uint): cint = x.cint
-converter uintToCUint(x: uint): cuint = x.cuint
 
 type
   Client* = ref object of RootObj
@@ -44,16 +44,29 @@ proc `oldwidth=`*(this: Client, width: uint) {.inline.} = this.oldArea.width = w
 proc oldHeight*(this: Client): uint = this.oldArea.height
 proc `oldheight=`*(this: Client, height: uint) {.inline.} = this.oldArea.height = height
 
-proc adjustToState*(this: Client, display: PDisplay) =
-  ## Changes the client's location, size, and border based on the client's internal state.
-  discard XMoveResizeWindow(
+proc configure*(this: Client, display: PDisplay) =
+  var event: XConfigureEvent
+  event.theType = ConfigureNotify
+  event.display = display
+  event.event = this.window
+  event.window = this.window
+  event.x = this.x
+  event.y = this.y
+  event.width = this.width
+  event.height = this.height
+  event.border_width = this.borderWidth
+  event.above = None
+  event.override_redirect = 0
+  discard XSendEvent(
     display,
     this.window,
-    this.area.x,
-    this.area.y,
-    this.area.width,
-    this.area.height
+    0,
+    StructureNotifyMask,
+    cast[PXEvent](event.addr)
   )
+
+proc adjustToState*(this: Client, display: PDisplay) =
+  ## Changes the client's location, size, and border based on the client's internal state.
   discard XSetWindowBorderWidth(display, this.window, this.borderWidth.cuint)
 
   var windowChanges: XWindowChanges
@@ -67,6 +80,58 @@ proc adjustToState*(this: Client, display: PDisplay) =
     this.window,
     CWX or CWY or CWWidth or CWHeight or CWBorderWidth,
     windowChanges.addr
+  )
+  this.configure(display)
+
+proc show*(this: Client, display: PDisplay) =
+  ## Moves the client to its current geom.
+  if this.isFullscreen:
+    discard XMoveWindow(
+      display,
+      this.window,
+      this.x,
+      this.y
+    )
+  else:
+    discard XMoveResizeWindow(
+      display,
+      this.window,
+      this.x,
+      this.y,
+      this.width.cuint,
+      this.height.cuint
+    )
+
+proc hide*(this: Client, display: PDisplay) =
+  ## Moves the client off screen.
+  discard XMoveWindow(
+    display,
+    this.window,
+    (this.width.int + this.borderWidth.int * 2) * -2,
+    this.y
+  )
+
+proc takeFocus*(this: Client, display: PDisplay) =
+  discard display.sendEvent(
+    this.window,
+    $WMTakeFocus,
+    NoEventMask,
+    ($WMTakeFocus).clong,
+    CurrentTime,
+    0, 0, 0
+  )
+
+proc warpTo*(display: PDisplay, client: Client) =
+  discard XWarpPointer(
+    display,
+    x.None,
+    client.window,
+    0,
+    0,
+    0,
+    0,
+    client.width.int div 2,
+    client.height.int div 2
   )
 
 proc isNormal*(this: Client): bool =

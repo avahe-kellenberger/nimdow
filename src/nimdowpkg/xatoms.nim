@@ -159,3 +159,48 @@ proc getWindowName*(display: PDisplay, window: Window): Option[string] =
     titleOpt = display.getStringProperty(window, $WMName)
   return titleOpt
 
+proc sendEvent*(
+  display: PDisplay,
+  window: Window,
+  protocol: Atom,
+  mask: int,
+  d0, d1, d2, d3, d4: clong
+): bool =
+  var
+    event = XEvent()
+    numProtocols: int
+    exists: bool
+    protocols: PAtom
+    mt: Atom
+
+  if protocol == $WMTakeFocus or protocol == $WMDelete:
+    mt = $WMProtocols
+    if XGetWMProtocols(
+      display,
+      window,
+      protocols.addr,
+      cast[Pcint](numProtocols.addr)
+    ) != 0:
+      let protocolsArr = cast[ptr UncheckedArray[Atom]](protocols)
+      while not exists and numProtocols > 0:
+        numProtocols.dec
+        exists = protocolsArr[numProtocols] == protocol
+      discard XFree(protocols)
+  else:
+    exists = true
+    mt = protocol
+
+  if exists:
+    event.xclient.theType = ClientMessage
+    event.xclient.window = window
+    event.xclient.message_type = mt
+    event.xclient.format = 32
+    event.xclient.data.l[0] = d0
+    event.xclient.data.l[1] = d1
+    event.xclient.data.l[2] = d2
+    event.xclient.data.l[3] = d3
+    event.xclient.data.l[4] = d4
+    discard XSendEvent(display, window, false, mask, addr(event))
+
+  return exists
+
