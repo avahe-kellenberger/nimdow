@@ -504,13 +504,15 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar]([]),
       0
     )
+    client.isFullscreen = false
+    client.isFloating = client.oldFloatingState
+    client.borderWidth = client.oldBorderWidth
     client.x = client.oldX
     client.y = client.oldY
     client.width = client.oldWidth
     client.height = client.oldHeight
-    client.borderWidth = client.oldBorderWidth
-    client.isFloating = false
     client.adjustToState(this.display)
+    this.doLayout()
   else:
     var arr = [$NetWMStateFullScreen]
     discard XChangeProperty(
@@ -523,25 +525,19 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       cast[Pcuchar](arr.addr),
       1
     )
-    client.oldX = client.x
-    client.oldY = client.y
-    client.oldWidth = client.width
-    client.oldHeight = client.height
+    client.isFullscreen = true
+    client.oldFloatingState = client.isFloating
     client.oldBorderWidth = client.borderWidth
-
-    client.x = this.area.x
-    client.y = this.area.y
-    client.width = this.area.width
-    client.height = this.area.height
     client.borderWidth = 0
     client.isFloating = true
-    client.adjustToState(this.display)
+    client.resize(
+      this.display,
+      this.area.x,
+      this.area.y,
+      this.area.width,
+      this.area.height
+    )
     discard XRaiseWindow(this.display, client.window)
-
-  client.isFullscreen = not client.isFullscreen
-  # Ensure the window has focus
-  this.focusClient(client, true)
-  this.doLayout()
 
 proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   ## Helper function for toggleFullscreen

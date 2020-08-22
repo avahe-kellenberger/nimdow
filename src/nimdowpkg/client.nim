@@ -6,6 +6,7 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter uintToCint(x: uint): cint = x.cint
+converter toXBool(x: bool): XBool = x.XBool
 
 type
   Client* = ref object of RootObj
@@ -16,6 +17,7 @@ type
     oldBorderWidth*: uint
     isFullscreen*: bool
     isFloating*: bool
+    oldFloatingState*: bool
     # Non-resizable
     isFixed*: bool
     needsResize*: bool
@@ -83,6 +85,24 @@ proc adjustToState*(this: Client, display: PDisplay) =
     windowChanges.addr
   )
   this.configure(display)
+  discard XSync(display, false)
+
+proc resize*(this: Client, display: PDisplay, x, y: int, width, height: uint) =
+  ## Resizes and raises the client.
+  this.oldX = this.x
+  this.x = x
+
+  this.oldY = this.y
+  this.y = y
+
+  this.oldWidth = this.width
+  this.width = width
+
+  this.oldHeight = this.height
+  this.height = height
+
+  this.adjustToState(display)
+  # discard XRaiseWindow(display, this.window)
 
 proc show*(this: Client, display: PDisplay) =
   ## Moves the client to its current geom.

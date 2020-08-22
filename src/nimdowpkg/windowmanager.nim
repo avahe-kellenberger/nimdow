@@ -67,7 +67,6 @@ proc onExposeNotify(this: WindowManager, e: XExposeEvent)
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
-proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 proc renderStatus(this: WindowManager)
 proc unmanage(this: WindowManager, window: Window, destroyed: bool)
@@ -322,16 +321,16 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if client.isFloating:
     let deltaX = client.x - this.selectedMonitor.area.x
     let deltaY = client.y - this.selectedMonitor.area.y
-    this.resize(
-      client,
+    client.resize(
+      this.display,
       nextMonitor.area.x + deltaX,
       nextMonitor.area.y + deltaY,
       client.width,
       client.height
     )
   elif client.isFullscreen:
-    this.resize(
-      client,
+    client.resize(
+      this.display,
       nextMonitor.area.x,
       nextMonitor.area.y,
       nextMonitor.area.width,
@@ -530,21 +529,6 @@ proc destroySelectedWindow*(this: WindowManager) =
       discard XSetErrorHandler(errorHandler)
       discard XUngrabServer(this.display)
 
-proc configure(this: WindowManager, client: Client) =
-  var event: XConfigureEvent
-  event.theType = ConfigureNotify
-  event.display = this.display
-  event.event = client.window
-  event.window = client.window
-  event.x = client.x
-  event.y = client.y
-  event.width = client.width.cint
-  event.height = client.height.cint
-  event.border_width = client.borderWidth.cint
-  event.above = x.None
-  event.override_redirect = false
-  discard XSendEvent(this.display, client.window, false, StructureNotifyMask, cast[PXEvent](event.addr))
-
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   var (clientOpt, monitor) = this.windowToClient(e.window)
 
@@ -554,16 +538,16 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       client.borderWidth = e.border_width
     elif client.isFloating:
       if (e.value_mask and CWX) != 0:
-        client.oldX = client.oldX
+        client.oldX = client.x
         client.x = e.x
       if (e.value_mask and CWY) != 0:
-        client.oldY = client.oldY
+        client.oldY = client.y
         client.y = e.y
       if (e.value_mask and CWWidth) != 0:
-        client.oldWidth = client.oldWidth.uint
+        client.oldWidth = client.width.uint
         client.width = e.width.uint
       if (e.value_mask and CWHeight) != 0:
-        client.oldWidth = client.height.uint
+        client.oldHeight = client.height.uint
         client.height = e.height.uint
 
       if not client.isFixed:
@@ -573,7 +557,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
           client.y = monitor.area.y + (monitor.area.height.int div 2 - (client.height.int div 2))
 
       if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth and CWHeight)) == 0:
-        this.configure(client)
+        client.configure(this.display)
       if monitor == this.selectedMonitor and monitor.currTagClients.contains(client):
         discard XMoveResizeWindow(
           this.display,
@@ -586,7 +570,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       else:
         client.needsResize = true
     else:
-      this.configure(client)
+      client.configure(this.display)
   else:
     var changes: XWindowChanges
     changes.x = e.detail
@@ -707,7 +691,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.windowSettings.borderColorUnfocused
   )
 
-  this.configure(client)
+  client.configure(this.display)
 
   discard XSelectInput(
     this.display,
@@ -919,14 +903,6 @@ proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:
     monitor.redrawStatusBar()
 
-proc resize(this: WindowManager, client: Client, x, y: int, width, height: uint) =
-  ## Resizes and raises the client.
-  client.x = x
-  client.y = y
-  client.width = width
-  client.height = height
-  client.adjustToState(this.display)
-  discard XRaiseWindow(this.display, client.window)
 
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   if this.selectedMonitor.currClient.isNone:
@@ -1003,16 +979,16 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
     deltaY = e.y - this.lastMousePress.y
 
   if this.mouseState == Moving:
-    this.resize(
-      client,
+    client.resize(
+      this.display,
       this.lastMoveResizeClientState.x + deltaX,
       this.lastMoveResizeClientState.y + deltaY,
       max(1, this.lastMoveResizeClientState.width.int),
       max(1, this.lastMoveResizeClientState.height.int)
     )
   elif this.mouseState == Resizing:
-    this.resize(
-      client,
+    client.resize(
+      this.display,
       this.lastMoveResizeClientState.x,
       this.lastMoveResizeClientState.y,
       max(1, this.lastMoveResizeClientState.width.int + deltaX),
