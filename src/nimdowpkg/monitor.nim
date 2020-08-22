@@ -320,12 +320,17 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
   let client = this.taggedClients[tag][clientIndex]
   this.taggedClients[tag].delete(clientIndex)
   tag.clearSelectedClient(client)
-  if tag.selectedClient.isNone and this.taggedClients[tag].len > 0:
-    # Find and assign the first normal client as "previouslySelectedClient"
-    let nextNormalIndex = this.taggedClients[tag].findNextNormal(-1)
-    if nextNormalIndex >= 0:
-      tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
-      tag.selectedClient = tag.previouslySelectedClient
+  if tag.selectedClient.isNone:
+    if this.taggedClients[tag].len > 0:
+      # Find and assign the first normal client as "previouslySelectedClient"
+      let nextNormalIndex = this.taggedClients[tag].findNextNormal(-1)
+      if nextNormalIndex >= 0:
+        tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
+        tag.selectedClient = tag.previouslySelectedClient
+    else:
+      tag.setSelectedClient(nil)
+      this.statusBar.setSelectedClient(nil, false)
+      this.statusBar.setActiveWindowTitle("")
 
 proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
@@ -337,10 +342,7 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
       this.removeWindowFromTag(tag, clientIndex)
       result = true
 
-  if this.currTagClients.len == 0:
-    this.statusBar.setSelectedClient(nil, false)
-    this.statusBar.setActiveWindowTitle("")
-  else:
+  if this.currTagClients.len > 0:
     let opt = this.selectedTag.selectedClient
     withSome(opt, client):
       this.setSelectedClient(client)
@@ -440,7 +442,6 @@ proc viewTag*(this: Monitor, tag: Tag) =
     this.deleteActiveWindowProperty()
     this.statusBar.setActiveWindowTitle("", false)
     this.statusBar.setSelectedClient(nil, false)
-    echo "set selected client to nil on tag ", this.selectedTag.id
 
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw()

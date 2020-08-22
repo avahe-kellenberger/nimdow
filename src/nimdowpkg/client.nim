@@ -18,6 +18,7 @@ type
     isFloating*: bool
     # Non-resizable
     isFixed*: bool
+    needsResize*: bool
 
 proc hash*(this: Client): Hash
 
@@ -85,14 +86,8 @@ proc adjustToState*(this: Client, display: PDisplay) =
 
 proc show*(this: Client, display: PDisplay) =
   ## Moves the client to its current geom.
-  if this.isFullscreen:
-    discard XMoveWindow(
-      display,
-      this.window,
-      this.x,
-      this.y
-    )
-  else:
+  if this.needsResize:
+    this.needsResize = false
     discard XMoveResizeWindow(
       display,
       this.window,
@@ -100,6 +95,13 @@ proc show*(this: Client, display: PDisplay) =
       this.y,
       this.width.cuint,
       this.height.cuint
+    )
+  else:
+    discard XMoveWindow(
+      display,
+      this.window,
+      this.x,
+      this.y
     )
 
 proc hide*(this: Client, display: PDisplay) =

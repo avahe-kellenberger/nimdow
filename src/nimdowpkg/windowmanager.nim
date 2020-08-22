@@ -574,15 +574,17 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
       if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth and CWHeight)) == 0:
         this.configure(client)
-        if monitor == this.selectedMonitor and monitor.currTagClients.contains(client):
-          discard XMoveResizeWindow(
-            this.display,
-            e.window,
-            client.x,
-            client.y,
-            client.width.cint,
-            client.height.cint
-          )
+      if monitor == this.selectedMonitor and monitor.currTagClients.contains(client):
+        discard XMoveResizeWindow(
+          this.display,
+          e.window,
+          client.x,
+          client.y,
+          client.width.cint,
+          client.height.cint
+        )
+      else:
+        client.needsResize = true
     else:
       this.configure(client)
   else:
@@ -764,6 +766,7 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
 
     monitor.doLayout(false)
     monitor.updateClientList()
+    monitor.statusBar.redraw()
 
     if monitor == this.selectedMonitor:
       withSome(monitor.currClient, newCurrClient):
@@ -993,7 +996,7 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
   if not client.isFloating:
     client.isFloating = true
     client.borderWidth = this.windowSettings.borderWidth.int
-    this.selectedMonitor.doLayout()
+    this.selectedMonitor.doLayout(false)
 
   let
     deltaX = e.x - this.lastMousePress.x
