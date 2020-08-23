@@ -16,7 +16,7 @@ proc findConfigPath*(): string =
   if not fileExists(result):
     raise newException(Exception, result & " does not exist")
 
-var configLoc*: string = findConfigPath()
+var configLoc*: string
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
