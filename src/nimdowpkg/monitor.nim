@@ -555,12 +555,21 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
   ## and fits the client to its state attributes.
   if floating == client.isFloating:
     return
+
+  client.oldFloatingState = client.isFloating
   client.isFloating = floating
+
   this.doLayout()
+
   if floating:
     if client.borderWidth == 0:
       client.oldBorderWidth = 0
       client.borderWidth = this.config.borderWidth
+    if client.totalWidth() > this.area.width:
+      client.width = this.area.width - client.borderWidth * 2
+    if client.totalHeight() > this.area.height - this.statusBar.area.height:
+      client.height = this.area.height - client.borderWidth * 2 - this.statusBar.area.height
+
     client.adjustToState(this.display)
 
 proc toggleFloatingForSelectedClient*(this: Monitor) =

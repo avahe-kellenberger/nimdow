@@ -106,7 +106,6 @@ proc resize*(this: Client, display: PDisplay, x, y: int, width, height: uint) =
   this.height = height
 
   this.adjustToState(display)
-  # discard XRaiseWindow(display, this.window)
 
 proc show*(this: Client, display: PDisplay) =
   ## Moves the client to its current geom.
