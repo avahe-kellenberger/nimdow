@@ -1,11 +1,12 @@
 import
-  x11 / [x, xlib],
+  x11 / [x, xlib, xutil],
   hashes,
-  area
+  area,
+  xatoms
 
 converter intToCint(x: int): cint = x.cint
 converter uintToCint(x: uint): cint = x.cint
-converter uintToCUint(x: uint): cuint = x.cuint
+converter toXBool(x: bool): XBool = x.XBool
 
 type
   Client* = ref object of RootObj
@@ -16,8 +17,11 @@ type
     oldBorderWidth*: uint
     isFullscreen*: bool
     isFloating*: bool
+    oldFloatingState*: bool
     # Non-resizable
     isFixed*: bool
+    needsResize*: bool
+    isUrgent*: bool
 
 proc hash*(this: Client): Hash
 
@@ -44,16 +48,32 @@ proc `oldwidth=`*(this: Client, width: uint) {.inline.} = this.oldArea.width = w
 proc oldHeight*(this: Client): uint = this.oldArea.height
 proc `oldheight=`*(this: Client, height: uint) {.inline.} = this.oldArea.height = height
 
-proc adjustToState*(this: Client, display: PDisplay) =
-  ## Changes the client's location, size, and border based on the client's internal state.
-  discard XMoveResizeWindow(
+proc totalWidth*(this: Client): int {.inline.} = this.width + this.borderWidth.int * 2
+proc totalHeight*(this: Client): int {.inline.} = this.height + this.borderWidth.int * 2
+
+proc configure*(this: Client, display: PDisplay) =
+  var event: XConfigureEvent
+  event.theType = ConfigureNotify
+  event.display = display
+  event.event = this.window
+  event.window = this.window
+  event.x = this.x
+  event.y = this.y
+  event.width = this.width
+  event.height = this.height
+  event.border_width = this.borderWidth
+  event.above = None
+  event.override_redirect = 0
+  discard XSendEvent(
     display,
     this.window,
-    this.area.x,
-    this.area.y,
-    this.area.width,
-    this.area.height
+    0,
+    StructureNotifyMask,
+    cast[PXEvent](event.addr)
   )
+
+proc adjustToState*(this: Client, display: PDisplay) =
+  ## Changes the client's location, size, and border based on the client's internal state.
   discard XSetWindowBorderWidth(display, this.window, this.borderWidth.cuint)
 
   var windowChanges: XWindowChanges
@@ -67,6 +87,91 @@ proc adjustToState*(this: Client, display: PDisplay) =
     this.window,
     CWX or CWY or CWWidth or CWHeight or CWBorderWidth,
     windowChanges.addr
+  )
+  this.configure(display)
+  discard XSync(display, false)
+
+proc resize*(this: Client, display: PDisplay, x, y: int, width, height: uint) =
+  ## Resizes and raises the client.
+  this.oldX = this.x
+  this.x = x
+
+  this.oldY = this.y
+  this.y = y
+
+  this.oldWidth = this.width
+  this.width = width
+
+  this.oldHeight = this.height
+  this.height = height
+
+  this.adjustToState(display)
+
+proc show*(this: Client, display: PDisplay) =
+  ## Moves the client to its current geom.
+  if this.needsResize:
+    this.needsResize = false
+    discard XMoveResizeWindow(
+      display,
+      this.window,
+      this.x,
+      this.y,
+      this.width.cuint,
+      this.height.cuint
+    )
+  else:
+    discard XMoveWindow(
+      display,
+      this.window,
+      this.x,
+      this.y
+    )
+
+proc hide*(this: Client, display: PDisplay) =
+  ## Moves the client off screen.
+  discard XMoveWindow(
+    display,
+    this.window,
+    (this.width.int + this.borderWidth.int * 2) * -2,
+    this.y
+  )
+
+proc takeFocus*(this: Client, display: PDisplay) =
+  discard display.sendEvent(
+    this.window,
+    $WMTakeFocus,
+    NoEventMask,
+    ($WMTakeFocus).clong,
+    CurrentTime,
+    0, 0, 0
+  )
+
+proc setUrgent*(this: Client, display: PDisplay, isUrgent: bool) =
+  this.isUrgent = isUrgent
+
+  var hints: PXWMHints = XGetWMHints(display, this.window)
+  if hints == nil:
+    return
+
+  if isUrgent:
+    hints.flags = hints.flags or XUrgencyHint
+  else:
+    hints.flags = hints.flags and not XUrgencyHint
+
+  discard XSetWMHints(display, this.window, hints)
+  discard XFree(hints)
+
+proc warpTo*(display: PDisplay, client: Client) =
+  discard XWarpPointer(
+    display,
+    x.None,
+    client.window,
+    0,
+    0,
+    0,
+    0,
+    client.width.int div 2,
+    client.height.int div 2
   )
 
 proc isNormal*(this: Client): bool =
