@@ -358,8 +358,8 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.deleteActiveWindowProperty()
   this.updateClientList()
 
-proc updateWindowTagAtom*(this: Monitor, window: Window, tag: Tag) =
-  let data: clong = this.selectedTag.id.clong
+proc updateWindowTagAtom*(this: Monitor, window: Window, tagID: int) =
+  let data: clong = tagID.clong
   discard XChangeProperty(
     this.display,
     window,
@@ -381,7 +381,7 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
     if tag == destinationTag:
       if not clients.contains(client):
         clients.add(client)
-        this.updateWindowTagAtom(client.window, destinationTag)
+        this.updateWindowTagAtom(client.window, destinationTag.id)
         tag.setSelectedClient(client)
         client.hide(this.display)
     else:

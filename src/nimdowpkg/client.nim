@@ -1,5 +1,5 @@
 import
-  x11 / [x, xlib],
+  x11 / [x, xlib, xutil],
   hashes,
   area,
   xatoms
@@ -21,6 +21,7 @@ type
     # Non-resizable
     isFixed*: bool
     needsResize*: bool
+    isUrgent*: bool
 
 proc hash*(this: Client): Hash
 
@@ -46,6 +47,9 @@ proc oldWidth*(this: Client): uint = this.oldArea.width
 proc `oldwidth=`*(this: Client, width: uint) {.inline.} = this.oldArea.width = width
 proc oldHeight*(this: Client): uint = this.oldArea.height
 proc `oldheight=`*(this: Client, height: uint) {.inline.} = this.oldArea.height = height
+
+proc totalWidth*(this: Client): int {.inline.} = this.width + this.borderWidth.int * 2
+proc totalHeight*(this: Client): int {.inline.} = this.height + this.borderWidth.int * 2
 
 proc configure*(this: Client, display: PDisplay) =
   var event: XConfigureEvent
@@ -142,6 +146,21 @@ proc takeFocus*(this: Client, display: PDisplay) =
     CurrentTime,
     0, 0, 0
   )
+
+proc setUrgent*(this: Client, display: PDisplay, isUrgent: bool) =
+  this.isUrgent = isUrgent
+
+  var hints: PXWMHints = XGetWMHints(display, this.window)
+  if hints == nil:
+    return
+
+  if isUrgent:
+    hints.flags = hints.flags or XUrgencyHint
+  else:
+    hints.flags = hints.flags and not XUrgencyHint
+
+  discard XSetWMHints(display, this.window, hints)
+  discard XFree(hints)
 
 proc warpTo*(display: PDisplay, client: Client) =
   discard XWarpPointer(

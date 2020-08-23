@@ -534,15 +534,20 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
   if clientOpt.isSome:
     let client = clientOpt.get
+
+    withSome(this.moveResizingClient, moveResizingClient):
+      if client == moveResizingClient:
+        return
+
     if (e.value_mask and CWBorderWidth) != 0 and e.border_width > 0:
       client.borderWidth = e.border_width
     elif client.isFloating:
       if (e.value_mask and CWX) != 0:
         client.oldX = client.x
-        client.x = e.x
+        client.x = monitor.area.x + e.x
       if (e.value_mask and CWY) != 0:
         client.oldY = client.y
-        client.y = e.y
+        client.y = monitor.area.y + e.y
       if (e.value_mask and CWWidth) != 0:
         client.oldWidth = client.width.uint
         client.width = e.width.uint
@@ -555,6 +560,13 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
           client.x = monitor.area.x + (monitor.area.width.int div 2 - (client.width.int div 2))
         if client.y == 0:
           client.y = monitor.area.y + (monitor.area.height.int div 2 - (client.height.int div 2))
+
+      if (client.x + client.width) > monitor.area.x + monitor.area.width:
+        # Center in X direction
+        client.x = monitor.area.x + (monitor.area.width.int div 2 - client.totalWidth div 2)
+      if (client.y + client.height) > monitor.area.y + monitor.area.height:
+        # Center in Y direction
+        client.y = monitor.area.y + (monitor.area.height.int div 2 - client.totalHeight div 2)
 
       if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth and CWHeight)) == 0:
         client.configure(this.display)
@@ -585,21 +597,22 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
-  for monitor in this.monitors:
-    let opt = monitor.find(e.window)
-    withSome(opt, client):
-      if e.message_type == $NetWMState:
-        let fullscreenAtom = $NetWMStateFullScreen
-        if e.data.l[1] == fullscreenAtom.clong or
-          e.data.l[2] == fullscreenAtom.clong:
-          # See the end of this section:
-          # https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html#idm45805407959456
-            var shouldFullscreen =
-              e.data.l[0] == 1 or
-              e.data.l[0] == 2 and not client.isFullscreen
-            monitor.setFullscreen(client, shouldFullscreen)
-      # We can stop once we've found the particular client
-      break
+  let (clientOpt, monitor) = this.windowToClient(e.window)
+  withSome(clientOpt, client):
+    if e.message_type == $NetWMState:
+      let fullscreenAtom = $NetWMStateFullScreen
+      if e.data.l[1] == fullscreenAtom.clong or
+        e.data.l[2] == fullscreenAtom.clong:
+        # See the end of this section:
+        # https://specifications.freedesktop.org/wm-spec/wm-spec-1.3.html#idm45805407959456
+          var shouldFullscreen =
+            e.data.l[0] == 1 or
+            e.data.l[0] == 2 and not client.isFullscreen
+          monitor.setFullscreen(client, shouldFullscreen)
+    elif e.message_type == $NetActiveWindow:
+      withSome(this.selectedMonitor.currClient, currClient):
+        if client != currClient and not client.isUrgent:
+          client.setUrgent(this.display, true)
 
 proc updateWindowType(this: WindowManager, client: var Client) =
   let
@@ -618,7 +631,7 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   if windowType == $NetWMWindowTypeDialog:
     client.isFloating = true
 
-proc updateSizeHints(this: WindowManager, client: var Client) =
+proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) =
   var sizeHints = XAllocSizeHints()
   var returnMask: int
   if XGetWMNormalHints(this.display, client.window, sizeHints, returnMask.addr) == 0:
@@ -628,19 +641,22 @@ proc updateSizeHints(this: WindowManager, client: var Client) =
      sizeHints.min_height > 0 and sizeHints.min_height == sizeHints.max_height:
 
     client.isFloating = true
-    client.width = sizeHints.min_width.uint
-    client.height = sizeHints.min_height.uint
+    client.width = max(client.width, sizeHints.min_width.uint)
+    client.height = max(client.height, sizeHints.min_height.uint)
 
     if not client.isFixed:
-      let area = this.selectedMonitor.area
+      let area = monitor.area
       client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
       client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
-      discard XMoveWindow(
-        this.display,
-        client.window,
-        client.x,
-        client.y
-      )
+      if monitor == this.selectedMonitor and monitor.currTagClients.find(client.window) != -1:
+        discard XMoveWindow(
+          this.display,
+          client.window,
+          client.x,
+          client.y
+        )
+      else:
+        client.needsResize = true
 
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
@@ -665,25 +681,29 @@ proc setClientState(this: WindowManager, client: Client, state: int) =
   )
 
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
-  var client: Client
-  block removeExistingWindow:
-    var (clientOpt, monitor) = this.windowToClient(window)
-    if clientOpt.isSome:
-      # Client was already added - Remove it before re-adding.
-      client = clientOpt.get
-      if monitor != this.selectedMonitor:
-        discard monitor.removeWindow(client.window)
-    else:
-      client = newClient(window)
+  var
+    client: Client
+    monitor = this.selectedMonitor
 
-  client.x = this.selectedMonitor.area.x + windowAttr.x
-  client.y = this.selectedMonitor.area.y + windowAttr.y
-  client.width = windowAttr.width
-  client.height = windowAttr.height
+  var (clientOpt, m) = this.windowToClient(window)
+  if clientOpt.isSome:
+    monitor = m
+    client = clientOpt.get
+  else:
+    client = newClient(window)
+    monitor.currTagClients.add(client)
+    client.x = this.selectedMonitor.area.x + windowAttr.x
+    client.oldX = client.x
+    client.y = this.selectedMonitor.area.y + windowAttr.y
+    client.oldY = client.y
+    client.width = windowAttr.width
+    client.oldWidth = client.width
+    client.height = windowAttr.height
+    client.oldHeight = client.height
+    client.oldBorderWidth = windowAttr.border_width
 
-  this.selectedMonitor.currTagClients.add(client)
-  this.selectedMonitor.updateWindowTagAtom(client.window, this.selectedMonitor.selectedTag)
-  this.selectedMonitor.addWindowToClientListProperty(window)
+  monitor.updateWindowTagAtom(client.window, monitor.selectedTag.id)
+  monitor.addWindowToClientListProperty(window)
 
   discard XSetWindowBorder(
     this.display,
@@ -704,7 +724,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   )
 
   this.updateWindowType(client)
-  this.updateSizeHints(client)
+  this.updateSizeHints(client, monitor)
   this.updateWMHints(client)
 
   discard XMoveResizeWindow(
@@ -717,11 +737,11 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   )
 
   this.setClientState(client, NormalState)
-  this.selectedMonitor.doLayout()
+  monitor.doLayout()
   discard XMapWindow(this.display, window)
 
   if not client.isFixed:
-    this.selectedMonitor.focusClient(client, true)
+    monitor.focusClient(client, true)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
@@ -888,7 +908,7 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
           if client.isFloating:
             monitor.doLayout()
       of XA_WM_NORMAL_HINTS:
-        this.updateSizeHints(client)
+        this.updateSizeHints(client, monitor)
       of XA_WM_HINTS:
         this.updateWMHints(client)
         for monitor in this.monitors:
@@ -902,7 +922,6 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   for monitor in this.monitors:
     monitor.redrawStatusBar()
-
 
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   if this.selectedMonitor.currClient.isNone:
