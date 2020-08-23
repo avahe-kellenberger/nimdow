@@ -741,7 +741,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   discard XMapWindow(this.display, window)
 
   if not client.isFixed:
-    monitor.focusClient(client, true)
+    monitor.focusClient(client, not client.isFloating)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
