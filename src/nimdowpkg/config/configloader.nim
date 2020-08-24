@@ -8,6 +8,8 @@ import
   "../keys/keyutils",
   "../event/xeventmanager"
 
+var configLoc*: string
+
 proc findConfigPath*(): string =
   let configHome = os.getConfigDir()
   result = configHome & "nimdow/config.toml"
@@ -15,8 +17,6 @@ proc findConfigPath*(): string =
     result = "/usr/share/nimdow/config.default.toml"
   if not fileExists(result):
     raise newException(Exception, result & " does not exist")
-
-var configLoc*: string
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]

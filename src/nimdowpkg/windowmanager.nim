@@ -737,7 +737,9 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   )
 
   this.setClientState(client, NormalState)
-  monitor.doLayout()
+  if not client.isFloating and not client.isFixed:
+    monitor.doLayout()
+
   discard XMapWindow(this.display, window)
 
   if not client.isFixed:
