@@ -20,14 +20,16 @@ when isMainModule:
     else:
       configloader.configLoc = findConfigPath()
 
-  log("Starting Nimdow " & version)
-
   let
     loadedConfig = newConfig()
     configTable = loadConfigFile()
 
   let eventManager = newXEventManager()
   let nimdow = newWindowManager(eventManager, loadedConfig, configTable)
+
+  logger.enabled = loadedConfig.loggingEnabled
+  log("Starting Nimdow " & version)
+
   loadedConfig.runAutostartCommands(configTable)
   eventManager.startEventListenerLoop(nimdow.display)
 

@@ -15,7 +15,8 @@ import
   config/configloader,
   event/xeventmanager,
   layouts/masterstacklayout,
-  keys/keyutils
+  keys/keyutils,
+  logger
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -238,6 +239,8 @@ proc reloadConfig*(this: WindowManager) =
   this.windowSettings = this.config.windowSettings
   for monitor in this.monitors:
     monitor.setConfig(this.config)
+
+  logger.enabled = this.config.loggingEnabled
 
 proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
@@ -478,7 +481,6 @@ proc hookConfigKeys*(this: WindowManager) =
       )
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
-  echo "Error: "
   var errorMessage: string = newString(1024)
   discard XGetErrorText(
     display,
@@ -488,7 +490,7 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   )
   # Reduce string length down to the proper size
   errorMessage.setLen(errorMessage.cstring.len)
-  echo "\t", errorMessage
+  log errorMessage, lvlError
 
 proc destroySelectedWindow*(this: WindowManager) =
   let selectedClient = this.selectedMonitor.currClient
