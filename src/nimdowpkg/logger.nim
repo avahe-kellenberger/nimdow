@@ -13,7 +13,7 @@ var
 template log*(message: string, level: logging.Level = lvlInfo) =
   const module = instantiationInfo().filename[0 .. ^5]
   let line = "[$# $#][$#]: $#" % [getDateStr(), getClockStr(), module, message]
-  echo line
+  echo "$# $#" % [LevelNames[level], line]
 
   if enabled:
     if logger == nil:
