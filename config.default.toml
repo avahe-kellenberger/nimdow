@@ -41,6 +41,8 @@ exec = [
     "monospace:size=10:anialias=false",
     "NotoColorEmoji:size=10:anialias=false"
   ]
+  # General settings
+  loggingEnabled = false
 
 # Window manager controls
 [controls]

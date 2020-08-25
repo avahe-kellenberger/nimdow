@@ -6,7 +6,10 @@ import
   tables,
   x11 / [x,  xlib],
   "../keys/keyutils",
-  "../event/xeventmanager"
+  "../event/xeventmanager",
+  "../logger"
+
+var configLoc*: string
 
 proc findConfigPath*(): string =
   let configHome = os.getConfigDir()
@@ -15,8 +18,6 @@ proc findConfigPath*(): string =
     result = "/usr/share/nimdow/config.default.toml"
   if not fileExists(result):
     raise newException(Exception, result & " does not exist")
-
-var configLoc*: string
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
@@ -38,6 +39,7 @@ type
     windowSettings*: WindowSettings
     barSettings*: BarSettings
     listener*: XEventListener
+    loggingEnabled*: bool
 
 proc newConfig*(): Config =
   Config(
@@ -59,7 +61,8 @@ proc newConfig*(): Config =
       fgColor: 0xfce8c3,
       bgColor: 0x1c1b19,
       selectionColor: 0x519f50
-    )
+    ),
+    loggingEnabled: false
   )
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
@@ -81,14 +84,14 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     return
   let autoStartTable = configTable["autostart"]
   if autoStartTable.kind != TomlValueKind.Table:
-    echo "Invalid autostart table"
+    log "Invalid autostart table", lvlWarn
     return
   if not autoStartTable.tableVal[].hasKey("exec"):
-    echo "Autostart table does not have exec key"
+    log "Autostart table does not have exec key", lvlWarn
     return
   for cmd in autoStartTable.tableVal[]["exec"].arrayVal:
     if cmd.kind != TomlValueKind.String:
-      echo repr(cmd), " is not a string"
+      log repr(cmd) & " is not a string", lvlWarn
     else:
       result.add(cmd.stringVal)
 
@@ -97,7 +100,7 @@ proc runCommands(commands: varargs[string]) =
     try:
       discard startProcess(command = cmd, options = { poEvalCommand })
     except:
-      echo "Failed to start command: ", cmd
+      log "Failed to start command: " & cmd, lvlWarn
 
 proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:
@@ -123,7 +126,7 @@ proc configureExternalProcess(this: Config, command: string) =
       try:
         discard startProcess(command = command, options = { poEvalCommand })
       except:
-        echo "Failed to start command: ", command
+        log "Failed to start command: " & command, lvlWarn
 
 proc hookConfig*(this: Config, eventManager: XEventManager) =
   this.listener = proc(e: XEvent) =
@@ -149,14 +152,14 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
   # Populate external commands
   let externalProcessesTable = configTable["startProcess"]
   if externalProcessesTable.kind != TomlValueKind.Array:
-    echo "No \"startProcess\" commands defined!"
+    log "No \"startProcess\" commands defined!", lvlWarn
   else:
     for commandDeclaration in externalProcessesTable.arrayVal:
       if commandDeclaration.kind != TomlValueKind.Table:
-        echo "Invalid \"startProcess\" configuration command!"
+        log "Invalid \"startProcess\" configuration command!", lvlWarn
         continue
       if not commandDeclaration.tableVal[].hasKey("command"):
-        echo "Invalid \"startProcess\" configuration: Missing\"command\" string!"
+        log "Invalid \"startProcess\" configuration: Missing\"command\" string!", lvlWarn
         continue
       let command = commandDeclaration.tableVal["command"].stringVal
       this.configureExternalProcess(command)
@@ -173,9 +176,9 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
       try:
         return fromHex[int](setting.stringVal)
       except:
-        echo valueName, " is not a proper hex value! Format: #123456"
+        log valueName & " is not a proper hex value! Format: #123456", lvlWarn
     else:
-      echo valueName, " is not a proper hex value! Ensure it is wrapped in double quotes"
+      log valueName & " is not a proper hex value! Ensure it is wrapped in double quotes", lvlWarn
   return -1
 
 proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
@@ -209,28 +212,29 @@ proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
       if font.kind == TomlValueKind.String:
         this.barSettings.fonts.add(font.stringVal)
       else:
-        echo "Invalid font - must be a string!"
+        log "Invalid font - must be a string!", lvlWarn
 
 proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if not configTable.hasKey("settings") or configTable["settings"].kind != TomlValueKind.Table:
-    echo "Invalid settings table! Using default settings"
+    log "Invalid settings table! Using default settings", lvlWarn
     return
 
   let settingsTable = configTable["settings"].tableVal
 
+  # Window settings
   if settingsTable.hasKey("gapSize"):
     let gapSizeSetting = settingsTable["gapSize"]
     if gapSizeSetting.kind == TomlValueKind.Int:
       this.windowSettings.gapSize = max(0, gapSizeSetting.intVal).uint
     else:
-      echo "gapSize is not an integer value!"
+      log "gapSize is not an integer value!", lvlWarn
 
   if settingsTable.hasKey("borderWidth"):
     let borderWidthSetting = settingsTable["borderWidth"]
     if borderWidthSetting.kind == TomlValueKind.Int:
       this.windowSettings.borderWidth = max(0, borderWidthSetting.intVal).uint
     else:
-      echo "borderWidth is not an integer value!"
+      log "borderWidth is not an integer value!", lvlWarn
 
   let unfocusedBorderVal = this.loadHexValue(settingsTable, "borderColorUnfocused")
   if unfocusedBorderVal != -1:
@@ -240,7 +244,16 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if focusedBorderVal != -1:
     this.windowSettings.borderColorFocused = focusedBorderVal
 
+  # Bar settings
   this.populateBarSettings(settingsTable)
+
+  # General settings
+  if settingsTable.hasKey("loggingEnabled"):
+    let loggingEnabledSetting = settingsTable["loggingEnabled"]
+    if loggingEnabledSetting.kind == TomlValueKind.Bool:
+      this.loggingEnabled = loggingEnabledSetting.boolVal
+    else:
+      log "loggingEnabled is not true/false!", lvlWarn
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
@@ -262,7 +275,7 @@ proc populateControlAction(this: Config, display: PDisplay, action: string, conf
     if this.identifierTable.hasKey(action):
       this.keyComboTable[keyCombo] = this.identifierTable[action]
     else:
-      echo "Invalid key config action: \"", action, "\" does not exist"
+      log "Invalid key config action: \"" & action & "\" does not exist", lvlWarn
 
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
   ## Gets the KeyCombos associated with the given `action` from the table.
