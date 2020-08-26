@@ -122,7 +122,7 @@ proc getStringProperty*(
   display: PDisplay,
   window: Window,
   property: Atom,
-): Option[string] =
+): string =
   var
     actualTypeReturn: Atom
     actualFormatReturn: cint
@@ -148,16 +148,16 @@ proc getStringProperty*(
 
   if numItemsReturn > 0.culong:
     let val = $propReturn[]
-    return val.option
+    return val
   else:
-    return none(string)
+    return ""
 
-proc getWindowName*(display: PDisplay, window: Window): Option[string] =
+proc getWindowName*(display: PDisplay, window: Window): string =
   ## Gets the name of the window by querying for NetWMName and WMName.
-  var titleOpt = display.getStringProperty(window, $NetWMName)
-  if titleOpt.isNone:
-    titleOpt = display.getStringProperty(window, $WMName)
-  return titleOpt
+  var title = display.getStringProperty(window, $NetWMName)
+  if title.len == 0:
+    title = display.getStringProperty(window, $WMName)
+  return title
 
 proc sendEvent*(
   display: PDisplay,

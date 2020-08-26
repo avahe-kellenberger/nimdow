@@ -346,9 +346,8 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
     let opt = this.selectedTag.selectedClient
     withSome(opt, client):
       this.setSelectedClient(client)
-      let opt = this.display.getWindowName(client.window)
-      withSome(opt, title):
-        this.statusBar.setActiveWindowTitle(title)
+      let title = this.display.getWindowName(client.window)
+      this.statusBar.setActiveWindowTitle(title)
 
 proc removeWindow*(this: Monitor, window: Window): bool =
   ## Returns if the window was removed.

@@ -869,9 +869,8 @@ proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
   monitor.withSomeCurrClient(client):
-    let opt = this.display.getWindowName(client.window)
-    withSome(opt, title):
-      this.selectedMonitor.statusBar.setActiveWindowTitle(title)
+    let title = this.display.getWindowName(client.window)
+    this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc renderStatus(this: WindowManager) =
   ## Renders the status on all status bars.
@@ -919,6 +918,12 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
           monitor.redrawStatusBar()
       else:
         discard
+
+    if e.atom == XA_WM_NAME or e.atom == $NetWMName:
+      withSome(monitor.currClient, c):
+        if c == client:
+          let name = this.display.getWindowName(client.window)
+          monitor.statusBar.setActiveWindowTitle(name)
 
     if e.atom == $NetWMWindowType:
       this.updateWindowType(client)
@@ -969,9 +974,8 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   discard prevMonitor.removeWindow(client.window)
   nextMonitor.currTagClients.add(client)
   nextMonitor.focusClient(client, false)
-  let opt = this.display.getWindowName(client.window)
-  withSome(opt, title):
-    nextMonitor.statusBar.setActiveWindowTitle(title)
+  let title = this.display.getWindowName(client.window)
+  nextMonitor.statusBar.setActiveWindowTitle(title)
 
   this.selectedMonitor = nextMonitor
   # Unset the client being moved/resized
