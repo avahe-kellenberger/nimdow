@@ -42,7 +42,7 @@ exec = [
     "NotoColorEmoji:size=10:anialias=false"
   ]
   # General settings
-  loggingEnabled = false
+  loggingEnabled = true
 
 # Window manager controls
 [controls]

@@ -187,27 +187,57 @@ func find*[T](clients: openArray[T], window: Window): int =
       return i
   return -1
 
+proc findNext(clients: openArray[Client], i: int = 0, condition: proc(client: Client): bool): int =
+  ## Finds the next client index from index `i` (exclusive), iterating forward.
+  ## This search will loop the array.
+  for j in countup(i + 1, clients.high):
+    if condition(clients[j]):
+      return j
+  for j in countup(clients.low, i - 1):
+    if condition(clients[j]):
+      return j
+  return -1
+
+proc findPrevious*(clients: openArray[Client], i: int = 0, condition: proc(client: Client): bool): int =
+  ## Finds the next client index from index `i` (exclusive), iterating backward.
+  ## This search will loop the array.
+  for j in countdown(i - 1, clients.low):
+    if condition(clients[j]):
+      return j
+  for j in countdown(clients.high, i + 1):
+    if condition(clients[j]):
+      return j
+  return -1
+
 proc findNextNormal*(clients: openArray[Client], i: int = 0): int =
   ## Finds the next normal client index from index `i` (exclusive), iterating forward.
   ## This search will loop the array.
-  for j in countup(i + 1, clients.high):
-    if clients[j].isNormal:
-      return j
-  for j in countup(clients.low, i - 1):
-    if clients[j].isNormal:
-      return j
-  return -1
+  return findNext(clients, i, proc (client: Client): bool = client.isNormal)
+
+proc findNextTiled*(clients: openArray[Client], i: int = 0): int =
+  ## Finds the next tiled client index from index `i` (exclusive), iterating forward.
+  ## This search will loop the array.
+  return findNext(
+    clients,
+    i,
+    proc (client: Client): bool =
+      client.isNormal and not client.isFloating and not client.isFullscreen
+  )
 
 proc findPreviousNormal*(clients: openArray[Client], i: int = 0): int =
   ## Finds the next normal client index from index `i` (exclusive), iterating backward.
   ## This search will loop the array.
-  for j in countdown(i - 1, clients.low):
-    if clients[j].isNormal:
-      return j
-  for j in countdown(clients.high, i + 1):
-    if clients[j].isNormal:
-      return j
-  return -1
+  return findPrevious(clients, i, proc (client: Client): bool = client.isNormal)
+
+proc findPreviousTiled*(clients: openArray[Client], i: int = 0): int =
+  ## Finds the next tiled client index from index `i` (exclusive), iterating backward.
+  ## This search will loop the array.
+  return findPrevious(
+    clients,
+    i,
+    proc (client: Client): bool =
+      client.isNormal and not client.isFloating and not client.isFullscreen
+  )
 
 proc hash*(this: Client): Hash = !$Hash(this.window)
 

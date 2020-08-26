@@ -417,12 +417,12 @@ proc mapConfigActions*(this: WindowManager) =
       this.goToTag(previousTag)
 
   createControl(keycode, "focusNext"):
-    this.selectedMonitor.focusNextClient()
+    this.selectedMonitor.focusNextClient(true)
     withSome(this.selectedMonitor.currClient, client):
       this.display.warpTo(client)
 
   createControl(keycode, "focusPrevious"):
-    this.selectedMonitor.focusPreviousClient()
+    this.selectedMonitor.focusPreviousClient(true)
     withSome(this.selectedMonitor.currClient, client):
       this.display.warpTo(client)
 

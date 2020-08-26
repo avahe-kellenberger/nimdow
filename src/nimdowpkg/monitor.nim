@@ -462,17 +462,18 @@ proc findSelectedAndNextNormalClientIndexes(
 
 proc focusClient(
   this: Monitor,
-  findNormalClient: (clients: openArray[Client], i: int) -> int
+  findNormalClient: (clients: openArray[Client], i: int) -> int,
+  warpToClient: bool
 ) =
   let result = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
   if result.nextIndex >= 0:
-    this.focusClient(this.currTagClients[result.nextIndex], true)
+    this.focusClient(this.currTagClients[result.nextIndex], warpToClient)
 
-proc focusPreviousClient*(this: Monitor) =
-  this.focusClient(client.findPreviousNormal)
+proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
+  this.focusClient(client.findPreviousNormal, warpToClient)
 
-proc focusNextClient*(this: Monitor) =
-  this.focusClient(client.findNextNormal)
+proc focusNextClient*(this: Monitor, warpToClient: bool) =
+  this.focusClient(client.findNextNormal, warpToClient)
 
 proc moveClient(
   this: Monitor,
@@ -487,10 +488,10 @@ proc moveClient(
     this.focusClient(this.currTagClients[indexes.nextIndex], true)
 
 proc moveClientPrevious*(this: Monitor) =
-  this.moveClient(client.findPreviousNormal)
+  this.moveClient(client.findPreviousTiled)
 
 proc moveClientNext*(this: Monitor) =
-  this.moveClient(client.findNextNormal)
+  this.moveClient(client.findNextTiled)
 
 proc toggleFullscreen*(this: Monitor, client: var Client) =
   if client.isFullscreen:
