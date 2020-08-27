@@ -6,7 +6,7 @@ import
   nimdowpkg/logger
 
 when isMainModule:
-  const version = "v0.6.9"
+  const version = "v0.6.10"
   when declared(commandLineParams):
     let params = commandLineParams()
     if params.len == 1:
