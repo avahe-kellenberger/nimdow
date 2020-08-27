@@ -302,7 +302,7 @@ proc restack*(this: Monitor) =
     winChanges.stack_mode = Below
     winChanges.sibling = this.statusBar.barWindow
     for c in this.currTagClients:
-      if not c.isFloating:
+      if not c.isFloating and not client.isFullscreen:
         discard XConfigureWindow(
           this.display,
           c.window,
@@ -346,9 +346,8 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
     let opt = this.selectedTag.selectedClient
     withSome(opt, client):
       this.setSelectedClient(client)
-      let opt = this.display.getWindowName(client.window)
-      withSome(opt, title):
-        this.statusBar.setActiveWindowTitle(title)
+      let title = this.display.getWindowName(client.window)
+      this.statusBar.setActiveWindowTitle(title)
 
 proc removeWindow*(this: Monitor, window: Window): bool =
   ## Returns if the window was removed.
@@ -462,17 +461,18 @@ proc findSelectedAndNextNormalClientIndexes(
 
 proc focusClient(
   this: Monitor,
-  findNormalClient: (clients: openArray[Client], i: int) -> int
+  findNormalClient: (clients: openArray[Client], i: int) -> int,
+  warpToClient: bool
 ) =
   let result = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
   if result.nextIndex >= 0:
-    this.focusClient(this.currTagClients[result.nextIndex], true)
+    this.focusClient(this.currTagClients[result.nextIndex], warpToClient)
 
-proc focusPreviousClient*(this: Monitor) =
-  this.focusClient(client.findPreviousNormal)
+proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
+  this.focusClient(client.findPreviousNormal, warpToClient)
 
-proc focusNextClient*(this: Monitor) =
-  this.focusClient(client.findNextNormal)
+proc focusNextClient*(this: Monitor, warpToClient: bool) =
+  this.focusClient(client.findNextNormal, warpToClient)
 
 proc moveClient(
   this: Monitor,
@@ -487,10 +487,10 @@ proc moveClient(
     this.focusClient(this.currTagClients[indexes.nextIndex], true)
 
 proc moveClientPrevious*(this: Monitor) =
-  this.moveClient(client.findPreviousNormal)
+  this.moveClient(client.findPreviousTiled)
 
 proc moveClientNext*(this: Monitor) =
-  this.moveClient(client.findNextNormal)
+  this.moveClient(client.findNextTiled)
 
 proc toggleFullscreen*(this: Monitor, client: var Client) =
   if client.isFullscreen:
