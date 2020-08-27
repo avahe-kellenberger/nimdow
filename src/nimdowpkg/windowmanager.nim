@@ -570,7 +570,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
         # Center in Y direction
         client.y = monitor.area.y + (monitor.area.height.int div 2 - client.totalHeight div 2)
 
-      if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth and CWHeight)) == 0:
+      if (e.value_mask and (CWX or CWY)) != 0 and (e.value_mask and (CWWidth or CWHeight)) == 0:
         client.configure(this.display)
       if monitor == this.selectedMonitor and monitor.currTagClients.contains(client):
         discard XMoveResizeWindow(
@@ -625,10 +625,9 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: x.None
 
   if state == $NetWMStateFullScreen:
-    for monitor in this.monitors:
-      withSome(monitor.find(client.window), c):
-        monitor.toggleFullscreen(c)
-        break
+    let (clientOpt, monitor) = this.windowToClient(client.window)
+    withSome(clientOpt, _):
+      monitor.setFullscreen(client, true)
 
   if windowType == $NetWMWindowTypeDialog:
     client.isFloating = true
@@ -646,7 +645,7 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.width = max(client.width, sizeHints.min_width.uint)
     client.height = max(client.height, sizeHints.min_height.uint)
 
-    if not client.isFixed:
+    if not client.isFixed and not client.isFullscreen:
       let area = monitor.area
       client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
       client.y = area.y + (area.height.int div 2 - (client.height.int div 2))

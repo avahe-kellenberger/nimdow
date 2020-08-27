@@ -302,7 +302,7 @@ proc restack*(this: Monitor) =
     winChanges.stack_mode = Below
     winChanges.sibling = this.statusBar.barWindow
     for c in this.currTagClients:
-      if not c.isFloating:
+      if not c.isFloating and not client.isFullscreen:
         discard XConfigureWindow(
           this.display,
           c.window,

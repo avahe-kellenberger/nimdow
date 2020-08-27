@@ -77,10 +77,10 @@ proc adjustToState*(this: Client, display: PDisplay) =
   discard XSetWindowBorderWidth(display, this.window, this.borderWidth.cuint)
 
   var windowChanges: XWindowChanges
-  windowChanges.x = this.area.x
-  windowChanges.y = this.area.y
-  windowChanges.width = this.area.width
-  windowChanges.height = this.area.height
+  windowChanges.x = this.x
+  windowChanges.y = this.y
+  windowChanges.width = this.width
+  windowChanges.height = this.height
   windowChanges.border_width = this.borderWidth.cint
   discard XConfigureWindow(
     display,
