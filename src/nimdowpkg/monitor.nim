@@ -4,7 +4,6 @@ import
   tables,
   sets,
   strutils,
-  options,
   xatoms,
   tag,
   client,
@@ -14,8 +13,7 @@ import
   layouts/masterstacklayout,
   keys/keyutils,
   config/configloader,
-  statusbar,
-  utils/optionutils
+  statusbar
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -103,14 +101,13 @@ template currTagClients*(this: Monitor): untyped =
   ## `clients` would be a copy of the collection.
   this.taggedClients[this.selectedTag]
 
-template currClient*(this: Monitor): Option[Client] =
+template currClient*(this: Monitor): Client =
   this.selectedTag.selectedClient
 
 template withSomeCurrClient*(this: Monitor, client, body: untyped) =
-  ## Executes `body` if `this.currClient.isSome == true`
-  ## with the extracted Client value.
-  if this.currClient.isSome:
-    var client: Client = this.currClient.get
+  ## Executes `body` if `this.currClient != nil`
+  if this.currClient != nil:
+    var client: Client = this.currClient
     body
 
 proc redrawStatusBar*(this: Monitor) =
@@ -167,13 +164,13 @@ proc calculateStrutArea*(strut: Strut, displayWidth, displayHeight: int): Area =
     echo "ERROR: No invalid strut!"
   return (0, 0, 0.uint, 0.uint)
 
-proc find*(this: Monitor, window: Window): Option[Client] =
+proc find*(this: Monitor, window: Window): Client =
   ## Finds a client based on its window property.
   for tag, clients in this.taggedClients.pairs:
     let index = clients.find(window)
     if index >= 0:
-      return clients[index].option
-  return none(Client)
+      return clients[index]
+  return nil
 
 proc updateCurrentDesktopProperty(this: Monitor) =
   var data: array[1, clong] = [this.selectedTag.id]
@@ -232,10 +229,10 @@ proc ensureWindowFocus*(this: Monitor) =
     this.focusRootWindow()
     this.statusBar.setSelectedClient(nil)
   else:
-    if this.currClient.isSome:
-      this.focusClient(this.currClient.get, true)
-    elif this.selectedTag.previouslySelectedClient.isSome:
-      this.focusClient(this.selectedTag.previouslySelectedClient.get, true)
+    if this.currClient != nil:
+      this.focusClient(this.currClient, true)
+    elif this.selectedTag.previouslySelectedClient != nil:
+      this.focusClient(this.selectedTag.previouslySelectedClient, true)
     else:
       # Find the first normal client
       let clientIndex = this.currTagClients.findNextNormal(-1)
@@ -320,12 +317,12 @@ proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
   let client = this.taggedClients[tag][clientIndex]
   this.taggedClients[tag].delete(clientIndex)
   tag.clearSelectedClient(client)
-  if tag.selectedClient.isNone:
+  if tag.selectedClient == nil:
     if this.taggedClients[tag].len > 0:
       # Find and assign the first normal client as "previouslySelectedClient"
       let nextNormalIndex = this.taggedClients[tag].findNextNormal(-1)
       if nextNormalIndex >= 0:
-        tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex].option
+        tag.previouslySelectedClient = this.taggedClients[tag][nextNormalIndex]
         tag.selectedClient = tag.previouslySelectedClient
     else:
       tag.setSelectedClient(nil)
@@ -343,8 +340,8 @@ proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
       result = true
 
   if this.currTagClients.len > 0:
-    let opt = this.selectedTag.selectedClient
-    withSome(opt, client):
+    let client = this.selectedTag.selectedClient
+    if client != nil:
       this.setSelectedClient(client)
       let title = this.display.getWindowName(client.window)
       this.statusBar.setActiveWindowTitle(title)
@@ -399,8 +396,8 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   this.redrawStatusBar()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
-  withSome(this.currClient, client):
-    this.moveClientToTag(client, tag)
+  if this.currClient != nil:
+    this.moveClientToTag(this.currClient, tag)
 
 proc viewTag*(this: Monitor, tag: Tag) =
   ## Views a single tag.
@@ -435,8 +432,8 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   discard XSync(this.display, false)
 
-  if this.currClient.isSome:
-    this.focusClient(this.currClient.get, true)
+  if this.currClient != nil:
+    this.focusClient(this.currClient, true)
   else:
     this.deleteActiveWindowProperty()
     this.statusBar.setActiveWindowTitle("", false)
@@ -453,8 +450,8 @@ proc findSelectedAndNextNormalClientIndexes(
   ## and the index result of findNormalClient.
   ## Either value can be -1 if not found.
   let clientOption = this.currClient
-  if clientOption.isSome:
-    let selectedClientIndex = this.currTagClients.find(clientOption.get)
+  if clientOption != nil:
+    let selectedClientIndex = this.currTagClients.find(clientOption)
     let nextNormalClientIndex = this.currTagClients.findNormalClient(selectedClientIndex)
     return (selectedClientIndex, nextNormalClientIndex)
   return (-1, -1)

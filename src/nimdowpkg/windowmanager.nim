@@ -3,8 +3,6 @@ import
   parsetoml,
   math,
   sugar,
-  options,
-  utils/optionutils,
   tables,
   client,
   xatoms,
@@ -47,7 +45,7 @@ type
     lastMousePress: tuple[x, y: int]
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
-    moveResizingClient: Option[Client]
+    moveResizingClient: Client
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -74,7 +72,7 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool)
 proc windowToClient(
   this: WindowManager,
   window: Window
-): tuple[clientOpt: Option[Client], monitor: Monitor]
+): tuple[client: Client, monitor: Monitor]
 
 proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
   result = WindowManager()
@@ -298,8 +296,8 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
       center.y.cint,
     )
   else:
-    withSome(monitor.currClient, client):
-      this.display.warpTo(client)
+    if monitor.currClient != nil:
+      this.display.warpTo(monitor.currClient)
 
 proc focusPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
@@ -310,10 +308,10 @@ proc focusNextMonitor(this: WindowManager) =
   this.focusMonitor(nextMonitorIndex)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex == -1 or this.selectedMonitor.currClient.isNone:
+  if monitorIndex == -1 or this.selectedMonitor.currClient == nil:
     return
 
-  let client = this.selectedMonitor.currClient.get
+  let client = this.selectedMonitor.currClient
   let nextMonitor = this.monitors[monitorIndex]
   if this.selectedMonitor.removeWindow(client.window):
     this.selectedMonitor.doLayout()
@@ -418,13 +416,13 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
-    withSome(this.selectedMonitor.currClient, client):
-      this.display.warpTo(client)
+    if this.selectedMonitor.currClient != nil:
+      this.display.warpTo(this.selectedMonitor.currClient)
 
   createControl(keycode, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient(true)
-    withSome(this.selectedMonitor.currClient, client):
-      this.display.warpTo(client)
+    if this.selectedMonitor.currClient != nil:
+      this.display.warpTo(this.selectedMonitor.currClient)
 
   createControl(keycode, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
@@ -493,8 +491,8 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   log errorMessage, lvlError
 
 proc destroySelectedWindow*(this: WindowManager) =
-  let selectedClient = this.selectedMonitor.currClient
-  withSome(selectedClient, client):
+  let client = this.selectedMonitor.currClient
+  if client != nil:
     var
       selectedWin = client.window
       event = XEvent()
@@ -532,14 +530,12 @@ proc destroySelectedWindow*(this: WindowManager) =
       discard XUngrabServer(this.display)
 
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
-  var (clientOpt, monitor) = this.windowToClient(e.window)
+  var (client, monitor) = this.windowToClient(e.window)
 
-  if clientOpt.isSome:
-    let client = clientOpt.get
+  if client != nil:
 
-    withSome(this.moveResizingClient, moveResizingClient):
-      if client == moveResizingClient:
-        return
+    if this.moveResizingClient == client:
+      return
 
     if (e.value_mask and CWBorderWidth) != 0 and e.border_width > 0:
       client.borderWidth = e.border_width
@@ -599,8 +595,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
-  let (clientOpt, monitor) = this.windowToClient(e.window)
-  withSome(clientOpt, client):
+  var (client, monitor) = this.windowToClient(e.window)
+  if client != nil:
     if e.message_type == $NetWMState:
       let fullscreenAtom = $NetWMStateFullScreen
       if e.data.l[1] == fullscreenAtom.clong or
@@ -612,7 +608,8 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
             e.data.l[0] == 2 and not client.isFullscreen
           monitor.setFullscreen(client, shouldFullscreen)
     elif e.message_type == $NetActiveWindow:
-      withSome(this.selectedMonitor.currClient, currClient):
+      let currClient = this.selectedMonitor.currClient
+      if currClient != nil:
         if client != currClient and not client.isUrgent:
           client.setUrgent(this.display, true)
 
@@ -625,8 +622,8 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: x.None
 
   if state == $NetWMStateFullScreen:
-    let (clientOpt, monitor) = this.windowToClient(client.window)
-    withSome(clientOpt, _):
+    let (_, monitor) = this.windowToClient(client.window)
+    if monitor != nil:
       monitor.setFullscreen(client, true)
 
   if windowType == $NetWMWindowTypeDialog:
@@ -686,10 +683,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client: Client
     monitor = this.selectedMonitor
 
-  var (clientOpt, m) = this.windowToClient(window)
-  if clientOpt.isSome:
+  var (c, m) = this.windowToClient(window)
+  if c != nil:
     monitor = m
-    client = clientOpt.get
+    client = c
   else:
     client = newClient(window)
     monitor.currTagClients.add(client)
@@ -755,8 +752,8 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   this.manage(e.window, windowAttr)
 
 proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
-  let (clientOpt, monitor) = this.windowToClient(window)
-  withSome(clientOpt, client):
+  let (client, monitor) = this.windowToClient(window)
+  if client != nil:
     discard monitor.removeWindow(window)
     if not destroyed:
       var winChanges: XWindowChanges
@@ -776,12 +773,12 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
     monitor.statusBar.redraw()
 
     if monitor == this.selectedMonitor:
-      withSome(monitor.currClient, newCurrClient):
-        this.selectedMonitor.focusClient(newCurrClient, true)
+      if monitor.currClient != nil:
+        this.selectedMonitor.focusClient(monitor.currClient, true)
 
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
-  let (clientOpt, _) = this.windowToClient(e.window)
-  withSome(clientOpt, client):
+  let (client, _) = this.windowToClient(e.window)
+  if client != nil:
     if e.send_event:
       this.setClientState(client, WithdrawnState)
     else:
@@ -794,15 +791,15 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     let previousMonitor = this.selectedMonitor
     this.selectedMonitor = monitor
     # Set old monitor's focused window's border to the unfocused color
-    if previousMonitor.currClient.isSome:
+    if previousMonitor.currClient != nil:
       discard XSetWindowBorder(
         this.display,
-        previousMonitor.currClient.get.window,
+        previousMonitor.currClient.window,
         this.windowSettings.borderColorUnfocused
       )
     # Focus the new monitor's current client
-    if this.selectedMonitor.currClient.isSome:
-      this.selectedMonitor.focusClient(this.selectedMonitor.currClient.get, false)
+    if this.selectedMonitor.currClient != nil:
+      this.selectedMonitor.focusClient(this.selectedMonitor.currClient, false)
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
@@ -822,7 +819,7 @@ proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
 
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   if this.mouseState != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
-    if this.selectedMonitor.currClient.isNone:
+    if this.selectedMonitor.currClient == nil:
       # Clear the window title (no windows are focused)
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
@@ -831,8 +828,8 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
   let clientIndex = this.selectedMonitor.currTagClients.find(e.window)
   # If the window is not on the current tag, select the tag's current client.
   if clientIndex < 0:
-    if this.selectedMonitor.currClient.isSome:
-      client = this.selectedMonitor.currClient.get
+    if this.selectedMonitor.currClient != nil:
+      client = this.selectedMonitor.currClient
     else:
       # If there's no client on the current tag, select the root window.
       # This ensures e.window does not have focus.
@@ -851,8 +848,8 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
     client.window,
     this.windowSettings.borderColorFocused
   )
-  if this.selectedMonitor.selectedTag.previouslySelectedClient.isSome:
-    let previous = this.selectedMonitor.selectedTag.previouslySelectedClient.get
+  if this.selectedMonitor.selectedTag.previouslySelectedClient != nil:
+    let previous = this.selectedMonitor.selectedTag.previouslySelectedClient
     if previous.window != client.window:
       discard XSetWindowBorder(
         this.display,
@@ -882,12 +879,12 @@ proc renderStatus(this: WindowManager) =
 proc windowToClient(
   this: WindowManager,
   window: Window
-): tuple[clientOpt: Option[Client], monitor: Monitor] =
-  var clientOpt: Option[Client]
+): tuple[client: Client, monitor: Monitor] =
+  var client: Client
   for monitor in this.monitors:
-    clientOpt = monitor.find(window)
-    if clientOpt.isSome:
-      return (clientOpt, monitor)
+    client = monitor.find(window)
+    if client != nil:
+      return (client, monitor)
 
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
   if e.window == this.rootWindow and e.atom == XA_WM_NAME:
@@ -895,18 +892,16 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
   elif e.state == PropertyDelete:
     return
   else:
-    var (clientOpt, monitor) = this.windowToClient(e.window)
-    if clientOpt.isNone:
+    var (client, monitor) = this.windowToClient(e.window)
+    if client == nil:
       return
-
-    var client = clientOpt.get
 
     case e.atom:
       of XA_WM_TRANSIENT_FOR:
         var transientWin: Window
         if not client.isFloating and XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
           let c = this.windowToClient(transientWin)
-          client.isFloating = c.clientOpt.isSome
+          client.isFloating = c.client != nil
           if client.isFloating:
             monitor.doLayout()
       of XA_WM_NORMAL_HINTS:
@@ -919,8 +914,8 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
         discard
 
     if e.atom == XA_WM_NAME or e.atom == $NetWMName:
-      withSome(monitor.currClient, c):
-        if c == client:
+      if monitor.currClient != nil:
+        if monitor.currClient == client:
           let name = this.display.getWindowName(client.window)
           monitor.statusBar.setActiveWindowTitle(name)
 
@@ -932,10 +927,10 @@ proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
     monitor.redrawStatusBar()
 
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
-  if this.selectedMonitor.currClient.isNone:
+  if this.selectedMonitor.currClient == nil:
       return
-  let client = this.selectedMonitor.currClient.get
-  this.moveResizingClient = client.option
+  let client = this.selectedMonitor.currClient
+  this.moveResizingClient = client
   this.lastMousePress = (e.x.int, e.y.int)
   this.lastMoveResizeClientState = client.area
 
@@ -953,11 +948,11 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   this.mouseState = MouseState.Normal
 
-  if this.moveResizingClient.isNone:
+  if this.moveResizingClient == nil:
     return
 
   # Handle moving clients between monitors
-  let client = this.moveResizingClient.get
+  let client = this.moveResizingClient
   # Detect new monitor from area location
   let
     centerX = client.x + client.width.int div 2
@@ -978,13 +973,13 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
 
   this.selectedMonitor = nextMonitor
   # Unset the client being moved/resized
-  this.moveResizingClient = none(Client)
+  this.moveResizingClient = nil
 
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
-  if this.mouseState == Normal or this.moveResizingClient.isNone:
+  if this.mouseState == Normal or this.moveResizingClient == nil:
     return
 
-  var client = this.moveResizingClient.get
+  var client = this.moveResizingClient
   if client.isFullscreen:
     return
 

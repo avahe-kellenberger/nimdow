@@ -1,5 +1,4 @@
 import
-  options,
   hashes,
   layouts/layout,
   client
@@ -7,39 +6,38 @@ import
 type Tag* = ref object
   id*: int
   layout*: Layout
-  selectedClient*: Option[Client]
-  previouslySelectedClient*: Option[Client]
+  selectedClient*: Client
+  previouslySelectedClient*: Client
 
 proc newTag*(id: int, layout: Layout): Tag =
   Tag(
     id: id,
     layout: layout,
-    selectedClient: none(Client),
-    previouslySelectedClient: none(Client)
+    selectedClient: nil,
+    previouslySelectedClient: nil
   )
 
 proc isSelectedClient*(this: Tag, client: Client): bool =
-  this.selectedClient.isSome and this.selectedClient.get == client
+  this.selectedClient != nil and this.selectedClient == client
 
 proc isPreviouslySelectedClient*(this: Tag, client: Client): bool =
-  this.previouslySelectedClient.isSome and this.previouslySelectedClient.get == client
+  this.previouslySelectedClient != nil and this.previouslySelectedClient == client
 
 proc setSelectedClient*(this: Tag, client: Client) =
-  if this.selectedClient.isNone or client != this.selectedClient.get:
+  if this.selectedClient == nil or client != this.selectedClient:
     this.previouslySelectedClient = this.selectedClient
-    this.selectedClient = client.option
+    this.selectedClient = client
 
 proc clearSelectedClient*(this: Tag, client: Client) =
-  ## If selectedClient and/or previouslySelectedClient
-  ## is equal to `client`, the respective fields will be
-  ## set to none(Client).
-  if this.selectedClient.isSome and this.selectedClient.get == client:
-    this.selectedClient = none(Client)
+  ## If selectedClient and/or previouslySelectedClient is equal to `client`,
+  ## the respective fields will be set to nil.
+  if this.selectedClient != nil and this.selectedClient == client:
+    this.selectedClient = nil
 
-  if this.previouslySelectedClient.isSome and this.previouslySelectedClient.get == client:
-    this.previouslySelectedClient = none(Client)
+  if this.previouslySelectedClient != nil and this.previouslySelectedClient == client:
+    this.previouslySelectedClient = nil
 
-  if this.selectedClient.isNone and this.previouslySelectedClient.isSome:
+  if this.selectedClient == nil and this.previouslySelectedClient != nil:
     this.selectedClient = this.previouslySelectedClient
 
 proc hash*(this: Tag): Hash = !$Hash(this.id)

@@ -2,6 +2,8 @@ import
   x11 / [x, xlib],
   options
 
+export options
+
 converter boolToXBool(x: bool): XBool = XBool(x)
 
 type
