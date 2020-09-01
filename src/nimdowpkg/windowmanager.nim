@@ -643,10 +643,10 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.height = max(client.height, sizeHints.min_height.uint)
 
     if not client.isFixed and not client.isFullscreen:
-      let area = monitor.area
-      client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
-      client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
       if monitor == this.selectedMonitor and monitor.currTagClients.find(client.window) != -1:
+        let area = monitor.area
+        client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
+        client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
         discard XMoveWindow(
           this.display,
           client.window,
@@ -736,12 +736,13 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   this.setClientState(client, NormalState)
   if not client.isFloating and not client.isFixed:
+    monitor.setSelectedClient(client)
     monitor.doLayout()
 
   discard XMapWindow(this.display, window)
 
-  if not client.isFixed:
-    monitor.focusClient(client, not client.isFloating)
+  # if not client.isFixed:
+  #   monitor.focusClient(client, not client.isFloating)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
@@ -880,6 +881,8 @@ proc windowToClient(
   this: WindowManager,
   window: Window
 ): tuple[client: Client, monitor: Monitor] =
+  ## Finds a client based on its window.
+  ## Both the returned values will either be nil, or valid.
   var client: Client
   for monitor in this.monitors:
     client = monitor.find(window)
