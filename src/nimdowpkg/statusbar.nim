@@ -7,7 +7,8 @@ import
   tables,
   tag,
   client,
-  config/configloader
+  config/configloader,
+  systray
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -153,6 +154,17 @@ proc configureBar(this: StatusBar) =
     PropModeReplace,
     cast[Pcuchar](strut.addr),
     12
+  )
+
+proc resizeForSystray*(this: StatusBar, systrayWidth: int) =
+  var width: int = this.area.width.int - systrayWidth
+  discard XMoveResizeWindow(
+    this.display,
+    this.barWindow,
+    this.area.x,
+    this.area.y,
+    width,
+    this.area.height
   )
 
 proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =

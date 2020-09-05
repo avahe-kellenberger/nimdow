@@ -8,6 +8,7 @@ import
   xatoms,
   monitor,
   statusbar,
+  systray,
   tag,
   area,
   config/configloader,
@@ -29,6 +30,7 @@ const
   wmName = "nimdow"
   tagCount = 9
   minimumUpdateInterval = math.round(1000 / 60).int
+  systrayMonitorIndex = 0
 
 type
   MouseState* = enum
@@ -36,6 +38,7 @@ type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: Window
+    systray: Systray
     eventManager: XEventManager
     config: Config
     windowSettings: WindowSettings
@@ -58,6 +61,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent)
+proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
@@ -245,6 +249,7 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: XEvent) => onUnmapNotify(this, e.xunmap), UnmapNotify)
+  this.eventManager.addListener((e: XEvent) => onResizeRequest(this, e.xresizerequest), ResizeRequest)
   this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
@@ -595,6 +600,10 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
+  if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
+    # TODO: Add systray icons
+    discard
+
   var (client, monitor) = this.windowToClient(e.window)
   if client != nil:
     if e.message_type == $NetWMState:
@@ -804,6 +813,39 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
+
+proc updateSystrayIconGeom(this: WindowManager, icon: Client, width, height: int) =
+  if icon == nil:
+    return
+
+  let barHeight = this.config.barSettings.height
+  icon.height = barHeight
+  if width == height:
+    icon.width = barHeight
+  elif height == barHeight:
+    icon.width = width
+  else:
+    icon.width = int(barHeight.float * (width / height))
+
+  # TODO: this.applySizeHints()
+
+  # Force icons into the systray dimensions if they don't want to
+  if icon.height > barHeight:
+    if icon.width == icon.height:
+      icon.width = barHeight
+    else:
+      icon.width = int(barHeight.float * (icon.width.float / icon.height.float))
+    icon.height = barHeight
+
+proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent) =
+  let icon = this.systray.windowToIcon(e.window)
+  if icon == nil:
+    return
+
+  this.updateSystrayIconGeom(icon, e.width, e.height)
+  let monitor = this.monitors[systrayMonitorIndex]
+  monitor.statusBar.resizeForSystray(this.systray.getWidth())
+  # updateSystray()
 
 proc onMotionNotify(this: WindowManager, e: XMotionEvent) =
   # If moving/resizing a client, we delay selecting the new monitor.
