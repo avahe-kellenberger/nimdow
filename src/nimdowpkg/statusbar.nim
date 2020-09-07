@@ -7,8 +7,7 @@ import
   tables,
   tag,
   client,
-  config/configloader,
-  systray
+  config/configloader
 
 converter boolToXBool(x: bool): XBool = XBool(x)
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -34,7 +33,7 @@ type
     barWindow*: Window
     rootWindow: Window
     fonts: seq[PXftFont]
-    draw: PXftDraw
+    draw*: PXftDraw
     visual: PVisual
     colormap: Colormap
     fgColor*, bgColor*, selectionColor*: XftColor
