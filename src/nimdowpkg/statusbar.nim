@@ -38,6 +38,7 @@ type
     colormap: Colormap
     fgColor*, bgColor*, selectionColor*: XftColor
     area*: Area
+    systrayWidth: int
 
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
@@ -75,6 +76,9 @@ proc newStatusBar*(
   discard XMapWindow(display, result.barWindow)
   discard XFlush(display)
 
+template currentWidth(this: StatusBar): int =
+  this.area.width.int - this.systrayWidth
+
 proc createBar(this: StatusBar): Window =
   var windowAttr: XSetWindowAttributes
   windowAttr.background_pixmap = ParentRelative
@@ -85,7 +89,7 @@ proc createBar(this: StatusBar): Window =
     this.rootWindow,
     this.area.x,
     this.area.y,
-    this.area.width,
+    this.currentWidth,
     this.area.height,
     0,
     DefaultDepth(this.display, this.screen),
@@ -142,7 +146,7 @@ proc configureBar(this: StatusBar) =
   var strut: Strut
   strut.top = this.area.height
   strut.topStartX = this.area.x.culong
-  strut.topEndX = strut.topStartX + this.area.width - 1
+  strut.topEndX = strut.topStartX + this.currentWidth - 1
 
   discard XChangeProperty(
     this.display,
@@ -155,16 +159,17 @@ proc configureBar(this: StatusBar) =
     12
   )
 
-proc resizeForSystray*(this: StatusBar, systrayWidth: int) =
-  var width: int = this.area.width.int - systrayWidth
+proc resizeForSystray*(this: var StatusBar, systrayWidth: int) =
+  this.systrayWidth = systrayWidth
   discard XMoveResizeWindow(
     this.display,
     this.barWindow,
     this.area.x,
     this.area.y,
-    width,
+    this.currentWidth,
     this.area.height
   )
+  this.redraw()
 
 proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
   let result = XftColorAllocValue(
@@ -366,7 +371,7 @@ proc renderStatus(this: StatusBar): int =
   if this.status.len > 0:
     result = this.renderStringRightAligned(
       this.status,
-      this.area.width.int - rightPadding,
+      this.currentWidth - rightPadding,
       this.fgColor
     )
 
@@ -381,13 +386,13 @@ proc renderActiveWindowTitle(this: StatusBar, minRenderX, maxRenderX: int) =
     )
 
 proc clearBar(this: StatusBar) =
-  XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.area.width, this.area.height)
+  XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.currentWidth, this.area.height)
 
 proc redraw*(this: StatusBar) =
   this.clearBar()
   let
     tagLengthPixels = this.renderTags(this.selectedTag)
-    maxRenderX = this.area.width.int - this.renderStatus() - cellWidth
+    maxRenderX = this.currentWidth - this.renderStatus() - cellWidth
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
 
 proc setSelectedTag*(this: var StatusBar, selectedTag: int, redraw: bool = true) =
