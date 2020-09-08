@@ -35,11 +35,7 @@ const
 
   SYSTEM_TRAY_REQUEST_DOCK = 0
 
-  # XEMBED messages
   XEMBED_EMBEDDED_NOTIFY = 0
-  XEMBED_FOCUS_IN = 4
-  XEMBED_MODALITY_ON = 10
-
   XEMBED_MAPPED = 1 shl 0
   XEMBED_WINDOW_ACTIVATE = 1
   XEMBED_WINDOW_DEACTIVATE = 2
@@ -47,7 +43,6 @@ const
   VERSION_MAJOR = 0
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
-
 
 type
   MouseState* = enum
@@ -666,6 +661,12 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
         icon.window,
         StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
       )
+
+      var classHint: XClassHint
+      classHint.res_name = "nimdowsystray"
+      classHint.res_class = "nimdowsystray"
+      discard XSetClassHint(this.display, icon.window, classHint.addr)
+
       discard XReparentWindow(
         this.display,
         icon.window,
@@ -688,16 +689,9 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
         this.systray.window.clong,
         XEMBED_EMBEDDED_VERSION
       )
-      # TODO: FIXME not sure if I have to send these events, too
-      # sendevent(c->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_FOCUS_IN, 0 , systray->win, XEMBED_EMBEDDED_VERSION);
-      # this.display.sendEvent(
-
-      # )
-
-      # sendevent(c->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_WINDOW_ACTIVATE, 0 , systray->win, XEMBED_EMBEDDED_VERSION);
-      # sendevent(c->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_MODALITY_ON, 0 , systray->win, XEMBED_EMBEDDED_VERSION);
 
       discard XSync(this.display, false)
+
       this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
       this.updateSystray()
       this.setClientState(Client(icon), NormalState)
