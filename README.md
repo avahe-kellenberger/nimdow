@@ -15,9 +15,9 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 3. [Config File](#config)
 4. [Command Line Arguments](#cli)
 5. [Status Bar](#statusbar)
-    1. [Setting the status](#setting-status)
-6. [Roadmap](#roadmap)
-7. [Testing Locally](#testing)
+6. [Issues with Java Applications](#issues-with-java-applications)
+7. [Roadmap](#roadmap)
+8. [Testing Locally](#testing)
 
 
 ## Screenshots
