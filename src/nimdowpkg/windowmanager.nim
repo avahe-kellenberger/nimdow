@@ -1,5 +1,5 @@
 import
-  x11 / [x, xlib, xutil, xatom],
+  x11 / [x, xlib, xutil, xatom, xft],
   parsetoml,
   math,
   sugar,
@@ -8,6 +8,7 @@ import
   xatoms,
   monitor,
   statusbar,
+  systray,
   tag,
   area,
   config/configloader,
@@ -18,6 +19,7 @@ import
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
+converter uintToCuing(x: uint): cuint = x.cuint
 converter cintToUint(x: cint): uint = x.uint
 converter cintToCUint(x: cint): cuint = x.cuint
 converter intToCUchar(x: int): cuchar = x.cuchar
@@ -29,6 +31,18 @@ const
   wmName = "nimdow"
   tagCount = 9
   minimumUpdateInterval = math.round(1000 / 60).int
+  systrayMonitorIndex = 0
+
+  SYSTEM_TRAY_REQUEST_DOCK = 0
+
+  XEMBED_EMBEDDED_NOTIFY = 0
+  XEMBED_MAPPED = 1 shl 0
+  XEMBED_WINDOW_ACTIVATE = 1
+  XEMBED_WINDOW_DEACTIVATE = 2
+
+  VERSION_MAJOR = 0
+  VERSION_MINOR = 0
+  XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
 type
   MouseState* = enum
@@ -36,6 +50,7 @@ type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: Window
+    systray: Systray
     eventManager: XEventManager
     config: Config
     windowSettings: WindowSettings
@@ -58,21 +73,29 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent)
+proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
 proc onFocusIn(this: WindowManager, e: XFocusChangeEvent)
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent)
 proc onExposeNotify(this: WindowManager, e: XExposeEvent)
+proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent)
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent)
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 proc renderStatus(this: WindowManager)
+proc setClientState(this: WindowManager, client: Client, state: int)
 proc unmanage(this: WindowManager, window: Window, destroyed: bool)
+proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor)
+proc updateSystray(this: WindowManager)
+proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int)
+proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent)
 proc windowToClient(
   this: WindowManager,
   window: Window
 ): tuple[client: Client, monitor: Monitor]
+proc windowToMonitor(this: WindowManager, window: Window): Monitor
 
 proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
   result = WindowManager()
@@ -222,6 +245,11 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
       2
     )
 
+  result.updateSystray()
+
+template systrayMonitor(this: WindowManager): Monitor =
+  this.monitors[systrayMonitorIndex]
+
 proc reloadConfig*(this: WindowManager) =
   # Remove old config listener.
   this.eventManager.removeListener(this.config.listener, KeyPress)
@@ -245,12 +273,13 @@ proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
   this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
   this.eventManager.addListener((e: XEvent) => onUnmapNotify(this, e.xunmap), UnmapNotify)
+  this.eventManager.addListener((e: XEvent) => onResizeRequest(this, e.xresizerequest), ResizeRequest)
   this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
   this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
   this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
   this.eventManager.addListener((e: XEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
   this.eventManager.addListener((e: XEvent) => onExposeNotify(this, e.xexpose), Expose)
-  this.eventManager.addListener((e: XEvent) => unmanage(this, e.xdestroywindow.window, true), DestroyNotify)
+  this.eventManager.addListener((e: XEvent) => onDestroyNotify(this, e.xdestroywindow), DestroyNotify)
   this.eventManager.addListener((e: XEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
   this.eventManager.addListener((e: XEvent) => handleButtonReleased(this, e.xbutton), ButtonRelease)
   this.eventManager.addListener((e: XEvent) => handleMouseMotion(this, e.xmotion), MotionNotify)
@@ -595,6 +624,80 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
   discard XSync(this.display, false)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
+  if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
+    # Add systray icons
+    if  e.data.l[1] == SYSTEM_TRAY_REQUEST_DOCK:
+      if e.data.l[2] == 0:
+        return
+
+      var
+        windowAttr: XWindowAttributes
+        setWindowAttr: XSetWindowAttributes
+
+      var icon: Icon = newIcon(e.data.l[2])
+      this.systray.addIcon(icon)
+      if XGetWindowAttributes(this.display, icon.window, windowAttr.addr) == 0:
+        # Use sane defaults.
+        let barHeight = this.config.barSettings.height
+        windowAttr.width = barHeight.cint
+        windowAttr.height = barHeight.cint
+        windowAttr.border_width = 0
+
+      icon.width = windowAttr.width
+      icon.oldwidth = windowAttr.width
+      icon.height = windowAttr.height
+      icon.oldHeight = windowAttr.height
+      icon.oldBorderWidth = windowAttr.border_width
+      icon.borderWidth = 0
+      icon.isFloating = true
+      icon.isMapped = true
+
+      this.updateSizeHints(Client(icon), this.systrayMonitor)
+      this.updateSystrayIconGeom(icon, windowAttr.width, windowAttr.height)
+
+      discard XAddToSaveSet(this.display, icon.window)
+      discard XSelectInput(
+        this.display,
+        icon.window,
+        StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
+      )
+
+      var classHint: XClassHint
+      classHint.res_name = "nimdowsystray"
+      classHint.res_class = "nimdowsystray"
+      discard XSetClassHint(this.display, icon.window, classHint.addr)
+
+      discard XReparentWindow(
+        this.display,
+        icon.window,
+        this.systray.window,
+        0,
+        0
+      )
+
+      # Use parent's background color
+      setWindowAttr.background_pixel = this.systrayMonitor.statusBar.bgColor.pixel
+      discard XChangeWindowAttributes(this.display, icon.window, CWBackPixel, setWindowAttr.addr)
+      discard sendEvent(
+        this.display,
+        icon.window,
+        $Xembed,
+        StructureNotifyMask,
+        CurrentTime,
+        XEMBED_EMBEDDED_NOTIFY,
+        0,
+        this.systray.window.clong,
+        XEMBED_EMBEDDED_VERSION
+      )
+
+      discard XSync(this.display, false)
+
+      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+      this.updateSystray()
+      this.setClientState(Client(icon), NormalState)
+
+    return
+
   var (client, monitor) = this.windowToClient(e.window)
   if client != nil:
     if e.message_type == $NetWMState:
@@ -741,11 +844,25 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   discard XMapWindow(this.display, window)
 
-  # if not client.isFixed:
-  #   monitor.focusClient(client, not client.isFloating)
-
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
+
+  let icon = this.systray.windowToIcon(e.window)
+  if icon != nil:
+    log "onMapRequest icon window!"
+    discard this.display.sendEvent(
+      icon.window,
+      $Xembed,
+      StructureNotifyMask,
+      CurrentTime,
+      XEMBED_WINDOW_ACTIVATE,
+      0,
+      this.systray.window.clong,
+      XEMBED_EMBEDDED_VERSION
+    )
+    this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+    this.updateSystray()
+
   if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return
   if windowAttr.override_redirect:
@@ -777,6 +894,17 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
       if monitor.currClient != nil:
         this.selectedMonitor.focusClient(monitor.currClient, true)
 
+proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent) =
+  let (client, _) = this.windowToClient(e.window)
+  if client != nil:
+    this.unmanage(e.window, true)
+  else:
+    let icon = this.systray.windowToIcon(e.window)
+    if icon != nil:
+      this.systray.removeIcon(icon)
+      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+      this.updateSystray()
+
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
   let (client, _) = this.windowToClient(e.window)
   if client != nil:
@@ -784,6 +912,13 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
       this.setClientState(client, WithdrawnState)
     else:
       this.unmanage(client.window, false)
+  else:
+    let icon = this.systray.windowToIcon(e.window)
+    if icon != nil:
+      # Sometimes icons unmap their windows but don't destroy them.
+      # We map those windows back.
+      discard XMapRaised(this.display, icon.window)
+      this.updateSystray()
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
   for monitor in this.monitors:
@@ -804,6 +939,194 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
+
+proc updateSystray(this: WindowManager) =
+  var
+    setWindowAttr: XSetWindowAttributes
+    backgroundColor = this.systrayMonitor.statusBar.bgColor
+    x = this.systrayMonitor.area.x + this.systrayMonitor.area.width.int
+
+  let
+    backgroundPixel = backgroundColor.pixel
+    barHeight = this.config.barSettings.height
+
+  if this.systray == nil:
+    this.systray = Systray()
+
+    this.systray.window = XCreateSimpleWindow(
+      this.display,
+      this.rootWindow,
+      x,
+      this.systrayMonitor.statusBar.area.y,
+      1,
+      barHeight,
+      0,
+      0,
+      backgroundPixel
+    )
+
+    setWindowAttr.event_mask = ButtonPressMask or ExposureMask
+    setWindowAttr.override_redirect = true
+    setWindowAttr.background_pixel = backgroundPixel
+
+    discard XSelectInput(this.display, this.systray.window, SubstructureNotifyMask)
+    discard XChangeProperty(
+      this.display,
+      this.systray.window,
+      $NetSystemTrayOrientation,
+      XA_CARDINAL,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](($NetSystemTrayOrientation).addr),
+      1
+    )
+    discard XChangeWindowAttributes(
+      this.display,
+      this.systray.window,
+      CWEventMask or CWOverrideRedirect or CWBackPixel,
+      setWindowAttr.addr
+    )
+    discard XMapRaised(this.display, this.systray.window)
+    discard XSetSelectionOwner(this.display, $NetSystemTray, this.systray.window, CurrentTime)
+
+    if XGetSelectionOwner(this.display, $NetSystemTray) == this.systray.window:
+      discard this.display.sendEvent(
+        this.rootWindow,
+        $Manager,
+        StructureNotifyMask,
+        CurrentTime,
+        ($NetSystemTray).clong,
+        this.systray.window.clong,
+        0,
+        0
+      )
+      discard XSync(this.display, false)
+    else:
+      log("Unable to obtain systray", lvlError)
+      this.systray = nil
+      return
+
+  var systrayWidth: int
+  for icon in this.systray.icons:
+    setWindowAttr.background_pixel = backgroundPixel
+    discard XChangeWindowAttributes(this.display, icon.window, CWBackPixel, setWindowAttr.addr)
+    discard XMapRaised(this.display, icon.window)
+    systrayWidth += systrayIconSpacing
+    icon.x = systrayWidth
+    discard XMoveResizeWindow(
+      this.display,
+      icon.window,
+      icon.x,
+      0,
+      icon.width,
+      icon.height
+    )
+    systrayWidth += icon.width.int
+
+  systrayWidth = max(1, systrayWidth + systrayIconSpacing)
+
+  let barArea = this.systrayMonitor.statusBar.area
+
+  var winChanges: XWindowChanges
+
+  x -= systrayWidth
+
+  discard XMoveResizeWindow(
+    this.display,
+    this.systray.window,
+    x,
+    barArea.y,
+    systrayWidth,
+    barHeight
+  )
+
+  winChanges.x = x
+  winChanges.y = barArea.y
+  winChanges.width = systrayWidth
+  winChanges.height = barArea.height.cint
+  winChanges.stack_mode = Above
+  winChanges.sibling = this.systrayMonitor.statusBar.barWindow
+
+  discard XConfigureWindow(
+    this.display,
+    this.systray.window,
+    CWX or CWY or CWWidth or CWHeight or CWSibling or CWStackMode,
+    winChanges.addr
+  )
+
+  discard XMapWindow(this.display, this.systray.window)
+  discard XMapSubwindows(this.display, this.systray.window)
+
+  discard XSync(this.display, false)
+
+proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) =
+  if icon == nil:
+    return
+
+  let barHeight = this.config.barSettings.height
+  icon.height = barHeight
+  if width == height:
+    icon.width = barHeight
+  elif height == barHeight:
+    icon.width = width
+  else:
+    icon.width = int(barHeight.float * (width / height))
+
+  # Force icons into the systray dimensions if they don't want to
+  if icon.height > barHeight:
+    if icon.width == icon.height:
+      icon.width = barHeight
+    else:
+      icon.width = int(barHeight.float * (icon.width.float / icon.height.float))
+    icon.height = barHeight
+
+proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) =
+  if icon == nil or e.atom != $XembedInfo:
+    return
+
+  let
+    flagsOpt = this.display.getProperty[:Atom](icon.window, $XembedInfo)
+    flags: clong = if flagsOpt.isSome: flagsOpt.get.clong else: 0
+
+  if flags == 0:
+    return
+
+  var iconActiveState: int
+  if (flags and XEMBED_MAPPED) != 0 and not icon.isMapped:
+    # Requesting to be mapped
+    icon.isMapped = true
+    iconActiveState = XEMBED_WINDOW_ACTIVATE
+    discard XMapRaised(this.display, icon.window)
+    this.setClientState(Client(icon), NormalState)
+  elif (flags and XEMBED_MAPPED) == 0 and icon.isMapped:
+    # Requesting to be upmapped
+    icon.isMapped = false
+    iconActiveState = XEMBED_WINDOW_DEACTIVATE
+    discard XUnmapWindow(this.display, icon.window)
+    this.setClientState(Client(icon), WithdrawnState)
+  else:
+    return
+
+  discard this.display.sendEvent(
+    icon.window,
+    $Xembed,
+    StructureNotifyMask,
+    CurrentTime,
+    iconActiveState,
+    0,
+    this.systray.window.clong,
+    XEMBED_EMBEDDED_VERSION
+  )
+
+proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent) =
+  let icon = this.systray.windowToIcon(e.window)
+  if icon == nil:
+    return
+
+  this.updateSystrayIconGeom(icon, e.width, e.height)
+  let monitor = this.monitors[systrayMonitorIndex]
+  monitor.statusBar.resizeForSystray(this.systray.getWidth())
+  this.updateSystray()
 
 proc onMotionNotify(this: WindowManager, e: XMotionEvent) =
   # If moving/resizing a client, we delay selecting the new monitor.
@@ -877,6 +1200,16 @@ proc renderStatus(this: WindowManager) =
     for monitor in this.monitors:
       monitor.statusBar.setStatus(status)
 
+proc windowToMonitor(this: WindowManager, window: Window): Monitor =
+  for monitor in this.monitors:
+    if window == monitor.statusBar.barWindow:
+      return monitor
+    for clients in monitor.taggedClients.values():
+      for client in clients:
+        if client.window == window:
+          return monitor
+  return this.selectedMonitor
+
 proc windowToClient(
   this: WindowManager,
   window: Window
@@ -890,6 +1223,15 @@ proc windowToClient(
       return (client, monitor)
 
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
+  let icon = this.systray.windowToIcon(e.window)
+  if icon != nil:
+    if e.atom == XA_WM_NORMAL_HINTS:
+      this.updateSystrayIconGeom(icon, icon.width.int, icon.height.int)
+    else:
+      this.updateSystrayIconState(icon, e)
+    this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+    this.updateSystray()
+
   if e.window == this.rootWindow and e.atom == XA_WM_NAME:
     this.renderStatus()
   elif e.state == PropertyDelete:
@@ -926,8 +1268,12 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
       this.updateWindowType(client)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
-  for monitor in this.monitors:
-    monitor.redrawStatusBar()
+  if e.count == 0:
+    let monitor = this.windowToMonitor(e.window)
+    if monitor != nil:
+      monitor.redrawStatusBar()
+      if monitor == this.selectedMonitor:
+        this.updateSystray()
 
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   if this.selectedMonitor.currClient == nil:
