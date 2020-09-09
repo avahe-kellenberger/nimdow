@@ -15,9 +15,9 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 3. [Config File](#config)
 4. [Command Line Arguments](#cli)
 5. [Status Bar](#statusbar)
-    1. [Setting the status](#setting-status)
-6. [Roadmap](#roadmap)
-7. [Testing Locally](#testing)
+6. [Issues with Java Applications](#issues-with-java-applications)
+7. [Roadmap](#roadmap)
+8. [Testing Locally](#testing)
 
 
 ## Screenshots
@@ -67,6 +67,34 @@ The status bar displays:
 
 The status is the text read from the root window's name property, which can be set with `xsetroot -name "My status"`.
 This is the exact same way `dwm` manages its status. I recommend [reading their page](https://dwm.suckless.org/status_monitor/) about setting statuses.
+
+## Issues with Java Applications
+
+### The fix
+
+There are multiple fixes, per the [arch wiki](https://wiki.archlinux.org/index.php/Java#Gray_window,_applications_not_resizing_with_WM,_menus_immediately_closing).
+
+Fix #1:
+For jre7-openjdk or jre8-openjdk, append the line `export _JAVA_AWT_WM_NONREPARENTING=1` in `/etc/profile.d/jre.sh`.
+Then, source the file /etc/profile.d/jre.sh or log out and log back in.
+
+Fix #2:
+For last version of JDK append line `export AWT_TOOLKIT=MToolkit` in `~/.xinitrc` before `exec window manager`.
+
+Fix #3:
+Try to use [wmname](https://tools.suckless.org/x/wmname/) with line `wmname compiz` in your `~/.xinitrc`.
+
+Fix #4:
+For Oracle's JRE/JDK, use [SetWMName](https://wiki.haskell.org/Xmonad/Frequently_asked_questions#Using_SetWMName).
+However,
+its effect may be canceled when also using XMonad.Hooks.EwmhDesktops.
+In this case,
+appending `>> setWMName "LG3D"` to the LogHook may help.
+
+### Why is this happening?
+
+The standard Java GUI toolkit has a hard-coded list of "non-reparenting" window managers.
+Nimdow is not (yet) included in this list.
 
 ## Roadmap
 
