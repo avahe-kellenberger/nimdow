@@ -1057,7 +1057,6 @@ proc updateSystray(this: WindowManager) =
   discard XMapWindow(this.display, this.systray.window)
   discard XMapSubwindows(this.display, this.systray.window)
 
-  # TODO: Redraw background of systray
   discard XSync(this.display, false)
 
 proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) =
@@ -1072,8 +1071,6 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
     icon.width = width
   else:
     icon.width = int(barHeight.float * (width / height))
-
-  # TODO: this.applySizeHints()
 
   # Force icons into the systray dimensions if they don't want to
   if icon.height > barHeight:
@@ -1229,7 +1226,6 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
   let icon = this.systray.windowToIcon(e.window)
   if icon != nil:
     if e.atom == XA_WM_NORMAL_HINTS:
-      # TODO: this.updateSizeHints()
       this.updateSystrayIconGeom(icon, icon.width.int, icon.height.int)
     else:
       this.updateSystrayIconState(icon, e)

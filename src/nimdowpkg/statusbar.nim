@@ -33,7 +33,7 @@ type
     barWindow*: Window
     rootWindow: Window
     fonts: seq[PXftFont]
-    draw*: PXftDraw
+    draw: PXftDraw
     visual: PVisual
     colormap: Colormap
     fgColor*, bgColor*, selectionColor*: XftColor
