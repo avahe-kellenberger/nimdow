@@ -849,7 +849,6 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
 
   let icon = this.systray.windowToIcon(e.window)
   if icon != nil:
-    log "onMapRequest icon window!"
     discard this.display.sendEvent(
       icon.window,
       $Xembed,

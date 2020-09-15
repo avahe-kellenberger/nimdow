@@ -1,7 +1,6 @@
 import
   x11 / [x],
-  client,
-  logger
+  client
 
 # TODO: Put this in the config file
 const systrayIconSpacing*: int = 4
@@ -20,9 +19,6 @@ proc getWidth*(this: Systray): int =
   for icon in this.icons:
     result += icon.width.int + systrayIconSpacing
   result = max(1, result + systrayIconSpacing)
-
-  log "systrayWidth: " & $result
-  log "systray icons len: " & $this.icons.len
 
 proc windowToIcon*(this: Systray, window: Window): Icon =
   let index = this.icons.find(window)
