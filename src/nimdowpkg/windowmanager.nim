@@ -9,6 +9,8 @@ import
   monitor,
   statusbar,
   systray,
+  strutils,
+  parseutils,
   tag,
   area,
   config/configloader,
@@ -1196,9 +1198,19 @@ proc renderStatus(this: WindowManager) =
   ## Renders the status on all status bars.
   var name: cstring
   if XFetchName(this.display, this.rootWindow, name.addr) == 1:
-    let status = $name
-    for monitor in this.monitors:
-      monitor.statusBar.setStatus(status)
+    var status = $name
+    if status.startsWith("NIMDOW_MONITOR_INDEX="):
+      status.removePrefix("NIMDOW_MONITOR_INDEX=")
+      var monitorIndexAsStr = status[0..skipWhile(status, Digits)-1]
+      let monitorIndex = parseInt(monitorIndexAsStr)
+      if monitorIndex < 0 or monitorIndex > this.monitors.len - 1:
+        log("NIMDOW_MONITOR_INDEX value is out of the range", lvlError)
+        return
+      status.removePrefix(monitorIndexAsStr)
+      this.monitors[monitorIndex].statusBar.setStatus(status)
+    else:
+      for monitor in this.monitors:
+        monitor.statusBar.setStatus(status)
 
 proc windowToMonitor(this: WindowManager, window: Window): Monitor =
   for monitor in this.monitors:
