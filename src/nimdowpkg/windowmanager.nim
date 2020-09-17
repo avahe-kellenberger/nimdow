@@ -1283,6 +1283,10 @@ proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   this.lastMoveResizeClientState = client.area
 
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
+  if e.window == this.systray.window:
+    # Clicked systray window, don't do anything.
+    return
+
   case e.button:
     of Button1:
       this.mouseState = MouseState.Moving
