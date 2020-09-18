@@ -76,10 +76,10 @@ There are multiple fixes, per the [arch wiki](https://wiki.archlinux.org/index.p
 
 Fix #1:
 For jre7-openjdk or jre8-openjdk, append the line `export _JAVA_AWT_WM_NONREPARENTING=1` in `/etc/profile.d/jre.sh`.
-Then, source the file /etc/profile.d/jre.sh or log out and log back in.
+Then, source the file `/etc/profile.d/jre.sh` or log out and log back in.
 
 Fix #2:
-For last version of JDK append line `export AWT_TOOLKIT=MToolkit` in `~/.xinitrc` before `exec window manager`.
+For last version of JDK append line `export AWT_TOOLKIT=MToolkit` in `~/.xinitrc` before `exec nimdow`.
 
 Fix #3:
 Try to use [wmname](https://tools.suckless.org/x/wmname/) with line `wmname compiz` in your `~/.xinitrc`.
