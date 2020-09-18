@@ -23,6 +23,7 @@ const
 type
   StatusBar* = object
     settings: BarSettings
+    isMonitorSelected: bool
     status: string
     taggedClients: OrderedTableRef[Tag, seq[Client]]
     selectedClient: Client
@@ -377,10 +378,15 @@ proc renderStatus(this: StatusBar): int =
 
 proc renderActiveWindowTitle(this: StatusBar, minRenderX, maxRenderX: int) =
   if this.activeWindowTitle.len > 0:
+    let textColor =
+      if this.isMonitorSelected:
+        this.selectionColor
+      else:
+        this.fgColor
     this.renderStringCentered(
       this.activeWindowTitle,
       this.area.width.int div 2,
-      this.selectionColor,
+      textColor,
       minRenderX,
       maxRenderX
     )
@@ -394,6 +400,11 @@ proc redraw*(this: StatusBar) =
     tagLengthPixels = this.renderTags(this.selectedTag)
     maxRenderX = this.currentWidth - this.renderStatus() - cellWidth
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
+
+proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
+  this.isMonitorSelected = isMonitorSelected
+  if redraw:
+    this.redraw
 
 proc setSelectedTag*(this: var StatusBar, selectedTag: int, redraw: bool = true) =
   this.selectedTag = selectedTag

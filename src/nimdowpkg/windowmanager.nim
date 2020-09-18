@@ -85,6 +85,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc renderWindowTitle(this: WindowManager, monitor: Monitor)
 proc renderStatus(this: WindowManager)
+proc setSelectedMonitor(this: WindowManager, monitor: Monitor)
 proc setClientState(this: WindowManager, client: Client, state: int)
 proc unmanage(this: WindowManager, window: Window, destroyed: bool)
 proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor)
@@ -126,8 +127,6 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
     )
 
   result.renderStatus()
-
-  result.selectedMonitor = result.monitors[0]
 
   # Supporting window for NetWMCheck
   let ewmhWindow = XCreateSimpleWindow(result.display, result.rootWindow, 0, 0, 1, 1, 0, 0, 0)
@@ -245,6 +244,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
       2
     )
 
+  result.setSelectedMonitor(result.monitors[0])
   result.updateSystray()
 
 template systrayMonitor(this: WindowManager): Monitor =
@@ -336,6 +336,15 @@ proc focusNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
   this.focusMonitor(nextMonitorIndex)
 
+proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
+  ## Sets the selected monitor.
+  ## This should be called, NEVER directly assign this.selectedMonitor.
+  if this.selectedMonitor != nil:
+    this.selectedMonitor.statusBar.setIsMonitorSelected(false)
+
+  this.selectedMonitor = monitor
+  this.selectedMonitor.statusBar.setIsMonitorSelected(true)
+
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if monitorIndex == -1 or this.selectedMonitor.currClient == nil:
     return
@@ -369,7 +378,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   else:
     nextMonitor.doLayout(false)
 
-  this.selectedMonitor = nextMonitor
+  this.setSelectedMonitor(nextMonitor)
   this.selectedMonitor.focusClient(client, true)
   this.selectedMonitor.redrawStatusBar()
 
@@ -924,7 +933,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     if not monitor.area.contains(x, y) or monitor == this.selectedMonitor:
       continue
     let previousMonitor = this.selectedMonitor
-    this.selectedMonitor = monitor
+    this.setSelectedMonitor(monitor)
     # Set old monitor's focused window's border to the unfocused color
     if previousMonitor.currClient != nil:
       discard XSetWindowBorder(
@@ -1323,7 +1332,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   let title = this.display.getWindowName(client.window)
   nextMonitor.statusBar.setActiveWindowTitle(title)
 
-  this.selectedMonitor = nextMonitor
+  this.setSelectedMonitor(nextMonitor)
   # Unset the client being moved/resized
   this.moveResizingClient = nil
 
