@@ -34,6 +34,7 @@ type
     # Hex values
     fgColor*, bgColor*, selectionColor*: int
   Config* = ref object
+    eventManager: XEventManager
     identifierTable*: Table[string, Action]
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
@@ -41,8 +42,9 @@ type
     listener*: XEventListener
     loggingEnabled*: bool
 
-proc newConfig*(): Config =
+proc newConfig*(eventManager: XEventManager): Config =
   Config(
+    eventManager: eventManager,
     identifierTable: initTable[string, Action](),
     keyComboTable: initTable[KeyCombo, Action](),
     windowSettings: WindowSettings(
@@ -66,18 +68,18 @@ proc newConfig*(): Config =
   )
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
-proc hookConfig*(this: Config, eventManager: XEventManager)
+proc hookConfig*(this: Config)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef]
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string]
-proc runCommands(commands: varargs[string])
+proc runCommands(this: Config, commands: varargs[string])
 
 proc runAutostartCommands*(this: Config, configTable: TomlTable) =
   let autostartCommands = this.getAutostartCommands(configTable)
-  runCommands(autostartCommands)
+  this.runCommands(autostartCommands)
 
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
   if not configTable.hasKey("autostart"):
@@ -95,10 +97,11 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     else:
       result.add(cmd.stringVal)
 
-proc runCommands(commands: varargs[string]) =
+proc runCommands(this: Config, commands: varargs[string]) =
   for cmd in commands:
     try:
-      discard startProcess(command = cmd, options = { poEvalCommand })
+      let process = startProcess(command = cmd, options = { poEvalCommand })
+      this.eventManager.submitProcess(process)
     except:
       log "Failed to start command: " & cmd, lvlWarn
 
@@ -123,18 +126,15 @@ proc configureAction*(this: Config, actionName: string, actionInvokee: Action) =
 proc configureExternalProcess(this: Config, command: string) =
   this.identifierTable[command] =
     proc(keycode: int) =
-      try:
-        discard startProcess(command = command, options = { poEvalCommand })
-      except:
-        log "Failed to start command: " & command, lvlWarn
+      this.runCommands(command)
 
-proc hookConfig*(this: Config, eventManager: XEventManager) =
+proc hookConfig*(this: Config) =
   this.listener = proc(e: XEvent) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):
       this.keyComboTable[keyCombo](keyCombo.keycode)
-  eventManager.addListener(this.listener, KeyPress)
+  this.eventManager.addListener(this.listener, KeyPress)
 
 proc populateControlsTable(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("controls"):

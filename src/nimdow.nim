@@ -21,10 +21,10 @@ when isMainModule:
       configloader.configLoc = findConfigPath()
 
   let
-    loadedConfig = newConfig()
+    eventManager = newXEventManager()
+    loadedConfig = newConfig(eventManager)
     configTable = loadConfigFile()
 
-  let eventManager = newXEventManager()
   let nimdow = newWindowManager(eventManager, loadedConfig, configTable)
 
   logger.enabled = loadedConfig.loggingEnabled
