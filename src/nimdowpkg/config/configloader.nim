@@ -7,9 +7,14 @@ import
   x11 / [x,  xlib],
   "../keys/keyutils",
   "../event/xeventmanager",
-  "../logger"
+  "../logger",
+  threadpool
 
 var configLoc*: string
+
+proc w(p: Process) =
+  discard p.waitForExit()
+  p.close()
 
 proc findConfigPath*(): string =
   let configHome = os.getConfigDir()
@@ -98,7 +103,9 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
 proc runCommands(commands: varargs[string]) =
   for cmd in commands:
     try:
-      discard startProcess(command = cmd, options = { poEvalCommand })
+      var p = startProcess(command = cmd,
+                           options = { poEvalCommand, poParentStreams })
+      spawn w(p)
     except:
       log "Failed to start command: " & cmd, lvlWarn
 
@@ -124,7 +131,9 @@ proc configureExternalProcess(this: Config, command: string) =
   this.identifierTable[command] =
     proc(keycode: int) =
       try:
-        discard startProcess(command = command, options = { poEvalCommand })
+        var p = startProcess(command = command,
+                             options = { poEvalCommand, poParentStreams })
+        spawn w(p)
       except:
         log "Failed to start command: " & command, lvlWarn
 

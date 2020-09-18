@@ -14,11 +14,11 @@ requires "parsetoml"
 
 # Tasks
 task debug, "Create a debug build":
-  exec "nim --multimethods:on -o:bin/nimdow --linedir:on --debuginfo c src/nimdow.nim"
+  exec "nim --multimethods:on --threads:on -o:bin/nimdow --linedir:on --debuginfo c src/nimdow.nim"
 
 task build, "Create a development build":
-  exec "nim --multimethods:on -o:bin/nimdow c src/nimdow.nim"
+  exec "nim --multimethods:on --threads:on -o:bin/nimdow c src/nimdow.nim"
 
 task release, "Build for release":
-  exec "nim c --multimethods:on -o:bin/nimdow -d:release --opt:speed src/nimdow.nim"
+  exec "nim c --multimethods:on --threads:on -o:bin/nimdow -d:release --opt:speed src/nimdow.nim"
 
