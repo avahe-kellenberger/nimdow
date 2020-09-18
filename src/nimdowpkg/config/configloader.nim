@@ -73,11 +73,11 @@ proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, actio
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef]
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string]
-proc runCommands(commands: varargs[string])
+proc runCommands(commands: varargs[string], eventManager: XEventManager)
 
-proc runAutostartCommands*(this: Config, configTable: TomlTable) =
+proc runAutostartCommands*(this: Config, configTable: TomlTable, eventManager: XEventManager) =
   let autostartCommands = this.getAutostartCommands(configTable)
-  runCommands(autostartCommands)
+  runCommands(autostartCommands, eventManager)
 
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
   if not configTable.hasKey("autostart"):
@@ -95,10 +95,11 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     else:
       result.add(cmd.stringVal)
 
-proc runCommands(commands: varargs[string]) =
+proc runCommands(commands: varargs[string], eventManager: XEventManager) =
   for cmd in commands:
     try:
-      discard startProcess(command = cmd, options = { poEvalCommand })
+      let process = startProcess(command = cmd, options = { poEvalCommand })
+      eventManager.submitProcess(process)
     except:
       log "Failed to start command: " & cmd, lvlWarn
 

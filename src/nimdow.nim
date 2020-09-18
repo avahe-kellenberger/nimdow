@@ -30,6 +30,6 @@ when isMainModule:
   logger.enabled = loadedConfig.loggingEnabled
   log("Starting Nimdow " & version)
 
-  loadedConfig.runAutostartCommands(configTable)
+  loadedConfig.runAutostartCommands(configTable, eventManager)
   eventManager.startEventListenerLoop(nimdow.display)
 

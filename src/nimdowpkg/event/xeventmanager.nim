@@ -1,13 +1,15 @@
 import
   x11/xlib,
   tables,
-  sets
+  sets,
+  osproc
 
 type
   XEventListener* = proc(e: XEvent)
   XEventManager* = ref object
     listenerMap: Table[cint, HashSet[XEventListener]]
     event: XEvent
+    processes: seq[Process]
 
 proc newXEventManager*(): XEventManager =
   XEventManager(listenerMap: initTable[cint, HashSet[XEventListener]]())
@@ -35,6 +37,14 @@ proc dispatchEvent*(this: XEventManager, e: XEvent) =
   for listener in listeners:
     listener(e)
 
+proc submitProcess*(this: XEventManager, process: Process) =
+  this.processes.add(process)
+
+proc closeFinishedProcesses(this: XEventManager) =
+  for process in this.processes:
+    if not process.running():
+      process.close()
+
 proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
   ## This proc will not return unless there is an error.
@@ -43,6 +53,9 @@ proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   # XNextEvent returns 0 unless there is an error.
   while XNextEvent(display, addr(this.event)) == 0:
     this.dispatchEvent(this.event)
+    this.closeFinishedProcesses()
 
+  # Cleanup
+  this.closeFinishedProcesses()
   discard XCloseDisplay(display)
 
