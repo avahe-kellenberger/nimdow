@@ -255,6 +255,8 @@ proc reloadConfig*(this: WindowManager) =
   this.eventManager.removeListener(this.config.listener, KeyPress)
 
   this.config = newConfig(this.eventManager)
+  logger.enabled = this.config.loggingEnabled
+
   let configTable = configloader.loadConfigFile()
   this.config.populateGeneralSettings(configTable)
   this.mapConfigActions()
@@ -266,7 +268,7 @@ proc reloadConfig*(this: WindowManager) =
   for monitor in this.monitors:
     monitor.setConfig(this.config)
 
-  logger.enabled = this.config.loggingEnabled
+  this.updateSystray()
 
 proc initListeners(this: WindowManager) =
   this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
@@ -1014,6 +1016,8 @@ proc updateSystray(this: WindowManager) =
       this.systray = nil
       return
 
+  let barArea = this.systrayMonitor.statusBar.area
+
   var systrayWidth: int
   for icon in this.systray.icons:
     setWindowAttr.background_pixel = backgroundPixel
@@ -1021,19 +1025,20 @@ proc updateSystray(this: WindowManager) =
     discard XMapRaised(this.display, icon.window)
     systrayWidth += systrayIconSpacing
     icon.x = systrayWidth
+
+    let centerY = (barArea.height.float / 2 - icon.height.float / 2).int
+
     discard XMoveResizeWindow(
       this.display,
       icon.window,
       icon.x,
-      0,
+      centerY,
       icon.width,
       icon.height
     )
     systrayWidth += icon.width.int
 
   systrayWidth = max(1, systrayWidth + systrayIconSpacing)
-
-  let barArea = this.systrayMonitor.statusBar.area
 
   var winChanges: XWindowChanges
 
