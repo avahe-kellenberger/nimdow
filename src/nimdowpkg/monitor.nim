@@ -91,8 +91,10 @@ proc setConfig*(this: Monitor, config: Config) =
   for tag in this.taggedClients.keys():
     tag.layout.gapSize = this.config.gapSize
     tag.layout.borderWidth = this.config.borderWidth
-  this.doLayout()
+
+  this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.setConfig(config.barSettings)
+  this.doLayout()
 
 template currTagClients*(this: Monitor): untyped =
   ## Grabs the windows on the current tag.

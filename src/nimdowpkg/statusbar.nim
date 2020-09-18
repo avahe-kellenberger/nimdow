@@ -160,7 +160,7 @@ proc configureBar(this: StatusBar) =
     12
   )
 
-proc resizeForSystray*(this: var StatusBar, systrayWidth: int) =
+proc resizeForSystray*(this: var StatusBar, systrayWidth: int, redraw: bool = true) =
   this.systrayWidth = systrayWidth
   discard XMoveResizeWindow(
     this.display,
@@ -230,11 +230,12 @@ proc setConfig*(this: var StatusBar, config: BarSettings, redraw: bool = true) =
     XftFontClose(this.display, font)
 
   this.settings = config
+  this.area.height = config.height
   this.configureColors()
   this.configureFonts()
 
-  if redraw:
-    this.redraw()
+  # Tell bar to resize and redraw
+  this.resizeForSystray(this.systrayWidth, redraw)
 
 ######################
 ### Rendering procs ##
