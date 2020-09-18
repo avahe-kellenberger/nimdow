@@ -41,9 +41,16 @@ proc submitProcess*(this: XEventManager, process: Process) =
   this.processes.add(process)
 
 proc closeFinishedProcesses(this: XEventManager) =
-  for process in this.processes:
+  ## Closes any finished processes
+  ## and removes them from the processes seqeunce.
+  var i = 0
+  while i < this.processes.len:
+    let process = this.processes[i]
     if not process.running():
       process.close()
+      this.processes.del(i)
+    else:
+      i.inc
 
 proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.

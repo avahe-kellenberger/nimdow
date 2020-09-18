@@ -110,7 +110,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
   result.config.populateGeneralSettings(configTable)
   result.mapConfigActions()
   result.config.populateKeyComboTable(configTable, result.display)
-  result.config.hookConfig(eventManager)
+  result.config.hookConfig()
   result.hookConfigKeys()
 
   result.windowSettings = result.config.windowSettings
@@ -254,12 +254,12 @@ proc reloadConfig*(this: WindowManager) =
   # Remove old config listener.
   this.eventManager.removeListener(this.config.listener, KeyPress)
 
-  this.config = newConfig()
+  this.config = newConfig(this.eventManager)
   let configTable = configloader.loadConfigFile()
   this.config.populateGeneralSettings(configTable)
   this.mapConfigActions()
   this.config.populateKeyComboTable(configTable, this.display)
-  this.config.hookConfig(this.eventManager)
+  this.config.hookConfig()
   this.hookConfigKeys()
 
   this.windowSettings = this.config.windowSettings
