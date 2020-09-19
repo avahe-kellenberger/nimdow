@@ -9,6 +9,8 @@ import
   monitor,
   statusbar,
   systray,
+  strutils,
+  parseutils,
   tag,
   area,
   config/configloader,
@@ -1205,13 +1207,44 @@ proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
     let title = this.display.getWindowName(client.window)
     this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
+proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
+  if monitorIndex < 0 or monitorIndex > this.monitors.len - 1:
+    var err: ref ValueError
+    new(err)
+    err.msg = "monitor index is out of the range"
+    raise err
+  this.monitors[monitorIndex].statusBar.setStatus(status)
+
+proc setStatusForAllMonitors(this: WindowManager, status: string) =
+  for monitor in this.monitors:
+    monitor.statusBar.setStatus(status)
+
 proc renderStatus(this: WindowManager) =
   ## Renders the status on all status bars.
   var name: cstring
   if XFetchName(this.display, this.rootWindow, name.addr) == 1:
-    let status = $name
-    for monitor in this.monitors:
-      monitor.statusBar.setStatus(status)
+    let statuses = ($name).split("NIMDOW_MONITOR_INDEX=")
+    if statuses.len == 1:
+      this.setStatusForAllMonitors(statuses[0])
+    else:
+      for status in statuses[1 .. statuses.len - 1]:
+        var monitorIndexAsStr = status[0..skipWhile(status, Digits)-1]
+        var monitorIndex: int
+        try:
+          monitorIndex = parseInt(monitorIndexAsStr)
+        except ValueError:
+          let err = "NIMDOW_MONITOR_INDEX value is not valid"
+          log(err, lvlError)
+          this.setStatusForAllMonitors(err)
+          return
+        if monitorIndex < 0 or monitorIndex > this.monitors.len - 1:
+          let err = "NIMDOW_MONITOR_INDEX value is out of the range"
+          log(err, lvlError)
+          this.setStatusForAllMonitors(err)
+          return
+        var st = status
+        st.removePrefix(monitorIndexAsStr)
+        this.setStatus(monitorIndex, st)
 
 proc windowToMonitor(this: WindowManager, window: Window): Monitor =
   for monitor in this.monitors:
