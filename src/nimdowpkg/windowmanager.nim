@@ -1230,6 +1230,7 @@ proc renderStatus(this: WindowManager) =
           this.setStatusForAllMonitors(err)
           return
         var st = status
+        st.removePrefix(monitorIndexAsStr)
         this.setStatus(monitorIndex, st)
 
 proc windowToMonitor(this: WindowManager, window: Window): Monitor =
