@@ -33,7 +33,9 @@ const
   wmName = "nimdow"
   tagCount = 9
   minimumUpdateInterval = math.round(1000 / 60).int
+
   systrayMonitorIndex = 0
+  STATUS_MONITOR_PREFIX = "NIMDOW_MONITOR_INDEX="
 
   SYSTEM_TRAY_REQUEST_DOCK = 0
 
@@ -45,6 +47,11 @@ const
   VERSION_MAJOR = 0
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
+
+# Helper procs that don't really fit anywhere.
+# Should move these somewhere appropriate.
+proc isInRange[T](arr: openArray[T], index: int): bool {.inline.} =
+  return index >= arr.low and index <= arr.high
 
 type
   MouseState* = enum
@@ -1208,11 +1215,8 @@ proc renderWindowTitle(this: WindowManager, monitor: Monitor) =
     this.selectedMonitor.statusBar.setActiveWindowTitle(title)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
-  if monitorIndex < 0 or monitorIndex > this.monitors.len - 1:
-    var err: ref ValueError
-    new(err)
-    err.msg = "monitor index is out of the range"
-    raise err
+  if not this.monitors.isInRange(monitorIndex):
+    raise newException(ValueError,  "monitor index " & $monitorIndex & " is out of range")
   this.monitors[monitorIndex].statusBar.setStatus(status)
 
 proc setStatusForAllMonitors(this: WindowManager, status: string) =
@@ -1222,29 +1226,26 @@ proc setStatusForAllMonitors(this: WindowManager, status: string) =
 proc renderStatus(this: WindowManager) =
   ## Renders the status on all status bars.
   var name: cstring
-  if XFetchName(this.display, this.rootWindow, name.addr) == 1:
-    let statuses = ($name).split("NIMDOW_MONITOR_INDEX=")
-    if statuses.len == 1:
-      this.setStatusForAllMonitors(statuses[0])
-    else:
-      for status in statuses[1 .. statuses.len - 1]:
-        var monitorIndexAsStr = status[0..skipWhile(status, Digits)-1]
-        var monitorIndex: int
-        try:
+  if XFetchName(this.display, this.rootWindow, name.addr) == 0:
+    return
+
+  let statuses = ($name).split(STATUS_MONITOR_PREFIX)
+  if statuses.len == 1:
+    this.setStatusForAllMonitors(statuses[0])
+  else:
+    try:
+      for rawStatus in statuses[1 .. statuses.high]:
+        var
+          monitorIndexAsStr = rawStatus[0..skipUntil(rawStatus, Whitespace)-1]
           monitorIndex = parseInt(monitorIndexAsStr)
-        except ValueError:
-          let err = "NIMDOW_MONITOR_INDEX value is not valid"
-          log(err, lvlError)
-          this.setStatusForAllMonitors(err)
-          return
-        if monitorIndex < 0 or monitorIndex > this.monitors.len - 1:
-          let err = "NIMDOW_MONITOR_INDEX value is out of the range"
-          log(err, lvlError)
-          this.setStatusForAllMonitors(err)
-          return
-        var st = status
-        st.removePrefix(monitorIndexAsStr)
-        this.setStatus(monitorIndex, st)
+
+        var status = rawStatus
+        status.removePrefix(monitorIndexAsStr)
+        this.setStatus(monitorIndex, status)
+    except ValueError:
+      let msg = getCurrentExceptionMsg()
+      this.setStatusForAllMonitors(msg)
+      log(msg, lvlError)
 
 proc windowToMonitor(this: WindowManager, window: Window): Monitor =
   for monitor in this.monitors:
