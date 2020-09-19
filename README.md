@@ -68,6 +68,14 @@ The status bar displays:
 The status is the text read from the root window's name property, which can be set with `xsetroot -name "My status"`.
 This is the exact same way `dwm` manages its status. I recommend [reading their page](https://dwm.suckless.org/status_monitor/) about setting statuses.
 
+### Emojis Not showing up / some characters invisible
+
+In short, there's a bug in the xft library most distros use.
+
+[This fork of xft](https://gitlab.freedesktop.org/xorg/lib/libxft) has a fix for emojis and other font issues.
+
+If using an Arch Linux based distro, there is [libxft-bgra-git](https://aur.archlinux.org/packages/libxft-bgra-git/) in the AUR.
+
 ## Issues with Java Applications
 
 ### The fix
