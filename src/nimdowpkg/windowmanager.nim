@@ -643,79 +643,75 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
   discard XSync(this.display, false)
 
+proc addIconToSystray(this: WindowManager, window: Window) =
+  var
+    windowAttr: XWindowAttributes
+    setWindowAttr: XSetWindowAttributes
+
+  var icon: Icon = newIcon(window)
+  this.systray.addIcon(icon)
+
+  discard XGetWindowAttributes(this.display, icon.window, windowAttr.addr)
+
+  icon.width = windowAttr.width
+  icon.oldwidth = windowAttr.width
+  icon.height = windowAttr.height
+  icon.oldHeight = windowAttr.height
+  icon.oldBorderWidth = windowAttr.border_width
+  icon.borderWidth = 0
+  icon.isFloating = true
+  icon.isMapped = true
+
+  this.updateSizeHints(Client(icon), this.systrayMonitor)
+  this.updateSystrayIconGeom(icon, windowAttr.width, windowAttr.height)
+
+  discard XAddToSaveSet(this.display, icon.window)
+  discard XSelectInput(
+    this.display,
+    icon.window,
+    StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
+  )
+
+  var classHint: XClassHint
+  classHint.res_name = "nimdowsystray"
+  classHint.res_class = "nimdowsystray"
+  discard XSetClassHint(this.display, icon.window, classHint.addr)
+
+  discard XReparentWindow(
+    this.display,
+    icon.window,
+    this.systray.window,
+    0,
+    0
+  )
+
+  # Use parent's background color
+  setWindowAttr.background_pixel = this.systrayMonitor.statusBar.bgColor.pixel
+  discard XChangeWindowAttributes(this.display, icon.window, CWBackPixel, setWindowAttr.addr)
+  discard sendEvent(
+    this.display,
+    icon.window,
+    $Xembed,
+    StructureNotifyMask,
+    CurrentTime,
+    XEMBED_EMBEDDED_NOTIFY,
+    0,
+    this.systray.window.clong,
+    XEMBED_EMBEDDED_VERSION
+  )
+
+  discard XSync(this.display, false)
+
+  this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+  this.updateSystray()
+  this.setClientState(Client(icon), NormalState)
+
+
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
-    # Add systray icons
     if  e.data.l[1] == SYSTEM_TRAY_REQUEST_DOCK:
-      if e.data.l[2] == 0:
-        return
-
-      var
-        windowAttr: XWindowAttributes
-        setWindowAttr: XSetWindowAttributes
-
-      var icon: Icon = newIcon(e.data.l[2])
-      this.systray.addIcon(icon)
-      if XGetWindowAttributes(this.display, icon.window, windowAttr.addr) == 0:
-        # Use sane defaults.
-        let barHeight = this.config.barSettings.height
-        windowAttr.width = barHeight.cint
-        windowAttr.height = barHeight.cint
-        windowAttr.border_width = 0
-
-      icon.width = windowAttr.width
-      icon.oldwidth = windowAttr.width
-      icon.height = windowAttr.height
-      icon.oldHeight = windowAttr.height
-      icon.oldBorderWidth = windowAttr.border_width
-      icon.borderWidth = 0
-      icon.isFloating = true
-      icon.isMapped = true
-
-      this.updateSizeHints(Client(icon), this.systrayMonitor)
-      this.updateSystrayIconGeom(icon, windowAttr.width, windowAttr.height)
-
-      discard XAddToSaveSet(this.display, icon.window)
-      discard XSelectInput(
-        this.display,
-        icon.window,
-        StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
-      )
-
-      var classHint: XClassHint
-      classHint.res_name = "nimdowsystray"
-      classHint.res_class = "nimdowsystray"
-      discard XSetClassHint(this.display, icon.window, classHint.addr)
-
-      discard XReparentWindow(
-        this.display,
-        icon.window,
-        this.systray.window,
-        0,
-        0
-      )
-
-      # Use parent's background color
-      setWindowAttr.background_pixel = this.systrayMonitor.statusBar.bgColor.pixel
-      discard XChangeWindowAttributes(this.display, icon.window, CWBackPixel, setWindowAttr.addr)
-      discard sendEvent(
-        this.display,
-        icon.window,
-        $Xembed,
-        StructureNotifyMask,
-        CurrentTime,
-        XEMBED_EMBEDDED_NOTIFY,
-        0,
-        this.systray.window.clong,
-        XEMBED_EMBEDDED_VERSION
-      )
-
-      discard XSync(this.display, false)
-
-      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
-      this.updateSystray()
-      this.setClientState(Client(icon), NormalState)
-
+      if e.data.l[2] != 0:
+        this.addIconToSystray(e.data.l[2])
     return
 
   var (client, monitor) = this.windowToClient(e.window)
@@ -934,9 +930,8 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
   else:
     let icon = this.systray.windowToIcon(e.window)
     if icon != nil:
-      # Sometimes icons unmap their windows but don't destroy them.
-      # We map those windows back.
-      discard XMapRaised(this.display, icon.window)
+      this.systray.removeIcon(icon)
+      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
       this.updateSystray()
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
@@ -1093,14 +1088,6 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
     icon.width = width
   else:
     icon.width = int(barHeight.float * (width / height))
-
-  # Force icons into the systray dimensions if they don't want to
-  if icon.height > barHeight:
-    if icon.width == icon.height:
-      icon.width = barHeight
-    else:
-      icon.width = int(barHeight.float * (icon.width.float / icon.height.float))
-    icon.height = barHeight
 
 proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) =
   if icon == nil or e.atom != $XembedInfo:
