@@ -225,7 +225,7 @@ proc focusRootWindow(this: Monitor) =
     CurrentTime
   )
 
-proc ensureWindowFocus*(this: Monitor) =
+proc ensureWindowFocus(this: Monitor) =
   ## Ensures a window is selected on the current tag.
   if this.currTagClients.len == 0:
     this.focusRootWindow()
