@@ -2,7 +2,13 @@ import
   x11/xlib,
   tables,
   sets,
-  osproc
+  osproc,
+  times
+
+const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
+
+var
+  timeLastCheckedProcesses, currentTime: float
 
 type
   XEventListener* = proc(e: XEvent)
@@ -52,6 +58,13 @@ proc closeFinishedProcesses(this: XEventManager) =
     else:
       i.inc
 
+proc checkForProcessesToClose(this: XEventManager) =
+  ## Check for closed processes periodically.
+  currentTime = epochTime()
+  if timeLastCheckedProcesses - currentTime >= CLOSE_PROCESS_CHECK_INTERVAL:
+    this.closeFinishedProcesses()
+    timeLastCheckedProcesses = currentTime
+
 proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   ## Infinitely listens for and dispatches libx.TXEvents.
   ## This proc will not return unless there is an error.
@@ -60,7 +73,7 @@ proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   # XNextEvent returns 0 unless there is an error.
   while XNextEvent(display, addr(this.event)) == 0:
     this.dispatchEvent(this.event)
-    this.closeFinishedProcesses()
+    this.checkForProcessesToClose()
 
   # Cleanup
   this.closeFinishedProcesses()
