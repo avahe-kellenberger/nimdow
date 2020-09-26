@@ -13,7 +13,8 @@ import
   layouts/masterstacklayout,
   keys/keyutils,
   config/configloader,
-  statusbar
+  statusbar,
+  logger
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -199,8 +200,7 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
       if i == 0:
         return tag
   except:
-    echo "Invalid tag number from config:"
-    echo getCurrentExceptionMsg()
+    log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
   this.setSelectedClient(client)
@@ -424,12 +424,14 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   for client in (setNext - setCurrent).items:
     client.show(this.display)
+
     # Ensure correct border color is set for each window
     let color =
       if this.selectedTag.isSelectedClient(client):
         this.config.borderColorFocused
       else:
         this.config.borderColorUnfocused
+
     discard XSetWindowBorder(this.display, client.window, color)
 
   discard XSync(this.display, false)
