@@ -1176,7 +1176,6 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
 
   this.selectedMonitor.setActiveWindowProperty(e.window)
   this.selectedMonitor.setSelectedClient(client)
-  client.takeFocus(this.display)
   discard XSetWindowBorder(
     this.display,
     client.window,
