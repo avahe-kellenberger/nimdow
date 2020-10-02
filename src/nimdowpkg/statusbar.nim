@@ -1,5 +1,6 @@
 import
   x11 / [x, xlib, xutil, xatom, xft, xrender],
+  lists,
   unicode,
   xatoms,
   area,
@@ -25,7 +26,7 @@ type
     settings: BarSettings
     isMonitorSelected: bool
     status: string
-    taggedClients: OrderedTableRef[Tag, seq[Client]]
+    clients: SinglyLinkedList[Client]
     selectedClient: Client
     selectedTag: int
     activeWindowTitle: string
@@ -52,12 +53,12 @@ proc newStatusBar*(
     display: PDisplay,
     rootWindow: Window,
     area: Area,
-    taggedClients: OrderedTableRef[Tag, seq[Client]],
+    clients: SinglyLinkedList[Client],
     settings: BarSettings
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.settings = settings
-  result.taggedClients = taggedClients
+  result.clients = clients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
   result.colormap = DefaultColormap(display, result.screen)
@@ -357,7 +358,7 @@ proc renderTags(this: StatusBar, selectedTag: int): int =
   var
     textXPos: int
 
-  for tag, clients in this.taggedClients:
+  for tag, clients in this.clients:
     let i = tag.id
     textXPos = cellWidth div 2 + cellWidth * i
     var color = if i == selectedTag: this.selectionColor else: this.fgColor

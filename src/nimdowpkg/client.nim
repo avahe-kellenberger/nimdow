@@ -1,8 +1,12 @@
 import
   x11 / [x, xlib, xutil],
-  hashes,
   area,
+  tag,
   xatoms
+
+import
+  hashes,
+  sets
 
 converter intToCint(x: int): cint = x.cint
 converter uintToCint(x: uint): cint = x.cint
@@ -11,6 +15,7 @@ converter toXBool(x: bool): XBool = x.XBool
 type
   Client* = ref object of RootObj
     window*: Window
+    tagIDs*: HashSet[TagID]
     area*: Area
     oldArea*: Area
     borderWidth*: uint
@@ -25,8 +30,11 @@ type
 
 proc hash*(this: Client): Hash
 
-proc newClient*(window: Window): Client =
-  Client(window: window)
+proc newClient*(window: Window, tagIDs: varargs[TagID]): Client =
+  Client(
+    window: window,
+    tagIDs: tagIDs.toHashSet()
+  )
 
 # Area helper procs
 proc x*(this: Client): int = this.area.x
