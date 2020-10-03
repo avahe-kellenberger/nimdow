@@ -4,7 +4,7 @@ import
   tables,
   sets,
   sequtils,
-  lists,
+  listutils,
   strutils,
   xatoms,
   tag,
@@ -43,6 +43,8 @@ type
     selectedTags*: OrderedSet[TagID]
     previousTag*: Tag
     layoutOffset: LayoutOffset
+  ClientNode* = DoublyLinkedNode[Client]
+  MonitorClientIter = iterator(this: Monitor): ClientNode {.inline, closure.}
 
 proc doLayout*(this: Monitor, warpToClient: bool = true)
 proc restack*(this: Monitor)
@@ -92,70 +94,50 @@ proc setConfig*(this: Monitor, config: Config) =
   this.statusBar.setConfig(config.barSettings)
   this.doLayout()
 
-###################################################
-########## Helper templates and macros ############
-###################################################
+########################################################
+#### Helper procs, iterators, templates, and macros ####
+########################################################
 
-iterator reverseItems[T](L: SomeLinkedList[T]): T =
-  var it = L.tail
-  while it != nil:
-    yield it.value
-    it = it.prev
+iterator currClientsIter*(this: Monitor): ClientNode {.inline, closure.} =
+  ## Iterates over clients in stack order.
+  for node in this.clients.nodes:
+    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
+      yield node
 
-iterator currClientsIter*(this: Monitor): Client {.inline.} =
-  for client in this.clients.items:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield client
+iterator currClientsReverseIter*(this: Monitor): ClientNode {.inline, closure.} =
+  ## Iterates over clients in reverse stack order.
+  for node in this.clients.reverseNodes:
+    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
+      yield node
 
-iterator currClientsSelectionNewToOldIter*(
-  this: Monitor,
-  newToOld = true
-): Client {.inline.} =
+proc findCurrentClients(this: Monitor): seq[Client] =
+  for node in this.currClientsIter:
+    result.add(node.value)
+
+iterator clientWithTagIter*(this: Monitor, tagID: TagID): ClientNode {.inline, closure.} =
+  for node in this.clients.nodes:
+    if node.value.tagIDs.contains(tagID):
+      yield node
+
+iterator currClientsSelectionNewToOldIter*(this: Monitor): Client {.inline, closure.} =
   ## Iterates over clients in order of selection,
   ## from most recent to least recent.
   for client in this.clientSelection.reverseItems:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield client
 
-iterator currClientsSelectionOldToNewIter*(
-  this: Monitor,
-  newToOld = true
-): Client {.inline.} =
+iterator currClientsSelectionOldToNewIter*(this: Monitor): Client {.inline, closure.} =
   ## Iterates over clients in order of selection,
   ## from least recent to most recent.
   for client in this.clientSelection.items:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield client
 
-iterator currClientsForwardIter*(
-  this: Monitor,
-  newToOld = true
-): Client {.inline.} =
-  ## Iterates over clients in stack order.
-  for client in this.clients.items:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield client
-
-iterator currClientsBackwardIter*(
-  this: Monitor,
-  newToOld = true
-): Client {.inline.} =
-  ## Iterates over clients in reverse stack order.
-  for client in this.clients.reverseItems:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield client
-
-proc findCurrentClients(this: Monitor): seq[Client] =
-  for client in this.currClientsIter:
-    result.add(client)
-
-iterator forEachClientWithTag*(this: Monitor, tagID: TagID): Client {.inline.} =
-  for client in this.clients.items:
-    if client.tagIDs.contains(tagID):
-      yield client
-
 template currClient*(this: Monitor): Client =
   this.clientSelection.tail != nil ? this.clientSelection.tail.value || nil
+
+template currClientNode*(this: Monitor): DoublyLinkedNode[Client] =
+  this.clientSelection.tail
 
 template withSomeCurrClient*(this: Monitor, client, body: untyped) =
   ## Executes `body` if `this.currClient != nil`
@@ -164,6 +146,10 @@ template withSomeCurrClient*(this: Monitor, client, body: untyped) =
     body
 
 proc setSelectedClient*(this: Monitor, client: Client) =
+  if client == nil:
+    log "Attempted to set nil client as the selected client", lvlError
+    return
+
   this.statusBar.setSelectedClient(client)
   let node = this.clientSelection.find(client)
   if node != nil:
@@ -469,37 +455,49 @@ proc viewTag*(this: Monitor, tag: Tag) =
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw()
 
+proc focusNextClient*(
+  this: Monitor,
+  warpToClient: bool,
+  currClientsIter: MonitorClientIter = this.currClientsIter
+) =
+  ## Focuses the next client in the stack.
+  for node in currClientsIter():
+    if node != nil:
+      this.setSelectedClient(node.value)
+    break
+
 proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
   ## Focuses the previous client in the stack.
-  for client in this.currClientsBackwardIter():
-    this.setSelectedClient(client)
-    break
-
-proc focusNextClient*(this: Monitor, warpToClient: bool) =
-  ## Focuses the next client in the stack.
-  for client in this.currClientsForwardIter():
-    this.setSelectedClient(client)
-    break
-
-# proc moveClient(
-#   this: Monitor,
-#   findNormalClient: (clients: openArray[Client], i: int) -> int
-# ) =
-#   let indexes = this.findSelectedAndNextNormalClientIndexes(findNormalClient)
-#   if indexes.selectedIndex >= 0 and indexes.nextIndex >= 0:
-#     let temp = this.currTagClients[indexes.selectedIndex]
-#     this.currTagClients[indexes.selectedIndex] = this.currTagClients[indexes.nextIndex]
-#     this.currTagClients[indexes.nextIndex] = temp
-#     this.doLayout()
-#     this.focusClient(this.currTagClients[indexes.nextIndex], true)
+  this.focusNextClient(warpToClient, this.currClientsReverseIter)
 
 proc moveClientPrevious*(this: Monitor) =
   ## Moves the client to the previous position in the stack.
-  this.moveClient(client.findPreviousTiled)
+  let currentNode = this.currClientNode
+  if currentNode == nil or currentNode.value == nil:
+    return
+
+  for node in this.currClientsReverseIter:
+    let client = node.value
+    if not client.isFloating and not client.isFixed:
+      this.clients.swap(node, currentNode)
+      this.doLayout()
+      this.display.warpTo(this.currClient)
+      break
 
 proc moveClientNext*(this: Monitor) =
   ## Moves the client to the next position in the stack.
-  this.moveClient(client.findNextTiled)
+  let currentNode = this.currClientNode
+  if currentNode == nil or currentNode.value == nil:
+    return
+
+  for node in this.currClientsIter:
+    let client = node.value
+    if not client.isFloating and not client.isFixed:
+      this.clients.swap(node, currentNode)
+      this.doLayout()
+      this.display.warpTo(this.currClient)
+      break
+
 
 proc toggleFullscreen*(this: Monitor, client: var Client) =
   if client.isFullscreen:

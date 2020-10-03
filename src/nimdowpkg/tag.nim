@@ -1,11 +1,11 @@
 import
   hashes,
+  taginfo,
   layouts/layout
 
-const tagCount* = 9
+export taginfo
 
 type
-  TagID* = 1..tagCount
   Tag* = ref object
     id*: TagID
     layout*: Layout

@@ -1,7 +1,7 @@
 import
   x11 / [x, xlib, xutil],
   area,
-  tag,
+  taginfo,
   xatoms
 
 import

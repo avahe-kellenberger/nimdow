@@ -26,7 +26,7 @@ type
     settings: BarSettings
     isMonitorSelected: bool
     status: string
-    clients: SinglyLinkedList[Client]
+    clients: DoublyLinkedList[Client]
     selectedClient: Client
     selectedTag: int
     activeWindowTitle: string
@@ -53,7 +53,7 @@ proc newStatusBar*(
     display: PDisplay,
     rootWindow: Window,
     area: Area,
-    clients: SinglyLinkedList[Client],
+    clients: DoublyLinkedList[Client],
     settings: BarSettings
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
@@ -358,7 +358,7 @@ proc renderTags(this: StatusBar, selectedTag: int): int =
   var
     textXPos: int
 
-  for tag, clients in this.clients:
+  for node in this.clients.nodes:
     let i = tag.id
     textXPos = cellWidth div 2 + cellWidth * i
     var color = if i == selectedTag: this.selectionColor else: this.fgColor
