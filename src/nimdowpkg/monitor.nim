@@ -43,6 +43,7 @@ proc doLayout*(this: Monitor, warpToClient: bool = true)
 proc restack*(this: Monitor)
 proc setSelectedClient*(this: Monitor, client: Client)
 proc updateCurrentDesktopProperty(this: Monitor)
+proc updateWindowTitle(this: Monitor, redrawBar: bool = true)
 
 proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfig: Config): Monitor =
   result = Monitor()
@@ -94,6 +95,13 @@ template clients*(this: Monitor): DoublyLinkedList[Client] =
 template clientSelection*(this: Monitor): DoublyLinkedList[Client] =
   this.taggedClients.clients
 
+proc getFirstSelectedTag*(this: Monitor): Tag =
+  ## Gets the first selected tag,
+  ## or `nil` if to tags are selected.
+  for tag in this.tags.items:
+    result = tag
+    break
+
 iterator currClientsIter*(this: Monitor): ClientNode {.inline, closure.} =
   ## Iterates over clients in stack order.
   for node in this.clients.nodes:
@@ -109,6 +117,24 @@ iterator currClientsReverseIter*(this: Monitor): ClientNode {.inline, closure.} 
 proc findCurrentClients*(this: Monitor): seq[Client] =
   for node in this.currClientsIter:
     result.add(node.value)
+
+proc currClientsContains*(this: Monitor, client: Client): bool =
+  for node in this.currClientsIter:
+    if node.value == client:
+      return true
+  return false
+
+proc currClientsContains*(this: Monitor, window: Window): bool =
+  for node in this.currClientsIter:
+    if node.value != nil and node.value.window == window:
+      return true
+  return false
+
+proc contains*(this: Monitor, window: Window): bool =
+  for client in this.clients.items:
+    if client != nil and client.window == window:
+      return true
+  return false
 
 iterator clientWithTagIter*(this: Monitor, tagID: TagID): ClientNode {.inline, closure.} =
   for node in this.clients.nodes:
@@ -129,11 +155,12 @@ iterator currClientsSelectionOldToNewIter*(this: Monitor): ClientNode {.inline, 
     if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield node
 
-template currClient*(this: Monitor): Client =
-  this.clientSelection.tail != nil ? this.clientSelection.tail.value || nil
-
 template currClientNode*(this: Monitor): DoublyLinkedNode[Client] =
   this.clientSelection.tail
+
+template currClient*(this: Monitor): Client =
+  let node = this.currClientNode
+  node != nil ? node.value || nil
 
 template withSomeCurrClient*(this: Monitor, client, body: untyped) =
   ## Executes `body` if `this.currClient != nil`
@@ -151,16 +178,40 @@ proc setConfig*(this: Monitor, config: Config) =
   this.statusBar.setConfig(config.barSettings)
   this.doLayout()
 
+proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
+  ## Renders the title of the active window of the given monitor
+  ## on the monitor's status bar.
+  this.withSomeCurrClient(client):
+    let title = this.display.getWindowName(client.window)
+    this.statusBar.setActiveWindowTitle(title, redrawBar)
+
 proc setSelectedClient*(this: Monitor, client: Client) =
   if client == nil:
     log "Attempted to set nil client as the selected client", lvlError
     return
 
   let node = this.clientSelection.find(client)
+
   if node != nil:
+    if node.value == this.currClient:
+      # Same client was selected.
+      return
+
+    discard XSetWindowBorder(
+      this.display,
+      this.currClient.window,
+      this.config.borderColorUnfocused
+    )
+
+    discard XSetWindowBorder(
+      this.display,
+      node.value.window,
+      this.config.borderColorFocused
+    )
+
     this.clientSelection.remove(node)
     this.clientSelection.append(node)
-    this.statusBar.redraw()
+    this.updateWindowTitle()
   else:
     log "Attempted to set nil client as the selected client", lvlError
 
@@ -184,6 +235,15 @@ proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
 proc findByWindow*(this: Monitor, window: Window): Client =
   ## Finds a client based on its window property.
   for client in this.clients.items:
+    if client.window == window:
+      return client
+  return nil
+
+proc findByWindowInCurrentTags*(this: Monitor, window: Window): Client =
+  ## Finds a client based on its window property,
+  ## searching only the currently selected tags.
+  for node in this.currClientsIter:
+    let client = node.value
     if client.window == window:
       return client
   return nil
@@ -383,18 +443,15 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.deleteActiveWindowProperty()
   this.updateClientList()
 
-proc updateWindowTagAtom*(this: Monitor, window: Window, tagID: int) =
-  let data: clong = tagID.clong
-  discard XChangeProperty(
-    this.display,
-    window,
-    $NetWMDesktop,
-    XA_CARDINAL,
-    32,
-    PropModeReplace,
-    cast[Pcuchar](data.unsafeAddr),
-    1
-  )
+proc addClientToTags*(this: Monitor, client: Client, tags: varargs[TagID]) =
+  discard
+
+proc addClientToSelectedTags*(this: Monitor, client: Client) =
+  let
+    selectedTags: OrderedSet[TagID] = this.selectedTags
+    tagIDs = toSeq(selectedTags.items)
+
+  this.addClientToTags(client, tagIDs)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   # TODO Change client tags to only destinationTag id.
