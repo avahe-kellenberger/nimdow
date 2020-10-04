@@ -1,16 +1,17 @@
 import
   x11 / [x, xlib, xutil, xatom, xft, xrender],
   lists,
-  unicode,
+  tables,
+  sets,
+  unicode
+
+import
+  taggedclients,
   xatoms,
   area,
   strut,
-  tables,
-  tag,
-  client,
   config/configloader
 
-converter boolToXBool(x: bool): XBool = XBool(x)
 converter XBoolToBool(x: XBool): bool = bool(x)
 converter intToCint(x: int): cint = x.cint
 converter intToCuint(x: int): cuint = x.cuint
@@ -26,9 +27,6 @@ type
     settings: BarSettings
     isMonitorSelected: bool
     status: string
-    clients: DoublyLinkedList[Client]
-    selectedClient: Client
-    selectedTag: int
     activeWindowTitle: string
     display: PDisplay
     screen: cint
@@ -42,6 +40,9 @@ type
     area*: Area
     systrayWidth: int
 
+    # Client and tag info.
+    taggedClients: TaggedClients
+
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
@@ -53,12 +54,12 @@ proc newStatusBar*(
     display: PDisplay,
     rootWindow: Window,
     area: Area,
-    clients: DoublyLinkedList[Client],
-    settings: BarSettings
+    settings: BarSettings,
+    taggedClients: TaggedClients
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.settings = settings
-  result.clients = clients
+  result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
   result.colormap = DefaultColormap(display, result.screen)
@@ -77,6 +78,18 @@ proc newStatusBar*(
   )
   discard XMapWindow(display, result.barWindow)
   discard XFlush(display)
+
+template tags*(this: StatusBar): seq[Tag] =
+  this.taggedClients.tags
+
+template selectedTags*(this: StatusBar): OrderedSet[TagID] =
+  this.taggedClients.selectedTags
+
+template clients*(this: StatusBar): DoublyLinkedList[Client] =
+  this.taggedClients.clients
+
+template clientSelection*(this: StatusBar): DoublyLinkedList[Client] =
+  this.taggedClients.clients
 
 template currentWidth(this: StatusBar): int =
   this.area.width.int - this.systrayWidth
@@ -285,10 +298,6 @@ proc renderStringCentered*(
 ) =
   ## Renders a string centered at position x.
 
-  # TODO:
-  # 1. There may be a more efficient way to do this.
-  # 2. We need to make sure the text doesn't bleed into the status or tags.
-  # Maybe we should store the entire width of those strings and their locations.
   var
     runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
     stringWidth, xLoc, pos: int
@@ -354,19 +363,29 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
 
   return stringWidth
 
-proc renderTags(this: StatusBar, selectedTag: int): int =
+proc renderTags(this: StatusBar): int =
   var
     textXPos: int
 
-  for node in this.clients.nodes:
-    let i = tag.id
-    textXPos = cellWidth div 2 + cellWidth * i
-    var color = if i == selectedTag: this.selectionColor else: this.fgColor
-    discard this.renderString($(i + 1), textXPos, color)
-    if clients.len > 0:
-      XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
-      if this.selectedClient == nil or clients.find(this.selectedClient) == -1:
-        XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
+  # TODO: Iterate over monitor tags and selectedTags.
+
+  # for client in this.clients.items:
+  #   for tag in client.tags:
+  #     let i = tag.id
+  #     textXPos = cellWidth div 2 + cellWidth * i
+  #     var color = if i == selectedTag: this.selectionColor else: this.fgColor
+  #     discard this.renderString($(i + 1), textXPos, color)
+  #     if clients.len > 0:
+  #       XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
+  #       if this.selectedClient == nil or clients.find(this.selectedClient) == -1:
+  #         XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
+
+  # Render each tag as:
+  #   empty or occupied (top left square),
+  #   urgent, selected, or unselected (color difference).
+  for tag in this.tags:
+    for client in this.clients.items:
+      echo ""
 
   return textXPos + cellWidth
 
@@ -399,7 +418,7 @@ proc clearBar(this: StatusBar) =
 proc redraw*(this: StatusBar) =
   this.clearBar()
   let
-    tagLengthPixels = this.renderTags(this.selectedTag)
+    tagLengthPixels = this.renderTags()
     maxRenderX = this.currentWidth - this.renderStatus() - cellWidth
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
 
@@ -407,18 +426,6 @@ proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw:
   this.isMonitorSelected = isMonitorSelected
   if redraw:
     this.redraw
-
-proc setSelectedTag*(this: var StatusBar, selectedTag: int, redraw: bool = true) =
-  this.selectedTag = selectedTag
-  if redraw:
-    this.redraw()
-
-proc setSelectedClient*(this: var StatusBar, client: Client, redraw: bool = true) =
-  if this.selectedClient == client:
-    return
-  this.selectedClient = client
-  if redraw:
-    this.redraw()
 
 proc setStatus*(this: var StatusBar, status: string, redraw: bool = true) =
   if this.status == status:

@@ -322,7 +322,7 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
   if monitorIndex == -1:
     return
   let monitor = this.monitors[monitorIndex]
-  if monitor.currTagClients.len == 0:
+  if monitor.findCurrentClients.len == 0:
     let center = monitor.area.center()
     discard XWarpPointer(
       this.display,
