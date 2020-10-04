@@ -521,7 +521,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
 proc focusNextClient*(
   this: Monitor,
   warpToClient: bool,
-  clientsIter: iterator(this: Monitor): ClientNode = currClientsIter
+  clientsIter: iterator(this: Monitor): ClientNode
 ) =
   ## Focuses the next client in the stack.
   for node in clientsIter(this):
@@ -529,13 +529,20 @@ proc focusNextClient*(
       this.setSelectedClient(node.value)
     break
 
+proc focusNextClient*(
+  this: Monitor,
+  warpToClient: bool
+) =
+  ## Focuses the next client in the stack.
+  this.focusNextClient(warpToClient, currClientsIter)
+
 proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
   ## Focuses the previous client in the stack.
   this.focusNextClient(warpToClient, currClientsReverseIter)
 
 proc moveClientNext*(
   this: Monitor,
-  clientsIter: iterator(this: Monitor): ClientNode = currClientsIter
+  clientsIter: iterator(this: Monitor): ClientNode
 ) =
   ## Moves the client to the next position in the stack.
   var currentNode = this.currClientNode
@@ -552,6 +559,10 @@ proc moveClientNext*(
       this.doLayout()
       this.display.warpTo(this.currClient)
       break
+
+proc moveClientNext*(this: Monitor) =
+  ## Moves the client to the next position in the stack.
+  this.moveClientNext(currClientsIter)
 
 proc moveClientPrevious*(this: Monitor) =
   ## Moves the client to the previous position in the stack.
