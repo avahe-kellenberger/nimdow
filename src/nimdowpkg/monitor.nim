@@ -117,35 +117,36 @@ proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
 
 proc setSelectedClient*(this: Monitor, client: Client) =
   if client == nil:
-    log "really?"
     log "Attempted to set nil client as the selected client", lvlError
     return
 
-  let node = this.clientSelection.find(client)
+  log $client.window
+  let node: ClientNode = this.taggedClients.find(client.window)
 
-  if node != nil:
-    if node.value == this.taggedClients.currClient:
-      # Same client was selected.
-      return
+  if node == nil:
+    log "Attempted to select a client not on the current tags"
+    return
 
+  if client == this.taggedClients.currClient:
+    log "Same client was selected"
+    return
+
+  this.taggedClients.withSomeCurrClient(c):
     discard XSetWindowBorder(
       this.display,
-      this.taggedClients.currClient.window,
+      c.window,
       this.config.borderColorUnfocused
     )
 
-    discard XSetWindowBorder(
-      this.display,
-      node.value.window,
-      this.config.borderColorFocused
-    )
+  discard XSetWindowBorder(
+    this.display,
+    client.window,
+    this.config.borderColorFocused
+  )
 
-    this.clientSelection.remove(node)
-    this.clientSelection.append(node)
-    this.updateWindowTitle()
-  else:
-    log "well, fuck"
-    log "Attempted to set nil client as the selected client", lvlError
+  this.clientSelection.remove(node)
+  this.clientSelection.append(node)
+  this.updateWindowTitle()
 
 proc redrawStatusBar*(this: Monitor) =
   this.statusBar.redraw()
@@ -164,41 +165,8 @@ proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
       height: screenInfo[i].height.uint
     ))
 
-proc findByWindow*(this: Monitor, window: Window): Client =
-  ## Finds a client based on its window property.
-  for client in this.clients.items:
-    if client.window == window:
-      return client
-  return nil
-
-proc findByWindowInCurrentTags*(this: Monitor, window: Window): Client =
-  ## Finds a client based on its window property,
-  ## searching only the currently selected tags.
-  for node in this.taggedClients.currClientsIter:
-    let client = node.value
-    if client.window == window:
-      return client
-  return nil
-
-proc removeByWindow*(this: Monitor, window: Window): bool =
-  # Remove the client from the list.
-  for node in this.clients.nodes:
-    if node.value.window == window:
-      this.clients.remove(node)
-      break
-
-  # Remove the client from the selection list.
-  for node in this.clientSelection.nodes:
-    if node.value.window == window:
-      this.clients.remove(node)
-      break
-
-proc findFirstSelectedTag(this: Monitor): Tag =
-  for id in this.selectedTags.items:
-    return this.tags[id - 1]
-
 proc updateCurrentDesktopProperty(this: Monitor) =
-  var data: array[1, clong] = [this.findFirstSelectedTag.id.clong]
+  var data: array[1, clong] = [this.taggedClients.findFirstSelectedTag.id.clong]
   discard XChangeProperty(
     this.display,
     this.rootWindow,
@@ -299,7 +267,7 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
-  let tag = this.findFirstSelectedTag()
+  let tag = this.taggedClients.findFirstSelectedTag()
   tag.layout.arrange(
     this.display,
     # TODO: we should pass an iterator? Maybe.
@@ -355,11 +323,10 @@ proc restack*(this: Monitor) =
 proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
   ## Returns if the window was removed from the table.
-  result = this.removeByWindow(window)
+  result = this.taggedClients.removeByWindow(window)
 
-  # If the removed client was the most recently selected,
-  # select the new tail.
-  let client = this.clientSelection.tail.value
+  # If the removed client was the most recently selected, select the new tail.
+  let client = this.taggedClients.currClient
   if client != nil:
     this.setSelectedClient(client)
     let title = this.display.getWindowName(client.window)
@@ -380,25 +347,20 @@ proc addClientToTags*(this: Monitor, client: var Client, tagIDs: varargs[TagID])
     client.tagIDs.incl(id)
 
 proc addClientToSelectedTags*(this: Monitor, client: var Client) =
-  let
-    selectedTags: OrderedSet[TagID] = this.selectedTags
-    tagIDs = toSeq(selectedTags.items)
+  let selectedTags: OrderedSet[TagID] = this.selectedTags
+  let tagIDs = toSeq(selectedTags.items)
   this.addClientToTags(client, tagIDs)
 
 proc addClient*(this: Monitor, client: var Client) =
-  log "addClient"
   this.clients.append(client)
   this.clientSelection.append(client)
   this.addClientToSelectedTags(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
-  # TODO Change client tags to only destinationTag id.
-  # Need to ensure the clientSelection tail is correct.
-  # Focus the correct client afterward.
-
   if destinationTag.id in client.tagIDs:
     return
 
+  # Change client tags to only destinationTag id.
   client.tagIDs.clear()
   client.tagIDs.incl(destinationTag.id)
 
@@ -416,33 +378,25 @@ proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
   if this.taggedClients.currClient != nil:
     this.moveClientToTag(this.taggedClients.currClient, tag)
 
-proc viewTag*(this: Monitor, tag: Tag) =
-  ## Views a single tag.
+proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
+  ## Views the given tags.
 
-  if this.selectedTags.len == 1 and this.selectedTags.contains(tag.id):
-    # We're already viewing only this tag.
-    return
+  # Select only the given tags
+  this.selectedTags.clear()
+  for id in tagIDs:
+    this.selectedTags.incl(id)
 
-  # Windows not on the current tag need to be hidden.
-  var selectedBorderSet = false
-  for node in this.taggedClients.currClientsSelectionNewToOldIter():
-    let client = node.value
-    if client.tagIDs.contains(tag.id):
+  # TODO: The code below can be reused to view multiple tags at once
+
+  for client in this.clients.items:
+    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       client.show(this.display)
-      let color =
-        if not selectedBorderSet:
-          selectedBorderSet = true
-          this.config.borderColorFocused
-        else:
-          this.config.borderColorUnfocused
-
-      discard XSetWindowBorder(this.display, client.window, color)
-      selectedBorderSet = true
     else:
       client.hide(this.display)
 
-  this.selectedTags.clear()
-  this.selectedTags.incl(tag.id)
+  for node in this.taggedClients.currClientsSelectionNewToOldIter:
+    discard XSetWindowBorder(this.display, node.value.window, this.config.borderColorUnfocused)
+
   this.doLayout()
 
   discard XSync(this.display, false)
@@ -462,7 +416,7 @@ proc focusNextClient*(
   clientsIter: iterator(this: TaggedClients): ClientNode
 ) =
   ## Focuses the next client in the stack.
-  for node in this.taggedClients.clientsIter:
+  for node in clientsIter(this.taggedClients):
     if node != nil:
       this.setSelectedClient(node.value)
     break

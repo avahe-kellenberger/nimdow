@@ -32,7 +32,6 @@ converter toBool(x: XBool): bool = x.bool
 
 const
   wmName = "nimdow"
-  tagCount = 9
   minimumUpdateInterval = math.round(1000 / 60).int
 
   systrayMonitorIndex = 0
@@ -427,17 +426,18 @@ proc decreaseMasterCount(this: WindowManager) =
       this.selectedMonitor.doLayout()
 
 proc goToTag(this: WindowManager, tag: var Tag) =
-  # TODO: Check if only the same tag is shown
+  # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
-  if selectedTags.len == 1:
-    log "goToTag"
+  if selectedTags.len == 1 and selectedTags.contains(tag.id):
+    # TODO: View previous tag
+    return
     # if this.selectedMonitor.previousTag != nil and firstSelectedTag.id == tag.id:
     #   tag = this.selectedMonitor.previousTag
     #   this.selectedMonitor.previousTag = firstSelectedTag
     # else:
     #   this.selectedMonitor.previousTag = firstSelectedTag
 
-  this.selectedMonitor.viewTag(tag)
+  this.selectedMonitor.setSelectedTags(tag.id)
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
@@ -478,13 +478,9 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
-    if this.selectedMonitor.taggedClients.currClient != nil:
-      this.display.warpTo(this.selectedMonitor.taggedClients.currClient)
 
   createControl(keycode, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient(true)
-    if this.selectedMonitor.taggedClients.currClient != nil:
-      this.display.warpTo(this.selectedMonitor.taggedClients.currClient)
 
   createControl(keycode, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
@@ -1170,15 +1166,18 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
-  let client = this.selectedMonitor.findByWindowInCurrentTags(e.window)
+  let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
     # TODO: If this happens, we need to do something...
     return
 
-  this.selectedMonitor.setActiveWindowProperty(e.window)
-  this.selectedMonitor.setSelectedClient(client)
-  if client.isFloating:
-    discard XRaiseWindow(this.display, client.window)
+  # TODO: We already set the focused window earlier when it's added.
+  # Do we need the following?
+
+  # this.selectedMonitor.setActiveWindowProperty(e.window)
+  # this.selectedMonitor.setSelectedClient(client)
+  # if client.isFloating:
+  #   discard XRaiseWindow(this.display, client.window)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   if not this.monitors.isInRange(monitorIndex):
@@ -1228,7 +1227,7 @@ proc windowToClient(
   ## Both the returned values will either be nil, or valid.
   var client: Client
   for monitor in this.monitors:
-    client = monitor.findByWindow(window)
+    client = monitor.taggedClients.findByWindow(window)
     if client != nil:
       return (client, monitor)
 
