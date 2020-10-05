@@ -1,8 +1,8 @@
 import
   x11 / [x, xlib, xinerama, xatom],
   tables,
-  sequtils,
   listutils,
+  sequtils,
   strutils
 
 import
@@ -14,7 +14,6 @@ import
   keys/keyutils,
   config/configloader,
   statusbar,
-  ternary,
   logger
 
 converter intToCint(x: int): cint = x.cint
@@ -35,9 +34,7 @@ type
     config: WindowSettings
     previousTag*: Tag
     layoutOffset: LayoutOffset
-    taggedClients: TaggedClients
-
-  ClientNode* = DoublyLinkedNode[Client]
+    taggedClients*: TaggedClients
 
 proc doLayout*(this: Monitor, warpToClient: bool = true)
 proc restack*(this: Monitor)
@@ -67,7 +64,13 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
     )
     result.taggedClients.tags.add(tag)
 
-  result.taggedClients.selectedTags = initOrderedSet[TagID](9)
+  # Dynamically calculate the smallest needed size.
+  # Must be a power of 2.
+  var initialSize: int = 2
+  while initialSize < tagCount:
+    initialSize *= 2
+
+  result.taggedClients.selectedTags = initOrderedSet[TagID](initialSize)
   result.taggedClients.selectedTags.incl(1)
 
   result.updateCurrentDesktopProperty()
@@ -93,80 +96,7 @@ template clients*(this: Monitor): DoublyLinkedList[Client] =
   this.taggedClients.clients
 
 template clientSelection*(this: Monitor): DoublyLinkedList[Client] =
-  this.taggedClients.clients
-
-proc getFirstSelectedTag*(this: Monitor): Tag =
-  ## Gets the first selected tag,
-  ## or `nil` if to tags are selected.
-  for tag in this.tags.items:
-    result = tag
-    break
-
-iterator currClientsIter*(this: Monitor): ClientNode {.inline, closure.} =
-  ## Iterates over clients in stack order.
-  for node in this.clients.nodes:
-    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield node
-
-iterator currClientsReverseIter*(this: Monitor): ClientNode {.inline, closure.} =
-  ## Iterates over clients in reverse stack order.
-  for node in this.clients.reverseNodes:
-    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield node
-
-proc findCurrentClients*(this: Monitor): seq[Client] =
-  for node in this.currClientsIter:
-    result.add(node.value)
-
-proc currClientsContains*(this: Monitor, client: Client): bool =
-  for node in this.currClientsIter:
-    if node.value == client:
-      return true
-  return false
-
-proc currClientsContains*(this: Monitor, window: Window): bool =
-  for node in this.currClientsIter:
-    if node.value != nil and node.value.window == window:
-      return true
-  return false
-
-proc contains*(this: Monitor, window: Window): bool =
-  for client in this.clients.items:
-    if client != nil and client.window == window:
-      return true
-  return false
-
-iterator clientWithTagIter*(this: Monitor, tagID: TagID): ClientNode {.inline, closure.} =
-  for node in this.clients.nodes:
-    if node.value.tagIDs.contains(tagID):
-      yield node
-
-iterator currClientsSelectionNewToOldIter*(this: Monitor): ClientNode {.inline, closure.} =
-  ## Iterates over clients in order of selection,
-  ## from most recent to least recent.
-  for node in this.clientSelection.reverseNodes:
-    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield node
-
-iterator currClientsSelectionOldToNewIter*(this: Monitor): ClientNode {.inline, closure.} =
-  ## Iterates over clients in order of selection,
-  ## from least recent to most recent.
-  for node in this.clientSelection.nodes:
-    if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
-      yield node
-
-template currClientNode*(this: Monitor): DoublyLinkedNode[Client] =
-  this.clientSelection.tail
-
-template currClient*(this: Monitor): Client =
-  let node = this.currClientNode
-  node != nil ? node.value || nil
-
-template withSomeCurrClient*(this: Monitor, client, body: untyped) =
-  ## Executes `body` if `this.currClient != nil`
-  if this.currClient != nil:
-    var client: Client = this.currClient
-    body
+  this.taggedClients.clientSelection
 
 proc setConfig*(this: Monitor, config: Config) =
   this.config = config.windowSettings
@@ -181,25 +111,26 @@ proc setConfig*(this: Monitor, config: Config) =
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
-  this.withSomeCurrClient(client):
+  this.taggedClients.withSomeCurrClient(client):
     let title = this.display.getWindowName(client.window)
     this.statusBar.setActiveWindowTitle(title, redrawBar)
 
 proc setSelectedClient*(this: Monitor, client: Client) =
   if client == nil:
+    log "really?"
     log "Attempted to set nil client as the selected client", lvlError
     return
 
   let node = this.clientSelection.find(client)
 
   if node != nil:
-    if node.value == this.currClient:
+    if node.value == this.taggedClients.currClient:
       # Same client was selected.
       return
 
     discard XSetWindowBorder(
       this.display,
-      this.currClient.window,
+      this.taggedClients.currClient.window,
       this.config.borderColorUnfocused
     )
 
@@ -213,6 +144,7 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     this.clientSelection.append(node)
     this.updateWindowTitle()
   else:
+    log "well, fuck"
     log "Attempted to set nil client as the selected client", lvlError
 
 proc redrawStatusBar*(this: Monitor) =
@@ -242,7 +174,7 @@ proc findByWindow*(this: Monitor, window: Window): Client =
 proc findByWindowInCurrentTags*(this: Monitor, window: Window): Client =
   ## Finds a client based on its window property,
   ## searching only the currently selected tags.
-  for node in this.currClientsIter:
+  for node in this.taggedClients.currClientsIter:
     let client = node.value
     if client.window == window:
       return client
@@ -371,23 +303,23 @@ proc doLayout*(this: Monitor, warpToClient: bool = true) =
   tag.layout.arrange(
     this.display,
     # TODO: we should pass an iterator? Maybe.
-    this.findCurrentClients(),
+    this.taggedClients.findCurrentClients(),
     this.layoutOffset
   )
   this.restack()
-  this.withSomeCurrClient(client):
+  this.taggedClients.withSomeCurrClient(client):
     if warpToClient:
       this.display.warpTo(client)
 
 proc restack*(this: Monitor) =
-  this.withSomeCurrClient(client):
+  this.taggedClients.withSomeCurrClient(client):
     if client.isFloating:
       discard XRaiseWindow(this.display, client.window)
 
     var winChanges: XWindowChanges
     winChanges.stack_mode = Below
     winChanges.sibling = this.statusBar.barWindow
-    for node in this.currClientsIter:
+    for node in this.taggedClients.currClientsIter:
       let c = node.value
       if not c.isFloating and not client.isFullscreen:
         discard XConfigureWindow(
@@ -443,15 +375,21 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.deleteActiveWindowProperty()
   this.updateClientList()
 
-proc addClientToTags*(this: Monitor, client: Client, tags: varargs[TagID]) =
-  discard
+proc addClientToTags*(this: Monitor, client: var Client, tagIDs: varargs[TagID]) =
+  for id in tagIDs:
+    client.tagIDs.incl(id)
 
-proc addClientToSelectedTags*(this: Monitor, client: Client) =
+proc addClientToSelectedTags*(this: Monitor, client: var Client) =
   let
     selectedTags: OrderedSet[TagID] = this.selectedTags
     tagIDs = toSeq(selectedTags.items)
-
   this.addClientToTags(client, tagIDs)
+
+proc addClient*(this: Monitor, client: var Client) =
+  log "addClient"
+  this.clients.append(client)
+  this.clientSelection.append(client)
+  this.addClientToSelectedTags(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   # TODO Change client tags to only destinationTag id.
@@ -469,14 +407,14 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
     this.doLayout()
     # this.ensureWindowFocus()
 
-  if this.findCurrentClients.len == 0:
+  if this.taggedClients.findCurrentClients.len == 0:
     this.deleteActiveWindowProperty()
     this.statusBar.setActiveWindowTitle("", false)
   this.redrawStatusBar()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
-  if this.currClient != nil:
-    this.moveClientToTag(this.currClient, tag)
+  if this.taggedClients.currClient != nil:
+    this.moveClientToTag(this.taggedClients.currClient, tag)
 
 proc viewTag*(this: Monitor, tag: Tag) =
   ## Views a single tag.
@@ -487,7 +425,7 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   # Windows not on the current tag need to be hidden.
   var selectedBorderSet = false
-  for node in this.currClientsSelectionNewToOldIter():
+  for node in this.taggedClients.currClientsSelectionNewToOldIter():
     let client = node.value
     if client.tagIDs.contains(tag.id):
       client.show(this.display)
@@ -509,8 +447,8 @@ proc viewTag*(this: Monitor, tag: Tag) =
 
   discard XSync(this.display, false)
 
-  if this.currClient != nil:
-    this.focusClient(this.currClient, true)
+  if this.taggedClients.currClient != nil:
+    this.focusClient(this.taggedClients.currClient, true)
   else:
     this.deleteActiveWindowProperty()
     this.statusBar.setActiveWindowTitle("", false)
@@ -521,10 +459,10 @@ proc viewTag*(this: Monitor, tag: Tag) =
 proc focusNextClient*(
   this: Monitor,
   warpToClient: bool,
-  clientsIter: iterator(this: Monitor): ClientNode
+  clientsIter: iterator(this: TaggedClients): ClientNode
 ) =
   ## Focuses the next client in the stack.
-  for node in clientsIter(this):
+  for node in this.taggedClients.clientsIter:
     if node != nil:
       this.setSelectedClient(node.value)
     break
@@ -542,22 +480,22 @@ proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
 
 proc moveClientNext*(
   this: Monitor,
-  clientsIter: iterator(this: Monitor): ClientNode
+  clientsIter: iterator(this: TaggedClients): ClientNode
 ) =
   ## Moves the client to the next position in the stack.
-  var currentNode = this.currClientNode
+  var currentNode = this.taggedClients.currClientNode
   if currentNode == nil or currentNode.value == nil:
     return
 
   # TODO: When nim allows it, we can change this.
   var node: ClientNode
-  for n in clientsIter(this):
+  for n in this.taggedClients.clientsIter:
     node = n
     let client = node.value
     if not client.isFloating and not client.isFixed:
       this.clients.swap(node, currentNode)
       this.doLayout()
-      this.display.warpTo(this.currClient)
+      this.display.warpTo(this.taggedClients.currClient)
       break
 
 proc moveClientNext*(this: Monitor) =
@@ -622,7 +560,7 @@ proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   this.toggleFullscreen(client)
 
 proc toggleFullscreenForSelectedClient*(this: Monitor) =
-  this.withSomeCurrClient(client):
+  this.taggedClients.withSomeCurrClient(client):
     this.toggleFullscreen(client)
 
 proc setFloating*(this: Monitor, client: Client, floating: bool) =
@@ -649,7 +587,7 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
     client.adjustToState(this.display)
 
 proc toggleFloatingForSelectedClient*(this: Monitor) =
-  this.withSomeCurrClient(client):
+  this.taggedClients.withSomeCurrClient(client):
     if client.isFixed or client.isFullscreen:
       return
     this.setFloating(client, not client.isFloating)

@@ -10,6 +10,7 @@ import
   xatoms,
   area,
   strut,
+  logger,
   config/configloader
 
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -195,7 +196,7 @@ proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
     colorPtr
   )
   if result == 0:
-    echo "Failed to alloc color!"
+    log "Failed to alloc color!", lvlError
 
 proc freeColor(this: StatusBar, color: PXftColor) =
   XftColorFree(this.display, this.visual, this.colormap, color)
@@ -364,28 +365,31 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
   return stringWidth
 
 proc renderTags(this: StatusBar): int =
-  var
-    textXPos: int
+  var textXPos: int
 
-  # TODO: Iterate over monitor tags and selectedTags.
-
-  # for client in this.clients.items:
-  #   for tag in client.tags:
-  #     let i = tag.id
-  #     textXPos = cellWidth div 2 + cellWidth * i
-  #     var color = if i == selectedTag: this.selectionColor else: this.fgColor
-  #     discard this.renderString($(i + 1), textXPos, color)
-  #     if clients.len > 0:
-  #       XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
-  #       if this.selectedClient == nil or clients.find(this.selectedClient) == -1:
-  #         XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
-
-  # Render each tag as:
-  #   empty or occupied (top left square),
-  #   urgent, selected, or unselected (color difference).
   for tag in this.tags:
-    for client in this.clients.items:
-      echo ""
+    # Determine the render color.
+    var color = this.fgColor
+    if this.selectedTags.contains(tag.id):
+      color = this.selectionColor
+
+    let i = tag.id - 1
+    textXPos = cellWidth div 2 + cellWidth * i
+    discard this.renderString($(i + 1), textXPos, color)
+
+    var
+      tagIsEmpty = true
+      tagHasCurrentClient = false
+    for node in this.taggedClients.clientWithTagIter(tag.id):
+      tagIsEmpty = false
+      if node.value == this.taggedClients.currClient:
+        tagHasCurrentClient = true
+        break
+
+    if not tagIsEmpty:
+      XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
+      if not tagHasCurrentClient:
+        XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
 
   return textXPos + cellWidth
 
