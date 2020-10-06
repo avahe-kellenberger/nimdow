@@ -115,12 +115,6 @@ template withSomeCurrClient*(this: TaggedClients, client, body: untyped) =
     var client: Client = this.currClient
     body
 
-proc find*(this: TaggedClients, window: Window): ClientNode =
-  for node in this.clients.nodes:
-    if node.value != nil and node.value.window == window:
-      result = node
-      break
-
 proc findByWindow*(this: TaggedClients, window: Window): Client =
   ## Finds a client based on its window property.
   for client in this.clients.items:
@@ -155,4 +149,9 @@ proc findFirstSelectedTag*(this: TaggedClients): Tag =
   for id in this.selectedTags.items:
     return this.tags[id - 1]
 
+proc find*(list: DoublyLinkedList[Client], window: Window): ClientNode =
+  for node in list.nodes:
+    if node.value != nil and node.value.window == window:
+      result = node
+      break
 

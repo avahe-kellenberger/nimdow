@@ -120,33 +120,30 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     log "Attempted to set nil client as the selected client", lvlError
     return
 
-  log $client.window
-  let node: ClientNode = this.taggedClients.find(client.window)
-
+  let node: ClientNode = this.clientSelection.find(client.window)
   if node == nil:
     log "Attempted to select a client not on the current tags"
     return
 
-  if client == this.taggedClients.currClient:
-    log "Same client was selected"
-    return
+  # Move client to the end
+  this.clientSelection.remove(node)
+  this.clientSelection.append(client)
+
+  this.updateWindowTitle()
+
+  for n in this.taggedClients.currClientsIter:
+    discard XSetWindowBorder(
+      this.display,
+      n.value.window,
+      this.config.borderColorUnfocused
+    )
 
   this.taggedClients.withSomeCurrClient(c):
     discard XSetWindowBorder(
       this.display,
       c.window,
-      this.config.borderColorUnfocused
+      this.config.borderColorFocused
     )
-
-  discard XSetWindowBorder(
-    this.display,
-    client.window,
-    this.config.borderColorFocused
-  )
-
-  this.clientSelection.remove(node)
-  this.clientSelection.append(node)
-  this.updateWindowTitle()
 
 proc redrawStatusBar*(this: Monitor) =
   this.statusBar.redraw()

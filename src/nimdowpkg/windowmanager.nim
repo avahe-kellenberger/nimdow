@@ -818,7 +818,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   else:
     client = newClient(window)
     monitor.addClient(client)
-    monitor.setSelectedClient(client)
     client.x = this.selectedMonitor.area.x + windowAttr.x
     client.oldX = client.x
     client.y = this.selectedMonitor.area.y + windowAttr.y
@@ -1166,10 +1165,10 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
-  let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
-  if client == nil:
+  # let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
+  # if client == nil:
     # TODO: If this happens, we need to do something...
-    return
+    # return
 
   # TODO: We already set the focused window earlier when it's added.
   # Do we need the following?

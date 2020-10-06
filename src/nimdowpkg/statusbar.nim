@@ -90,7 +90,7 @@ template clients*(this: StatusBar): DoublyLinkedList[Client] =
   this.taggedClients.clients
 
 template clientSelection*(this: StatusBar): DoublyLinkedList[Client] =
-  this.taggedClients.clients
+  this.taggedClients.clientSelection
 
 template currentWidth(this: StatusBar): int =
   this.area.width.int - this.systrayWidth
