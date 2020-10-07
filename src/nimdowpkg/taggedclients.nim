@@ -3,7 +3,8 @@ import
   lists,
   listutils,
   sets,
-  sequtils
+  sequtils,
+  sugar
 
 import
   client,
@@ -44,6 +45,40 @@ iterator currClientsReverseIter*(this: TaggedClients): ClientNode {.inline, clos
   for node in this.clients.reverseNodes:
     if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield node
+
+proc findNextCurrClient*(
+  this: TaggedClients,
+  startClient: Client,
+  reversed: bool = false,
+  accept: proc(client: Client): bool = (client: Client) => true
+): ClientNode =
+  if startClient == nil or this.clients.len <= 1:
+    return nil
+
+  template forEachClientNode(node, body: untyped) =
+    if reversed:
+      for n in this.currClientsReverseIter:
+        var node: ClientNode = n
+        body
+    else:
+      for n in this.currClientsIter:
+        var node: ClientNode = n
+        body
+
+  var startClientFound = false
+  forEachClientNode(node):
+    if startClientFound:
+      return node
+    if startClient == node.value:
+      startClientFound = true
+      continue
+
+  # Client was not in the list!
+  if not startClientFound:
+    return nil
+
+  forEachClientNode(node):
+    return node
 
 iterator clientWithTagIter*(this: TaggedClients, tagID: TagID): ClientNode {.inline, closure.} =
   for node in this.clients.nodes:

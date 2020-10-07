@@ -3,7 +3,8 @@ import
   tables,
   listutils,
   sequtils,
-  strutils
+  strutils,
+  sugar
 
 import
   taggedclients,
@@ -407,46 +408,15 @@ proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw()
 
-template currClientsIter(reversed: bool): iterator (this: TaggedClients): ClientNode{.closure.} =
-  if reversed:
-    currClientsReverseIter
-  else:
-    currClientsIter
-
 proc focusNextClient*(
   this: Monitor,
   warpToClient: bool,
   reversed: bool
 ) =
   ## Focuses the next client in the stack.
-  if this.clients.len <= 1:
-    return
-
-  template forEachClientNode(node, body: untyped) =
-    if reversed:
-      for n in this.taggedClients.currClientsReverseIter:
-        var node: ClientNode = n
-        body
-    else:
-      for n in this.taggedClients.currClientsIter:
-        var node: ClientNode = n
-        body
-
-  this.taggedClients.withSomeCurrClient(currClient):
-    var currClientFound = false
-    forEachClientNode(node):
-      let client = node.value
-      if currClientFound:
-        this.focusClient(client, warpToClient)
-        return
-      if currClient == client:
-        currClientFound = true
-        continue
-
-    forEachClientNode(node):
-      let client = node.value
-      this.focusClient(client, warpToClient)
-      return
+  let node = this.taggedClients.findNextCurrClient(this.taggedClients.currClient, reversed)
+  if node != nil:
+    this.focusClient(node.value, warpToClient)
 
 proc focusNextClient*(this: Monitor, warpToClient: bool) =
   ## Focuses the next client in the stack.
@@ -458,31 +428,31 @@ proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
 
 proc moveClientNext*(
   this: Monitor,
-  clientsIter: iterator(this: TaggedClients): ClientNode
+  reversed: bool
 ) =
   ## Moves the client to the next position in the stack.
-  var currentNode = this.taggedClients.currClientNode
-  if currentNode == nil or currentNode.value == nil:
+  var currNode = this.taggedClients.currClientNode
+  if currNode == nil:
     return
 
-  # TODO: When nim allows it, we can change this.
-  var node: ClientNode
-  for n in this.taggedClients.clientsIter:
-    node = n
-    let client = node.value
-    if not client.isFloating and not client.isFixed:
-      this.clients.swap(node, currentNode)
-      this.doLayout()
-      this.display.warpTo(this.taggedClients.currClient)
-      break
+  var node = this.taggedClients.findNextCurrClient(
+    currNode.value,
+    reversed,
+    (client: Client) => not client.isFloating and not client.isFixed
+  )
+
+  if node != nil:
+    # TODO: Something not working with swap?
+    this.clients.swap(currNode, node)
+    this.doLayout()
 
 proc moveClientNext*(this: Monitor) =
   ## Moves the client to the next position in the stack.
-  this.moveClientNext(currClientsIter)
+  this.moveClientNext(false)
 
 proc moveClientPrevious*(this: Monitor) =
   ## Moves the client to the previous position in the stack.
-  this.moveClientNext(currClientsReverseIter)
+  this.moveClientNext(true)
 
 proc toggleFullscreen*(this: Monitor, client: var Client) =
   if client.isFullscreen:
