@@ -407,27 +407,48 @@ proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw()
 
+template currClientsIter(reversed: bool): iterator (this: TaggedClients): ClientNode{.closure.} =
+  if reversed:
+    currClientsReverseIter
+  else:
+    currClientsIter
+
 proc focusNextClient*(
   this: Monitor,
   warpToClient: bool,
-  clientsIter: iterator(this: TaggedClients): ClientNode
+  reversed: bool
 ) =
   ## Focuses the next client in the stack.
-  for node in clientsIter(this.taggedClients):
-    if node != nil:
-      this.setSelectedClient(node.value)
-    break
+  if this.clients.len <= 1:
+    return
 
-proc focusNextClient*(
-  this: Monitor,
-  warpToClient: bool
-) =
+  this.taggedClients.withSomeCurrClient(currClient):
+    var currClientFound = false
+    var iter = currClientsIter(reversed)
+    for node in this.taggedClients.iter:
+      let client = node.value
+
+      if currClientFound:
+        this.focusClient(client, warpToClient)
+        return
+
+      if currClient == client:
+        currClientFound = true
+        continue
+
+    iter = currClientsIter(reversed)
+    for node in this.taggedClients.iter:
+      let client = node.value
+      this.focusClient(client, warpToClient)
+      return
+
+proc focusNextClient*(this: Monitor, warpToClient: bool) =
   ## Focuses the next client in the stack.
-  this.focusNextClient(warpToClient, currClientsIter)
+  this.focusNextClient(warpToClient, false)
 
 proc focusPreviousClient*(this: Monitor, warpToClient: bool) =
   ## Focuses the previous client in the stack.
-  this.focusNextClient(warpToClient, currClientsReverseIter)
+  this.focusNextClient(warpToClient, true)
 
 proc moveClientNext*(
   this: Monitor,
