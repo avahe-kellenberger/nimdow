@@ -422,22 +422,28 @@ proc focusNextClient*(
   if this.clients.len <= 1:
     return
 
+  template forEachClientNode(node, body: untyped) =
+    if reversed:
+      for n in this.taggedClients.currClientsReverseIter:
+        var node: ClientNode = n
+        body
+    else:
+      for n in this.taggedClients.currClientsIter:
+        var node: ClientNode = n
+        body
+
   this.taggedClients.withSomeCurrClient(currClient):
     var currClientFound = false
-    var iter = currClientsIter(reversed)
-    for node in this.taggedClients.iter:
+    forEachClientNode(node):
       let client = node.value
-
       if currClientFound:
         this.focusClient(client, warpToClient)
         return
-
       if currClient == client:
         currClientFound = true
         continue
 
-    iter = currClientsIter(reversed)
-    for node in this.taggedClients.iter:
+    forEachClientNode(node):
       let client = node.value
       this.focusClient(client, warpToClient)
       return
