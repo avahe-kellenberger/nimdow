@@ -441,9 +441,10 @@ proc moveClientNext*(
     (client: Client) => not client.isFloating and not client.isFixed
   )
 
-  if node != nil:
-    # TODO: Something not working with swap?
-    this.clients.swap(currNode, node)
+  if node != nil and node.value != nil:
+    swap(currNode, node)
+    # TODO: Find `node.value` in clientSelection, put at end of list.
+    this.setSelectedClient(node.value)
     this.doLayout()
 
 proc moveClientNext*(this: Monitor) =
