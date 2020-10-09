@@ -96,7 +96,7 @@ template selectedTags*(this: Monitor): OrderedSet[TagID] =
 template clients*(this: Monitor): DoublyLinkedList[Client] =
   this.taggedClients.clients
 
-template clientSelection*(this: Monitor): DoublyLinkedList[Client] =
+template clientSelection*(this: Monitor): seq[Client] =
   this.taggedClients.clientSelection
 
 proc setConfig*(this: Monitor, config: Config) =
@@ -121,15 +121,11 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     log "Attempted to set nil client as the selected client", lvlError
     return
 
-  let node: ClientNode = this.clientSelection.find(client.window)
-  if node == nil:
+  if this.clients.find(client.window) == nil:
     log "Attempted to select a client not on the current tags"
     return
 
-  # Move client to the end
-  this.clientSelection.remove(node)
-  this.clientSelection.append(client)
-
+  this.taggedClients.selectClient(client.window)
   this.updateWindowTitle()
 
   for n in this.taggedClients.currClientsIter:
@@ -351,7 +347,7 @@ proc addClientToSelectedTags*(this: Monitor, client: var Client) =
 
 proc addClient*(this: Monitor, client: var Client) =
   this.clients.append(client)
-  this.clientSelection.append(client)
+  this.clientSelection.add(client)
   this.addClientToSelectedTags(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
@@ -385,15 +381,14 @@ proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
     this.selectedTags.incl(id)
 
   # TODO: The code below can be reused to view multiple tags at once
-
   for client in this.clients.items:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       client.show(this.display)
     else:
       client.hide(this.display)
 
-  for node in this.taggedClients.currClientsSelectionNewToOldIter:
-    discard XSetWindowBorder(this.display, node.value.window, this.config.borderColorUnfocused)
+  for client in this.taggedClients.currClientsSelectionNewToOldIter:
+    discard XSetWindowBorder(this.display, client.window, this.config.borderColorUnfocused)
 
   this.doLayout()
 
@@ -443,7 +438,6 @@ proc moveClientNext*(
 
   if node != nil and node.value != nil:
     swap(currNode, node)
-    # TODO: Find `node.value` in clientSelection, put at end of list.
     this.setSelectedClient(node.value)
     this.doLayout()
 
