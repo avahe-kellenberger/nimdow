@@ -313,20 +313,25 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.deleteActiveWindowProperty()
   this.updateClientList()
 
-proc addClientToTags*(this: Monitor, client: var Client, tagIDs: varargs[TagID]) =
+proc toggleTagsForClient*(this: Monitor, client: var Client, tagIDs: varargs[TagID]) =
   for id in tagIDs:
-    client.tagIDs.incl(id)
+    if client.tagIDs.contains(id):
+      client.tagIDs.excl(id)
+    else:
+      client.tagIDs.incl(id)
 
-proc addClientToSelectedTags*(this: Monitor, client: var Client) =
+  this.doLayout()
+
+proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
   let selectedTags: OrderedSet[TagID] = this.selectedTags
   let tagIDs = toSeq(selectedTags.items)
-  this.addClientToTags(client, tagIDs)
+  this.toggleTagsForClient(client, tagIDs)
 
 proc addClient*(this: Monitor, client: var Client) =
   this.clients.append(client)
   this.clientSelection.add(client)
   client.tagIDs.clear()
-  this.addClientToSelectedTags(client)
+  this.toggleSelectedTagsForClient(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
@@ -357,8 +362,6 @@ proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
 
   for id in tagIDs:
     if this.selectedTags.contains(id):
-      if this.selectedTags.len == 1:
-        break
       this.selectedTags.excl(id)
     else:
       this.selectedTags.incl(id)

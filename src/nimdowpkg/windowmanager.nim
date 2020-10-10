@@ -481,9 +481,14 @@ proc mapConfigActions*(this: WindowManager) =
     if previousTag != 0:
       this.goToTag(previousTag)
 
-  createControl(keycode, "toggleTag"):
+  createControl(keycode, "toggleTagView"):
     let tag = this.selectedMonitor.keycodeToTag(keycode)
     this.selectedMonitor.toggleTags(tag.id)
+
+  createControl(keycode, "toggleWindowTag"):
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      let tag = this.selectedMonitor.keycodeToTag(keycode)
+      this.selectedMonitor.toggleTagsForClient(client, tag.id)
 
   createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
@@ -1332,7 +1337,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
     prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag
   discard prevMonitor.removeWindow(client.window)
-  nextMonitor.addClientToSelectedTags(client)
+  nextMonitor.toggleSelectedTagsForClient(client)
   nextMonitor.focusClient(client, false)
   let title = this.display.getWindowName(client.window)
   nextMonitor.statusBar.setActiveWindowTitle(title)
