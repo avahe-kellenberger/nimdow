@@ -369,7 +369,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
     startMonitor.doLayout()
 
   # Add client to all selected tags
-  this.selectedMonitor.addClient(client)
+  this.selectedMonitor.addClient(client, false)
 
   if client.isFloating:
     let deltaX = client.x - startMonitor.area.x
@@ -834,7 +834,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client = c
   else:
     client = newClient(window)
-    monitor.addClient(client)
+    monitor.addClient(client, false)
     client.x = this.selectedMonitor.area.x + windowAttr.x
     client.oldX = client.x
     client.y = this.selectedMonitor.area.y + windowAttr.y
@@ -1341,7 +1341,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
     prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag
   discard prevMonitor.removeWindow(client.window)
-  nextMonitor.addClient(client)
+  nextMonitor.addClient(client, false)
   nextMonitor.focusClient(client, false)
 
   this.setSelectedMonitor(nextMonitor)

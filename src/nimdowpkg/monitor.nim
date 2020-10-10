@@ -267,7 +267,7 @@ proc doLayout*(this: Monitor, warpToClient: bool = true) =
   discard XSync(this.display, false)
 
   if this.taggedClients.currClient != nil:
-    this.focusClient(this.taggedClients.currClient, true)
+    this.focusClient(this.taggedClients.currClient, warpToClient)
   else:
     this.focusRootWindow()
     this.deleteActiveWindowProperty()
@@ -313,25 +313,30 @@ proc removeWindow*(this: Monitor, window: Window): bool =
   this.deleteActiveWindowProperty()
   this.updateClientList()
 
-proc toggleTagsForClient*(this: Monitor, client: var Client, tagIDs: varargs[TagID]) =
+proc toggleTagsForClient*(
+  this: Monitor,
+  client: var Client,
+  tagIDs: varargs[TagID],
+  warpToClient: bool = true
+) =
   for id in tagIDs:
     if client.tagIDs.contains(id):
       client.tagIDs.excl(id)
     else:
       client.tagIDs.incl(id)
 
-  this.doLayout()
+  this.doLayout(warpToClient)
 
-proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
+proc toggleSelectedTagsForClient*(this: Monitor, client: var Client, warpToClient: bool = true) =
   let selectedTags: OrderedSet[TagID] = this.selectedTags
   let tagIDs = toSeq(selectedTags.items)
-  this.toggleTagsForClient(client, tagIDs)
+  this.toggleTagsForClient(client, tagIDs, warpToClient)
 
-proc addClient*(this: Monitor, client: var Client) =
+proc addClient*(this: Monitor, client: var Client, warpToClient: bool = true) =
   this.clients.append(client)
   this.clientSelection.add(client)
   client.tagIDs.clear()
-  this.toggleSelectedTagsForClient(client)
+  this.toggleSelectedTagsForClient(client, warpToClient)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
