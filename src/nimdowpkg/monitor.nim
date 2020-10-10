@@ -299,16 +299,7 @@ proc restack*(this: Monitor) =
 proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
   ## Returns if the window was removed from the table.
-  result = this.taggedClients.removeByWindow(window)
-
-  # If the removed client was the most recently selected, select the new tail.
-  let client = this.taggedClients.currClient
-  if client != nil:
-    this.setSelectedClient(client)
-    let title = this.display.getWindowName(client.window)
-    this.statusBar.setActiveWindowTitle(title)
-
-  # TODO: else, select rootWindow?
+  return this.taggedClients.removeByWindow(window)
 
 proc removeWindow*(this: Monitor, window: Window): bool =
   ## Returns if the window was removed.

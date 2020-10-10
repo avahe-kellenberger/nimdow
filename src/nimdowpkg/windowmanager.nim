@@ -363,10 +363,9 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   let nextMonitor = this.monitors[monitorIndex]
   if this.selectedMonitor.removeWindow(client.window):
     this.selectedMonitor.doLayout()
-    this.selectedMonitor.redrawStatusBar()
 
   # Add client to all selected tags
-  nextMonitor.addClientToSelectedTags(client)
+  nextMonitor.addClient(client)
 
   if client.isFloating:
     let deltaX = client.x - this.selectedMonitor.area.x
@@ -391,7 +390,6 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
 
   this.setSelectedMonitor(nextMonitor)
   this.selectedMonitor.focusClient(client, true)
-  this.selectedMonitor.redrawStatusBar()
 
 proc moveClientToPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
@@ -1174,8 +1172,6 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
 
   let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
-    # This should not happen, afaik.
-    log "onFocusIn on window not in current tags: " & $e.window
     return
 
   this.selectedMonitor.setActiveWindowProperty(e.window)
