@@ -473,8 +473,8 @@ proc mapConfigActions*(this: WindowManager) =
     this.focusNextMonitor()
 
   createControl(keycode, "goToTag"):
-    var tag = this.selectedMonitor.keycodeToTag(keycode)
-    this.goToTag(tag.id)
+    var tagID = this.selectedMonitor.keycodeToTag(keycode).id
+    this.goToTag(tagID)
 
   createControl(keycode, "goToPreviousTag"):
     var previousTag = this.selectedMonitor.previousTagID
