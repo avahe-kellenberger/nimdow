@@ -165,17 +165,19 @@ proc getMonitorAreas*(display: PDisplay, rootWindow: Window): seq[Area] =
     ))
 
 proc updateCurrentDesktopProperty(this: Monitor) =
-  var data: array[1, clong] = [this.taggedClients.findFirstSelectedTag.id.clong]
-  discard XChangeProperty(
-    this.display,
-    this.rootWindow,
-    $NetCurrentDesktop,
-    XA_CARDINAL,
-    32,
-    PropModeReplace,
-    cast[Pcuchar](data[0].addr),
-    1
-  )
+  let firstTag = this.taggedClients.findFirstSelectedTag
+  if firstTag != nil:
+    var data: array[1, clong] = [firstTag.id.clong]
+    discard XChangeProperty(
+      this.display,
+      this.rootWindow,
+      $NetCurrentDesktop,
+      XA_CARDINAL,
+      32,
+      PropModeReplace,
+      cast[Pcuchar](data[0].addr),
+      1
+    )
 
 proc keycodeToTag*(this: Monitor, keycode: int): Tag =
   try:
@@ -253,11 +255,13 @@ proc doLayout*(this: Monitor, warpToClient: bool = true) =
       client.hide(this.display)
 
   let tag = this.taggedClients.findFirstSelectedTag()
-  tag.layout.arrange(
-    this.display,
-    this.taggedClients.findCurrentClients(),
-    this.layoutOffset
-  )
+  if tag != nil:
+    tag.layout.arrange(
+      this.display,
+      this.taggedClients.findCurrentClients(),
+      this.layoutOffset
+    )
+
   this.restack()
 
   discard XSync(this.display, false)
@@ -346,6 +350,17 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
   if this.taggedClients.currClient != nil:
     this.moveClientToTag(this.taggedClients.currClient, tag)
+
+proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
+  ## Views the given tags.
+
+  for id in tagIDs:
+    if this.selectedTags.contains(id):
+      this.selectedTags.excl(id)
+    else:
+      this.selectedTags.incl(id)
+
+  this.doLayout()
 
 proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
   ## Views the given tags.

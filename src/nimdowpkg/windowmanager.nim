@@ -481,6 +481,10 @@ proc mapConfigActions*(this: WindowManager) =
     if previousTag != 0:
       this.goToTag(previousTag)
 
+  createControl(keycode, "toggleTag"):
+    let tag = this.selectedMonitor.keycodeToTag(keycode)
+    this.selectedMonitor.toggleTags(tag.id)
+
   createControl(keycode, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
 
