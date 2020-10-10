@@ -33,7 +33,8 @@ type
     statusBar*: StatusBar
     area*: Area
     config: WindowSettings
-    previousTag*: Tag
+    # 0 indicates there's no previous tag ID.
+    previousTagID*: TagID
     layoutOffset: LayoutOffset
     taggedClients*: TaggedClients
 
@@ -64,6 +65,9 @@ proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfi
       )
     )
     result.taggedClients.tags.add(tag)
+
+  # Select the 2nd tag as the previous tag.
+  result.previousTagID = result.taggedClients.tags[1].id
 
   # Dynamically calculate the smallest needed size.
   # Must be a power of 2.
@@ -136,11 +140,12 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     )
 
   this.taggedClients.withSomeCurrClient(c):
-    discard XSetWindowBorder(
-      this.display,
-      c.window,
-      this.config.borderColorFocused
-    )
+    if not c.isFixed and not c.isFullscreen:
+      discard XSetWindowBorder(
+        this.display,
+        c.window,
+        this.config.borderColorFocused
+      )
 
 proc redrawStatusBar*(this: Monitor) =
   this.statusBar.redraw()
@@ -205,27 +210,6 @@ proc focusRootWindow(this: Monitor) =
     CurrentTime
   )
 
-# proc ensureWindowFocus(this: Monitor) =
-#   ## Ensures a window is selected on the current tag.
-#   if this.currTagClients.len == 0:
-#     this.focusRootWindow()
-#     this.statusBar.setSelectedClient(nil)
-#   else:
-#     if this.currClient != nil:
-#       this.focusClient(this.currClient, true)
-#     elif this.selectedTag.previouslySelectedClient != nil:
-#       this.focusClient(this.selectedTag.previouslySelectedClient, true)
-#     else:
-#       # Find the first normal client
-#       let clientIndex = this.currTagClients.findNextNormal(-1)
-#       if clientIndex >= 0:
-#         let client = this.currTagClients[clientIndex]
-#         this.focusClient(client, true)
-#       else:
-#         this.focusRootWindow()
-#         this.statusBar.setSelectedClient(nil)
-#         this.statusBar.setActiveWindowTitle("")
-
 proc addWindowToClientListProperty*(this: Monitor, window: Window) =
   ## Adds the window to _NET_CLIENT_LIST
   discard XChangeProperty(
@@ -261,17 +245,32 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
+
+  for client in this.clients.items:
+    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+      client.show(this.display)
+    else:
+      client.hide(this.display)
+
   let tag = this.taggedClients.findFirstSelectedTag()
   tag.layout.arrange(
     this.display,
-    # TODO: we should pass an iterator? Maybe.
     this.taggedClients.findCurrentClients(),
     this.layoutOffset
   )
   this.restack()
-  this.taggedClients.withSomeCurrClient(client):
-    if warpToClient:
-      this.display.warpTo(client)
+
+  discard XSync(this.display, false)
+
+  if this.taggedClients.currClient != nil:
+    this.focusClient(this.taggedClients.currClient, true)
+  else:
+    this.focusRootWindow()
+    this.deleteActiveWindowProperty()
+    this.statusBar.setActiveWindowTitle("", false)
+
+  this.updateCurrentDesktopProperty()
+  this.statusBar.redraw()
 
 proc restack*(this: Monitor) =
   this.taggedClients.withSomeCurrClient(client):
@@ -296,23 +295,6 @@ proc restack*(this: Monitor) =
     var event: XEvent
     while XCheckMaskEvent(this.display, EnterWindowMask, event.addr) != 0:
       discard
-
-# proc removeWindowFromTag(this: Monitor, tag: Tag, clientIndex: int) =
-#   # TODO: Using clientIndex like this isn't good if it has to do with a certain tag.
-#   let client = this.clients[clientIndex]
-#   this.clients[tag].delete(clientIndex)
-#   tag.clearSelectedClient(client)
-#   if tag.selectedClient == nil:
-#     if this.clients[tag].len > 0:
-#       # Find and assign the first normal client as "previouslySelectedClient"
-#       let nextNormalIndex = this.clients[tag].findNextNormal(-1)
-#       if nextNormalIndex >= 0:
-#         tag.previouslySelectedClient = this.clients[tag][nextNormalIndex]
-#         tag.selectedClient = tag.previouslySelectedClient
-#     else:
-#       tag.setSelectedClient(nil)
-#       this.statusBar.setSelectedClient(nil, false)
-#       this.statusBar.setActiveWindowTitle("")
 
 proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
@@ -358,10 +340,12 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   client.tagIDs.clear()
   client.tagIDs.incl(destinationTag.id)
 
+  this.doLayout()
+
   if destinationTag.id in this.selectedTags:
     this.setSelectedClient(client)
-    this.doLayout()
-    # this.ensureWindowFocus()
+  else:
+    this.setSelectedClient(this.taggedClients.currClient)
 
   if this.taggedClients.findCurrentClients.len == 0:
     this.deleteActiveWindowProperty()
@@ -379,29 +363,7 @@ proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
   this.selectedTags.clear()
   for id in tagIDs:
     this.selectedTags.incl(id)
-
-  # TODO: The code below can be reused to view multiple tags at once
-  for client in this.clients.items:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      client.show(this.display)
-    else:
-      client.hide(this.display)
-
-  for client in this.taggedClients.currClientsSelectionNewToOldIter:
-    discard XSetWindowBorder(this.display, client.window, this.config.borderColorUnfocused)
-
   this.doLayout()
-
-  discard XSync(this.display, false)
-
-  if this.taggedClients.currClient != nil:
-    this.focusClient(this.taggedClients.currClient, true)
-  else:
-    this.deleteActiveWindowProperty()
-    this.statusBar.setActiveWindowTitle("", false)
-
-  this.updateCurrentDesktopProperty()
-  this.statusBar.redraw()
 
 proc focusNextClient*(
   this: Monitor,

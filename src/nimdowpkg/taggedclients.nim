@@ -157,7 +157,6 @@ proc currClientNode*(this: TaggedClients): ClientNode =
       currClient = client
       break
 
-  # TODO: Is this nil?
   if currClient == nil:
     return nil
 

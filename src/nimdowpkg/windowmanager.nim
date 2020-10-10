@@ -425,19 +425,26 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-proc goToTag(this: WindowManager, tag: var Tag) =
+proc goToTag(this: WindowManager, tagID: var TagID) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
-  if selectedTags.len == 1 and selectedTags.contains(tag.id):
-    # TODO: View previous tag
-    return
-    # if this.selectedMonitor.previousTag != nil and firstSelectedTag.id == tag.id:
-    #   tag = this.selectedMonitor.previousTag
-    #   this.selectedMonitor.previousTag = firstSelectedTag
-    # else:
-    #   this.selectedMonitor.previousTag = firstSelectedTag
 
-  this.selectedMonitor.setSelectedTags(tag.id)
+  if selectedTags.len == 1:
+    # Find the only selected tag
+    var selectedTag: TagID
+    for tag in selectedTags:
+      selectedTag = tag
+      break
+
+    # If attempting to select the same single tag, view the previous tag instead.
+    if this.selectedMonitor.previousTagID != 0 and selectedTag == tagID:
+      # Change the tag ID which is used later.
+      tagID = this.selectedMonitor.previousTagID
+
+    # Swap the previous tag.
+    this.selectedMonitor.previousTagID = selectedTag
+
+  this.selectedMonitor.setSelectedTags(tagID)
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
@@ -469,11 +476,11 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "goToTag"):
     var tag = this.selectedMonitor.keycodeToTag(keycode)
-    this.goToTag(tag)
+    this.goToTag(tag.id)
 
   createControl(keycode, "goToPreviousTag"):
-    var previousTag = this.selectedMonitor.previousTag
-    if previousTag != nil:
+    var previousTag = this.selectedMonitor.previousTagID
+    if previousTag != 0:
       this.goToTag(previousTag)
 
   createControl(keycode, "focusNext"):
@@ -1165,18 +1172,16 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
-  # let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
-  # if client == nil:
-    # TODO: If this happens, we need to do something...
-    # return
+  let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
+  if client == nil:
+    # This should not happen, afaik.
+    log "onFocusIn on window not in current tags: " & $e.window
+    return
 
-  # TODO: We already set the focused window earlier when it's added.
-  # Do we need the following?
-
-  # this.selectedMonitor.setActiveWindowProperty(e.window)
-  # this.selectedMonitor.setSelectedClient(client)
-  # if client.isFloating:
-  #   discard XRaiseWindow(this.display, client.window)
+  this.selectedMonitor.setActiveWindowProperty(e.window)
+  this.selectedMonitor.setSelectedClient(client)
+  if client.isFloating:
+    discard XRaiseWindow(this.display, client.window)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   if not this.monitors.isInRange(monitorIndex):
