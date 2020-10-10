@@ -360,35 +360,38 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
     return
 
   var client = this.selectedMonitor.taggedClients.currClient
-  let nextMonitor = this.monitors[monitorIndex]
-  if this.selectedMonitor.removeWindow(client.window):
-    this.selectedMonitor.doLayout()
+
+  let startMonitor = this.selectedMonitor
+
+  this.setSelectedMonitor(this.monitors[monitorIndex])
+
+  if startMonitor.removeWindow(client.window):
+    startMonitor.doLayout()
 
   # Add client to all selected tags
-  nextMonitor.addClient(client)
+  this.selectedMonitor.addClient(client)
 
   if client.isFloating:
-    let deltaX = client.x - this.selectedMonitor.area.x
-    let deltaY = client.y - this.selectedMonitor.area.y
+    let deltaX = client.x - startMonitor.area.x
+    let deltaY = client.y - startMonitor.area.y
     client.resize(
       this.display,
-      nextMonitor.area.x + deltaX,
-      nextMonitor.area.y + deltaY,
+      this.selectedMonitor.area.x + deltaX,
+      this.selectedMonitor.area.y + deltaY,
       client.width,
       client.height
     )
   elif client.isFullscreen:
     client.resize(
       this.display,
-      nextMonitor.area.x,
-      nextMonitor.area.y,
-      nextMonitor.area.width,
-      nextMonitor.area.height
+      this.selectedMonitor.area.x,
+      this.selectedMonitor.area.y,
+      this.selectedMonitor.area.width,
+      this.selectedMonitor.area.height
      )
   else:
-    nextMonitor.doLayout(false)
+    this.selectedMonitor.doLayout(false)
 
-  this.setSelectedMonitor(nextMonitor)
   this.selectedMonitor.focusClient(client, true)
 
 proc moveClientToPreviousMonitor(this: WindowManager) =
@@ -1181,9 +1184,7 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
 
   let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
-    # A window is another tag or monitor took focus - focus the current client again.
-    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      this.selectedMonitor.focusClient(client, true)
+    # A window is another tag or monitor took focus.
     return
 
   this.selectedMonitor.setActiveWindowProperty(e.window)
