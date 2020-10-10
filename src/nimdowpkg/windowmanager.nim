@@ -1181,6 +1181,9 @@ proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
 
   let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
+    # A window is another tag or monitor took focus - focus the current client again.
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      this.selectedMonitor.focusClient(client, true)
     return
 
   this.selectedMonitor.setActiveWindowProperty(e.window)
