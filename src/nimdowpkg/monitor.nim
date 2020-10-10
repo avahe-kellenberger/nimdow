@@ -325,6 +325,7 @@ proc addClientToSelectedTags*(this: Monitor, client: var Client) =
 proc addClient*(this: Monitor, client: var Client) =
   this.clients.append(client)
   this.clientSelection.add(client)
+  client.tagIDs.clear()
   this.addClientToSelectedTags(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
@@ -356,6 +357,8 @@ proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
 
   for id in tagIDs:
     if this.selectedTags.contains(id):
+      if this.selectedTags.len == 1:
+        break
       this.selectedTags.excl(id)
     else:
       this.selectedTags.incl(id)
