@@ -328,7 +328,7 @@ proc addClient*(this: Monitor, client: var Client) =
   this.addClientToSelectedTags(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
-  if destinationTag.id in client.tagIDs:
+  if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
     return
 
   # Change client tags to only destinationTag id.
