@@ -133,11 +133,11 @@ Nimdow is not (yet) included in this list.
   - [ ] Monocle
 - [ ] Keybindings:
   - [x] Move window between monitors
-  - [ ] Add/remove window per tag
-  - [ ] View multiple tags
-  - [ ] Assign single window to multiple tags
+  - [x] Add/remove window per tag
+  - [x] View multiple tags
+  - [x] Assign single window to multiple tags
   - [ ] Swap tags between monitors
-  - [ ] Reload Nimdow (to apply configuration changes)
+  - [x] Reload Nimdow (to apply configuration changes)
   - [ ] Switch layout to master/stack
   - [ ] Switch layout to monocle
 
