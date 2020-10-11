@@ -788,10 +788,11 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.height = max(client.height, sizeHints.min_height.uint)
 
     if not client.isFixed and not client.isFullscreen:
+      let area = monitor.area
+      client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
+      client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
+
       if monitor == this.selectedMonitor and monitor.taggedClients.currClientsContains(client.window):
-        let area = monitor.area
-        client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
-        client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
         discard XMoveWindow(
           this.display,
           client.window,
@@ -882,7 +883,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   if not client.isFixed:
     monitor.doLayout(false)
-    monitor.focusClient(client, not client.isFloating)
+
+  if monitor == this.selectedMonitor and
+     monitor.taggedClients.currClientsContains(window):
+      monitor.focusClient(client, not client.isFloating)
 
   discard XMapWindow(this.display, window)
 
@@ -1175,7 +1179,7 @@ proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
   if this.selectedMonitor.taggedClients.currClientsContains(e.window):
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
-proc onFocusIn(this: WindowManager, e: XFocusChangeEvent) =
+proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
   if this.mouseState != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
     if this.selectedMonitor.taggedClients.currClient == nil:
       # Clear the window title (no windows are focused)
