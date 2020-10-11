@@ -316,8 +316,7 @@ proc removeWindow*(this: Monitor, window: Window): bool =
 proc toggleTagsForClient*(
   this: Monitor,
   client: var Client,
-  tagIDs: varargs[TagID],
-  warpToClient: bool = true
+  tagIDs: varargs[TagID]
 ) =
   for id in tagIDs:
     if client.tagIDs.contains(id):
@@ -325,18 +324,16 @@ proc toggleTagsForClient*(
     else:
       client.tagIDs.incl(id)
 
-  this.doLayout(warpToClient)
-
-proc toggleSelectedTagsForClient*(this: Monitor, client: var Client, warpToClient: bool = true) =
+proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
   let selectedTags: OrderedSet[TagID] = this.selectedTags
   let tagIDs = toSeq(selectedTags.items)
-  this.toggleTagsForClient(client, tagIDs, warpToClient)
+  this.toggleTagsForClient(client, tagIDs)
 
-proc addClient*(this: Monitor, client: var Client, warpToClient: bool = true) =
+proc addClient*(this: Monitor, client: var Client) =
   this.clients.append(client)
   this.clientSelection.add(client)
   client.tagIDs.clear()
-  this.toggleSelectedTagsForClient(client, warpToClient)
+  this.toggleSelectedTagsForClient(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
