@@ -3,7 +3,8 @@ import
   math,
   layout,
   "../client",
-  "../area"
+  "../area",
+  "../logger"
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -69,7 +70,7 @@ method arrange*(
   let screenHeight = this.monitorArea.height.int - offset.top.int - offset.bottom.int
 
   if screenWidth <= 0 or screenHeight <= 0:
-    echo "Screen width and height must be > 0!"
+    log "Screen width and height must be > 0!", lvlError
     return
 
   let clientsToBeArranged = getClientsToBeArranged(clients)
