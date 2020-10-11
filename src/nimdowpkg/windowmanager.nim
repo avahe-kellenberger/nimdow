@@ -846,6 +846,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.oldHeight = client.height
     client.oldBorderWidth = windowAttr.border_width
 
+  # If no tags are selected, add the client to the first tag.
+  if client.tagIDs.len == 0:
+    client.tagIDs.incl(monitor.taggedClients.tags[0].id)
+
   monitor.addWindowToClientListProperty(window)
 
   discard XSetWindowBorder(
