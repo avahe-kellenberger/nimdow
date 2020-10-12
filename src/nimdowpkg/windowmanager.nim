@@ -320,7 +320,7 @@ proc configureRootWindow(this: WindowManager): Window =
 proc focusMonitor(this: WindowManager, monitorIndex: int) =
   if monitorIndex == -1:
     return
-  let monitor = this.monitors[monitorIndex]
+  var monitor = this.monitors[monitorIndex]
   if monitor.taggedClients.findCurrentClients.len == 0:
     let center = monitor.area.center()
     discard XWarpPointer(
@@ -335,8 +335,8 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
       center.y.cint,
     )
   else:
-    if monitor.taggedClients.currClient != nil:
-      this.display.warpTo(monitor.taggedClients.currClient)
+    monitor.taggedClients.withSomeCurrClient(c):
+      this.display.warpTo(c)
 
 proc focusPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
@@ -356,10 +356,12 @@ proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
   this.selectedMonitor.statusBar.setIsMonitorSelected(true)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex == -1 or this.selectedMonitor.taggedClients.currClient == nil:
+  if monitorIndex < 0:
     return
 
   var client = this.selectedMonitor.taggedClients.currClient
+  if client == nil:
+    return
 
   let startMonitor = this.selectedMonitor
 
@@ -566,8 +568,7 @@ proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
   log errorMessage, lvlError
 
 proc destroySelectedWindow*(this: WindowManager) =
-  let client = this.selectedMonitor.taggedClients.currClient
-  if client != nil:
+  this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     var
       selectedWin = client.window
       event = XEvent()
@@ -753,8 +754,7 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
             e.data.l[0] == 2 and not client.isFullscreen
           monitor.setFullscreen(client, shouldFullscreen)
     elif e.message_type == $NetActiveWindow:
-      let currClient = this.selectedMonitor.taggedClients.currClient
-      if currClient != nil:
+      this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
         if client != currClient and not client.isUrgent:
           client.setUrgent(this.display, true)
 
@@ -940,8 +940,8 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
     monitor.statusBar.redraw()
 
     if monitor == this.selectedMonitor:
-      if monitor.taggedClients.currClient != nil:
-        this.selectedMonitor.focusClient(monitor.taggedClients.currClient, true)
+      this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
+        this.selectedMonitor.focusClient(currClient, true)
 
 proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent) =
   let (client, _) = this.windowToClient(e.window)
@@ -970,20 +970,26 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
   for monitor in this.monitors:
-    if not monitor.area.contains(x, y) or monitor == this.selectedMonitor:
+    if not monitor.area.contains(x, y):
       continue
-    let previousMonitor = this.selectedMonitor
+
+    if monitor == this.selectedMonitor:
+      # Coords are in the current monitor - exit early.
+      break
+
+    var previousMonitor = this.selectedMonitor
     this.setSelectedMonitor(monitor)
     # Set old monitor's focused window's border to the unfocused color
-    if previousMonitor.taggedClients.currClient != nil:
+    previousMonitor.taggedClients.withSomeCurrClient(client):
       discard XSetWindowBorder(
         this.display,
-        previousMonitor.taggedClients.currClient.window,
+        client.window,
         this.windowSettings.borderColorUnfocused
       )
     # Focus the new monitor's current client
-    if this.selectedMonitor.taggedClients.currClient != nil:
-      this.selectedMonitor.focusClient(this.selectedMonitor.taggedClients.currClient, false)
+    let currClient = this.selectedMonitor.taggedClients.currClient
+    if currClient != nil:
+      this.selectedMonitor.focusClient(currClient, false)
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
@@ -1289,8 +1295,9 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
         discard
 
     if e.atom == XA_WM_NAME or e.atom == $NetWMName:
-      if monitor.taggedClients.currClient != nil:
-        if monitor.taggedClients.currClient == client:
+      let currClient = monitor.taggedClients.currClient
+      if currClient != nil:
+        if currClient == client:
           let name = this.display.getWindowName(client.window)
           monitor.statusBar.setActiveWindowTitle(name)
 
@@ -1306,9 +1313,9 @@ proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
         this.updateSystray()
 
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
-  if this.selectedMonitor.taggedClients.currClient == nil:
-      return
   let client = this.selectedMonitor.taggedClients.currClient
+  if client == nil:
+      return
   this.moveResizingClient = client
   this.lastMousePress = (e.x.int, e.y.int)
   this.lastMoveResizeClientState = client.area
