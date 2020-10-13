@@ -65,8 +65,7 @@ The status bar displays:
 
 ### Setting the status <a name="setting-status"></a>
 
-The status is the text read from the root window's name property, which can be set with `xsetroot -name "My status"`.
-This is the exact same way `dwm` manages its status. I recommend [reading their page](https://dwm.suckless.org/status_monitor/) about setting statuses.
+See the [wiki page](https://github.com/avahe-kellenberger/nimdow/wiki/Setting-the-status) about statuses.
 
 ### Emojis Not showing up / some characters invisible
 
