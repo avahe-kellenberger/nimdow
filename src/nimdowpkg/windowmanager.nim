@@ -758,6 +758,29 @@ proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
         if client != currClient and not client.isUrgent:
           client.setUrgent(this.display, true)
 
+proc centerClientIfNeeded(
+  this: WindowManager,
+  client: var Client,
+  monitor: Monitor
+) =
+  if not client.isFixed and not client.isFullscreen and
+     client.x <= 0 and client.y <= 0:
+      # Center the client if its position is top-left or off screen.
+      let area = monitor.area
+      client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
+      client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
+
+      if monitor == this.selectedMonitor and
+         monitor.taggedClients.currClientsContains(client.window):
+        discard XMoveWindow(
+          this.display,
+          client.window,
+          client.x,
+          client.y
+        )
+      else:
+        client.needsResize = true
+
 proc updateWindowType(this: WindowManager, client: var Client) =
   let
     stateOpt = this.display.getProperty[:Atom](client.window, $NetWMState)
@@ -766,13 +789,15 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   let state = if stateOpt.isSome: stateOpt.get else: x.None
   let windowType = if windowTypeOpt.isSome: windowTypeOpt.get else: x.None
 
+  let (_, monitor) = this.windowToClient(client.window)
   if state == $NetWMStateFullScreen:
-    let (_, monitor) = this.windowToClient(client.window)
     if monitor != nil:
       monitor.setFullscreen(client, true)
 
   if windowType == $NetWMWindowTypeDialog:
     client.isFloating = true
+    if monitor != nil:
+      this.centerClientIfNeeded(client, monitor)
 
 proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) =
   var sizeHints = XAllocSizeHints()
@@ -787,21 +812,7 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.width = max(client.width, sizeHints.min_width.uint)
     client.height = max(client.height, sizeHints.min_height.uint)
 
-    if not client.isFixed and not client.isFullscreen:
-      let area = monitor.area
-      client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
-      client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
-
-      if monitor == this.selectedMonitor and monitor.taggedClients.currClientsContains(client.window):
-        discard XMoveWindow(
-          this.display,
-          client.window,
-          client.x,
-          client.y
-        )
-      else:
-        client.needsResize = true
-
+    this.centerClientIfNeeded(client, monitor)
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints != nil:
