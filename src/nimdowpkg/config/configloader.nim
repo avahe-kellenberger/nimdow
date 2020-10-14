@@ -299,6 +299,9 @@ proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, actio
     result.add((keycode, cleanMask(modifiers)))
 
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
+  if not configTable.hasKey("keys"):
+    log "\"keys\" not found in config tabile for action \"" & action & "\"", lvlError
+    return
   var tomlKeys = configTable["keys"]
   if tomlKeys.kind != TomlValueKind.Array:
     log "Invalid key config for action: " & action & "\n\"keys\" must be an array of strings", lvlError

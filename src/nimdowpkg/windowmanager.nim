@@ -263,10 +263,10 @@ proc reloadConfig*(this: WindowManager) =
   this.eventManager.removeListener(this.config.listener, KeyPress)
 
   this.config = newConfig(this.eventManager)
-  logger.enabled = this.config.loggingEnabled
 
   let configTable = configloader.loadConfigFile()
   this.config.populateGeneralSettings(configTable)
+  logger.enabled = this.config.loggingEnabled
   this.mapConfigActions()
   this.config.populateKeyComboTable(configTable, this.display)
   this.config.hookConfig()
