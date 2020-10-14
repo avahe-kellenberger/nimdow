@@ -659,8 +659,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       client.configure(this.display)
   else:
     var changes: XWindowChanges
-    changes.x = e.detail
-    changes.y = e.detail
+    changes.x = e.x
+    changes.y = e.y
     changes.width = e.width
     changes.height = e.height
     changes.border_width = e.border_width
@@ -732,7 +732,6 @@ proc addIconToSystray(this: WindowManager, window: Window) =
   this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
   this.updateSystray()
   this.setClientState(Client(icon), NormalState)
-
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
@@ -813,6 +812,7 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.height = max(client.height, sizeHints.min_height.uint)
 
     this.centerClientIfNeeded(client, monitor)
+
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints != nil:
