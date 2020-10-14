@@ -22,6 +22,7 @@ modifiers = [ "super" ]
 
 [autostart]
 exec = [
+  "xsetroot -cursor_name left_ptr",
   #"firefox",
   #"st",
 ]
