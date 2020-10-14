@@ -17,7 +17,8 @@ proc findConfigPath*(): string =
   if not fileExists(result):
     result = "/usr/share/nimdow/config.default.toml"
   if not fileExists(result):
-    raise newException(Exception, result & " does not exist")
+    log "config file " & result & " does not exist", lvlError
+    result = ""
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
@@ -107,12 +108,12 @@ proc runCommands(this: Config, commands: varargs[string]) =
 
 proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:
-    raise newException(Exception, "Invalid key configuration: " &
-                       repr(modifier) & " is not a string")
+    log "Invalid key configuration: " & repr(modifier) & " is not a string", lvlError
+    return
 
   if not ModifierTable.hasKey(modifier.stringVal):
-    raise newException(Exception, "Invalid key configuration: " &
-                       repr(modifier) & " is not a a valid key modifier")
+    log "Invalid key configuration: " & repr(modifier) & " is not a valid key modifier", lvlError
+    return
 
   return ModifierTable[modifier.stringVal]
 
@@ -142,7 +143,8 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
   # Populate window manager controls
   let controlsTable = configTable["controls"]
   if controlsTable.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid config table!")
+    log "Invalid config table!", lvlError
+    return
   for action in controlsTable.tableVal[].keys():
     this.populateControlAction(display, action, controlsTable[action].tableVal[])
 
@@ -202,7 +204,8 @@ proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
   if settingsTable.hasKey("barFonts"):
     let fonts = settingsTable["barFonts"]
     if fonts.kind != TomlValueKind.Array:
-      raise newException(Exception, "barFonts is not an array of strings!")
+      log "barFonts is not an array of strings!", lvlError
+      return
 
     if fonts.arrayVal.len > 0:
       # Clear default fonts
@@ -257,17 +260,26 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
-  this.populateControlsTable(configTable, display)
-  this.populateExternalProcessSettings(configTable, display)
+  try:
+    this.populateControlsTable(configTable, display)
+    this.populateExternalProcessSettings(configTable, display)
+  except:
+    log getCurrentExceptionMsg(), lvlError
 
 proc loadConfigFile*(): TomlTable =
   ## Reads the user's configuration file into a table.
   ## Set configLoc before calling this procedure,
   ## if you would like to use an alternate config file.
-  let loadedConfig = parsetoml.parseFile(configLoc)
-  if loadedConfig.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid config file!")
-  return loadedConfig.tableVal[]
+  try:
+    if configLoc.len == 0:
+      configLoc = findConfigPath()
+    let loadedConfig = parsetoml.parseFile(configLoc)
+    if loadedConfig.kind != TomlValueKind.Table:
+      log "Invalid config file!", lvlError
+      return
+    result = loadedConfig.tableVal[]
+  except:
+    log getCurrentExceptionMsg(), lvlError
 
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombos = this.getKeyCombos(configTable, display, action)
@@ -283,24 +295,25 @@ proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, actio
   let modifiers: int = bitorModifiers(modifierArray)
   let keys: seq[string] = this.getKeysForAction(configTable, action)
   for key in keys:
-    let keycode: int = key.toKeycode(display)
+    let keycode = key.toKeycode(display)
     result.add((keycode, cleanMask(modifiers)))
 
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
   var tomlKeys = configTable["keys"]
   if tomlKeys.kind != TomlValueKind.Array:
-    raise newException(Exception, "Invalid key config for action: " & action &
-                       "\n\"keys\" must be an array of strings")
+    log "Invalid key config for action: " & action & "\n\"keys\" must be an array of strings", lvlError
+    return
+
   for tomlKey in tomlKeys.arrayVal:
     if tomlKey.kind != TomlValueKind.String:
-      raise newException(Exception, "Invalid key configuration: " &
-                         repr(tomlKey) & " is not a string")
+      log "Invalid key configuration: " & repr(tomlKey) & " is not a string", lvlError
+      return
     result.add(tomlKey.stringVal)
 
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef] =
-  var modifiersConfig = configTable["modifiers"]
-  if modifiersConfig.kind != TomlValueKind.Array:
-    raise newException(Exception, "Invalid key configuration: " &
-                       repr(modifiersConfig) & " is not an array")
-  return modifiersConfig.arrayVal
+  if configTable.hasKey("modifiers"):
+    var modifiersConfig = configTable["modifiers"]
+    if modifiersConfig.kind != TomlValueKind.Array:
+      log "Invalid key configuration: " & repr(modifiersConfig) & " is not an array", lvlError
+    return modifiersConfig.arrayVal
 

@@ -17,8 +17,6 @@ when isMainModule:
       else:
         # If given a parameter for a config file, use it instead of the default.
         configloader.configLoc = params[0].string
-    else:
-      configloader.configLoc = findConfigPath()
 
   let
     eventManager = newXEventManager()
