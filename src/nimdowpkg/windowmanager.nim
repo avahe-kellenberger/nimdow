@@ -263,7 +263,6 @@ proc reloadConfig*(this: WindowManager) =
   this.eventManager.removeListener(this.config.listener, KeyPress)
 
   this.config = newConfig(this.eventManager)
-
   let configTable = configloader.loadConfigFile()
   this.config.populateGeneralSettings(configTable)
   logger.enabled = this.config.loggingEnabled
@@ -275,24 +274,31 @@ proc reloadConfig*(this: WindowManager) =
   this.windowSettings = this.config.windowSettings
   for monitor in this.monitors:
     monitor.setConfig(this.config)
+    monitor.redrawStatusBar()
 
-  this.updateSystray()
+template onEvent(theType: int, e, body: untyped): untyped =
+  this.eventManager.addListener(
+    proc (event: XEvent) =
+      let e: XEvent = event
+      body,
+    theType
+  )
 
 proc initListeners(this: WindowManager) =
-  this.eventManager.addListener((e: XEvent) => onConfigureRequest(this, e.xconfigurerequest), ConfigureRequest)
-  this.eventManager.addListener((e: XEvent) => onClientMessage(this, e.xclient), ClientMessage)
-  this.eventManager.addListener((e: XEvent) => onMapRequest(this, e.xmaprequest), MapRequest)
-  this.eventManager.addListener((e: XEvent) => onUnmapNotify(this, e.xunmap), UnmapNotify)
-  this.eventManager.addListener((e: XEvent) => onResizeRequest(this, e.xresizerequest), ResizeRequest)
-  this.eventManager.addListener((e: XEvent) => onMotionNotify(this, e.xmotion), MotionNotify)
-  this.eventManager.addListener((e: XEvent) => onEnterNotify(this, e.xcrossing), EnterNotify)
-  this.eventManager.addListener((e: XEvent) => onFocusIn(this, e.xfocus), FocusIn)
-  this.eventManager.addListener((e: XEvent) => onPropertyNotify(this, e.xproperty), PropertyNotify)
-  this.eventManager.addListener((e: XEvent) => onExposeNotify(this, e.xexpose), Expose)
-  this.eventManager.addListener((e: XEvent) => onDestroyNotify(this, e.xdestroywindow), DestroyNotify)
-  this.eventManager.addListener((e: XEvent) => handleButtonPressed(this, e.xbutton), ButtonPress)
-  this.eventManager.addListener((e: XEvent) => handleButtonReleased(this, e.xbutton), ButtonRelease)
-  this.eventManager.addListener((e: XEvent) => handleMouseMotion(this, e.xmotion), MotionNotify)
+  onEvent(ConfigureRequest, e): this.onConfigureRequest(e.xconfigurerequest)
+  onEvent(ClientMessage, e): this.onClientMessage(e.xclient)
+  onEvent(MapRequest, e): this.onMapRequest(e.xmaprequest)
+  onEvent(UnmapNotify, e): this.onUnmapNotify(e.xunmap)
+  onEvent(ResizeRequest, e): this.onResizeRequest(e.xresizerequest)
+  onEvent(MotionNotify, e): this.onMotionNotify(e.xmotion)
+  onEvent(EnterNotify, e): this.onEnterNotify(e.xcrossing)
+  onEvent(FocusIn, e): this.onFocusIn(e.xfocus)
+  onEvent(PropertyNotify, e): this.onPropertyNotify(e.xproperty)
+  onEvent(Expose, e): this.onExposeNotify(e.xexpose)
+  onEvent(DestroyNotify, e): this.onDestroyNotify(e.xdestroywindow)
+  onEvent(ButtonPress, e): this.handleButtonPressed(e.xbutton)
+  onEvent(ButtonRelease, e): this.handleButtonReleased(e.xbutton)
+  onEvent(MotionNotify, e): this.handleMouseMotion(e.xmotion)
 
 proc openDisplay(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)

@@ -38,7 +38,7 @@ type
     layoutOffset: LayoutOffset
     taggedClients*: TaggedClients
 
-proc doLayout*(this: Monitor, warpToClient: bool = true)
+proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
 proc restack*(this: Monitor)
 proc setSelectedClient*(this: Monitor, client: Client)
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -111,7 +111,7 @@ proc setConfig*(this: Monitor, config: Config) =
 
   this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.setConfig(config.barSettings)
-  this.doLayout()
+  this.doLayout(false, false)
 
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
   ## Renders the title of the active window of the given monitor
@@ -245,7 +245,7 @@ proc setActiveWindowProperty*(this: Monitor, window: Window) =
 proc deleteActiveWindowProperty(this: Monitor) =
   discard XDeleteProperty(this.display, this.rootWindow, $NetActiveWindow)
 
-proc doLayout*(this: Monitor, warpToClient: bool = true) =
+proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
 
   for client in this.clients.items:
@@ -266,12 +266,13 @@ proc doLayout*(this: Monitor, warpToClient: bool = true) =
 
   discard XSync(this.display, false)
 
-  if this.taggedClients.currClient != nil:
-    this.focusClient(this.taggedClients.currClient, warpToClient)
-  else:
-    this.focusRootWindow()
-    this.deleteActiveWindowProperty()
-    this.statusBar.setActiveWindowTitle("", false)
+  if focusCurrClient:
+    if this.taggedClients.currClient != nil:
+      this.focusClient(this.taggedClients.currClient, warpToClient)
+    else:
+      this.focusRootWindow()
+      this.deleteActiveWindowProperty()
+      this.statusBar.setActiveWindowTitle("", false)
 
   this.updateCurrentDesktopProperty()
   this.statusBar.redraw()
