@@ -1,5 +1,6 @@
 import
   os,
+  parsetoml,
   nimdowpkg/windowmanager,
   nimdowpkg/event/xeventmanager,
   nimdowpkg/config/configloader,
@@ -21,13 +22,22 @@ when isMainModule:
   let
     eventManager = newXEventManager()
     loadedConfig = newConfig(eventManager)
+
+  var configTable: TomlTable
+  try:
     configTable = loadConfigFile()
+  except:
+    log getCurrentExceptionMsg(), lvlError
 
   let nimdow = newWindowManager(eventManager, loadedConfig, configTable)
 
   logger.enabled = loadedConfig.loggingEnabled
-  log("Starting Nimdow " & version)
+  log "Starting Nimdow " & version
 
-  loadedConfig.runAutostartCommands(configTable)
+  try:
+    loadedConfig.runAutostartCommands(configTable)
+  except:
+    log getCurrentExceptionMsg(), lvlError
+
   eventManager.startEventListenerLoop(nimdow.display)
 

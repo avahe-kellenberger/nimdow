@@ -87,16 +87,16 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     return
   let autoStartTable = configTable["autostart"]
   if autoStartTable.kind != TomlValueKind.Table:
-    log "Invalid autostart table", lvlWarn
-    return
+    raise newException(Exception,"Invalid autostart table")
+
   if not autoStartTable.tableVal[].hasKey("exec"):
-    log "Autostart table does not have exec key", lvlWarn
-    return
+    raise newException(Exception, "Autostart table does not have exec key")
+
   for cmd in autoStartTable.tableVal[]["exec"].arrayVal:
-    if cmd.kind != TomlValueKind.String:
-      log repr(cmd) & " is not a string", lvlWarn
-    else:
+    if cmd.kind == TomlValueKind.String:
       result.add(cmd.stringVal)
+    else:
+      log repr(cmd) & " is not a string", lvlWarn
 
 proc runCommands(this: Config, commands: varargs[string]) =
   for cmd in commands:
@@ -143,44 +143,42 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
   # Populate window manager controls
   let controlsTable = configTable["controls"]
   if controlsTable.kind != TomlValueKind.Table:
-    log "Invalid config table!", lvlError
-    return
+    raise newException(Exception, "Invalid config table")
+
   for action in controlsTable.tableVal[].keys():
     this.populateControlAction(display, action, controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
     return
+
   # Populate external commands
   let externalProcessesTable = configTable["startProcess"]
+
   if externalProcessesTable.kind != TomlValueKind.Array:
-    log "No \"startProcess\" commands defined!", lvlWarn
-  else:
-    for commandDeclaration in externalProcessesTable.arrayVal:
-      if commandDeclaration.kind != TomlValueKind.Table:
-        log "Invalid \"startProcess\" configuration command!", lvlWarn
-        continue
-      if not commandDeclaration.tableVal[].hasKey("command"):
-        log "Invalid \"startProcess\" configuration: Missing\"command\" string!", lvlWarn
-        continue
-      let command = commandDeclaration.tableVal["command"].stringVal
-      this.configureExternalProcess(command)
-      this.populateControlAction(
-        display,
-        command,
-        commandDeclaration.tableVal[]
-      )
+    raise newException(Exception, "No \"startProcess\" commands defined!")
+
+  for commandDeclaration in externalProcessesTable.arrayVal:
+    if commandDeclaration.kind != TomlValueKind.Table:
+      raise newException(Exception, "Invalid \"startProcess\" configuration command!")
+    if not commandDeclaration.tableVal[].hasKey("command"):
+      raise newException(Exception, "Invalid \"startProcess\" configuration: Missing \"command\" string!")
+
+    let command = commandDeclaration.tableVal["command"].stringVal
+    this.configureExternalProcess(command)
+    this.populateControlAction(
+      display,
+      command,
+      commandDeclaration.tableVal[]
+    )
 
 proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string): int =
   if settingsTable.hasKey(valueName):
     let setting = settingsTable[valueName]
     if setting.kind == TomlValueKind.String:
-      try:
-        return fromHex[int](setting.stringVal)
-      except:
-        log valueName & " is not a proper hex value! Format: #123456", lvlWarn
+      return fromHex[int](setting.stringVal)
     else:
-      log valueName & " is not a proper hex value! Ensure it is wrapped in double quotes", lvlWarn
+      raise newException(Exception, valueName & " is not a proper hex value! Ensure it is wrapped in double quotes")
   return -1
 
 proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
@@ -202,25 +200,21 @@ proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
       this.barSettings.height = max(0, barHeight.intVal).uint
 
   if settingsTable.hasKey("barFonts"):
-    let fonts = settingsTable["barFonts"]
-    if fonts.kind != TomlValueKind.Array:
-      log "barFonts is not an array of strings!", lvlError
-      return
+    let barFonts = settingsTable["barFonts"]
+    if barFonts.kind != TomlValueKind.Array:
+      raise newException(Exception, "barFonts is not an array of strings!")
 
-    if fonts.arrayVal.len > 0:
-      # Clear default fonts
-      this.barSettings.fonts.setLen(0)
-
-    for font in fonts.arrayVal:
+    var fonts: seq[string]
+    for font in barFonts.arrayVal:
       if font.kind == TomlValueKind.String:
-        this.barSettings.fonts.add(font.stringVal)
+        fonts.add(font.stringVal)
       else:
-        log "Invalid font - must be a string!", lvlWarn
+        raise newException(Exception, "Invalid font - must be a string!")
+    this.barSettings.fonts = fonts
 
 proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if not configTable.hasKey("settings") or configTable["settings"].kind != TomlValueKind.Table:
-    log "Invalid settings table! Using default settings", lvlWarn
-    return
+    raise newException(Exception, "Invalid settings table")
 
   let settingsTable = configTable["settings"].tableVal
 
@@ -256,30 +250,23 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
     if loggingEnabledSetting.kind == TomlValueKind.Bool:
       this.loggingEnabled = loggingEnabledSetting.boolVal
     else:
-      log "loggingEnabled is not true/false!", lvlWarn
+      raise newException(Exception, "loggingEnabled is not true/false!")
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
-  try:
-    this.populateControlsTable(configTable, display)
-    this.populateExternalProcessSettings(configTable, display)
-  except:
-    log getCurrentExceptionMsg(), lvlError
+  this.populateControlsTable(configTable, display)
+  this.populateExternalProcessSettings(configTable, display)
 
 proc loadConfigFile*(): TomlTable =
   ## Reads the user's configuration file into a table.
   ## Set configLoc before calling this procedure,
   ## if you would like to use an alternate config file.
-  try:
-    if configLoc.len == 0:
-      configLoc = findConfigPath()
-    let loadedConfig = parsetoml.parseFile(configLoc)
-    if loadedConfig.kind != TomlValueKind.Table:
-      log "Invalid config file!", lvlError
-      return
-    result = loadedConfig.tableVal[]
-  except:
-    log getCurrentExceptionMsg(), lvlError
+  if configLoc.len == 0:
+    configLoc = findConfigPath()
+  let loadedConfig = parsetoml.parseFile(configLoc)
+  if loadedConfig.kind != TomlValueKind.Table:
+    raise newException(Exception, "Invalid config file!")
+  return loadedConfig.tableVal[]
 
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombos = this.getKeyCombos(configTable, display, action)
@@ -287,7 +274,7 @@ proc populateControlAction(this: Config, display: PDisplay, action: string, conf
     if this.identifierTable.hasKey(action):
       this.keyComboTable[keyCombo] = this.identifierTable[action]
     else:
-      log "Invalid key config action: \"" & action & "\" does not exist", lvlWarn
+      raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
 
 proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
   ## Gets the KeyCombos associated with the given `action` from the table.

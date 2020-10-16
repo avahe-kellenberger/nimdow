@@ -2,7 +2,6 @@ import
   x11 / [x, xlib, xutil, xatom, xft],
   parsetoml,
   math,
-  sugar,
   tables,
   sets,
   taggedclients,
@@ -115,9 +114,19 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
 
   # Config setup
   result.config = config
-  result.config.populateGeneralSettings(configTable)
+
+  try:
+    result.config.populateGeneralSettings(configTable)
+  except:
+    log getCurrentExceptionMsg(), lvlError
+
   result.mapConfigActions()
-  result.config.populateKeyComboTable(configTable, result.display)
+
+  try:
+    result.config.populateKeyComboTable(configTable, result.display)
+  except:
+    log getCurrentExceptionMsg(), lvlError
+
   result.config.hookConfig()
   result.hookConfigKeys()
 
@@ -262,12 +271,24 @@ proc reloadConfig*(this: WindowManager) =
   # Remove old config listener.
   this.eventManager.removeListener(this.config.listener, KeyPress)
 
+  let
+    oldConfig = this.config
+    oldLoggingEnabled = logger.enabled
+
   this.config = newConfig(this.eventManager)
-  let configTable = configloader.loadConfigFile()
-  this.config.populateGeneralSettings(configTable)
-  logger.enabled = this.config.loggingEnabled
-  this.mapConfigActions()
-  this.config.populateKeyComboTable(configTable, this.display)
+
+  try:
+    let configTable = configloader.loadConfigFile()
+    this.config.populateGeneralSettings(configTable)
+    logger.enabled = this.config.loggingEnabled
+    this.mapConfigActions()
+    this.config.populateKeyComboTable(configTable, this.display)
+  except:
+    logger.enabled = oldLoggingEnabled
+    # If the config fails to load, restore the old config.
+    this.config = oldConfig
+    log getCurrentExceptionMsg(), lvlError
+
   this.config.hookConfig()
   this.hookConfigKeys()
 
