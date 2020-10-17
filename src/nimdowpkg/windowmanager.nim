@@ -297,6 +297,8 @@ proc reloadConfig*(this: WindowManager) =
     monitor.setConfig(this.config)
     monitor.redrawStatusBar()
 
+  this.updateSystray()
+
 template onEvent(theType: int, e, body: untyped): untyped =
   this.eventManager.addListener(
     proc (event: XEvent) =
@@ -843,13 +845,20 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints != nil:
-    this.selectedMonitor.taggedClients.withSomeCurrClient(c):
-      if c == client and (hints.flags and XUrgencyHint) != 0:
-        hints.flags = hints.flags and (not XUrgencyHint)
-        discard XSetWMHints(this.display, client.window, hints)
-      else:
-        client.setUrgent(this.display, (hints.flags and XUrgencyHint) != 0)
-      discard XFree(hints)
+    let currClient = this.selectedMonitor.taggedClients.currClient
+    if currClient != nil and currClient == client and (hints.flags and XUrgencyHint) != 0:
+      hints.flags = hints.flags and (not XUrgencyHint)
+      discard XSetWMHints(this.display, client.window, hints)
+    else:
+      # Only case where this should be set directly.
+      client.isUrgent = (hints.flags and XUrgencyHint) != 0
+      if client.isUrgent:
+        discard XSetWindowBorder(
+          this.display,
+          client.window,
+          this.config.windowSettings.borderColorUrgent
+        )
+    discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
   var state = [state, x.None]

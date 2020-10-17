@@ -26,8 +26,9 @@ type
   WindowSettings* = ref object
     gapSize*: uint
     tagCount*: uint
-    borderColorFocused*: int
     borderColorUnfocused*: int
+    borderColorFocused*: int
+    borderColorUrgent*: int
     borderWidth*: uint
   BarSettings* = ref object
     height*: uint
@@ -51,8 +52,9 @@ proc newConfig*(eventManager: XEventManager): Config =
     windowSettings: WindowSettings(
       gapSize: 12,
       tagCount: 9,
-      borderColorFocused: 0x519f50,
       borderColorUnfocused: 0x1c1b19,
+      borderColorFocused: 0x519f50,
+      borderColorUrgent: 0xff5555,
       borderWidth: 1
     ),
     barSettings: BarSettings(
@@ -245,6 +247,10 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   let focusedBorderVal = this.loadHexValue(settingsTable, "borderColorFocused")
   if focusedBorderVal != -1:
     this.windowSettings.borderColorFocused = focusedBorderVal
+
+  let urgentBorderVal = this.loadHexValue(settingsTable, "borderColorUrgent")
+  if urgentBorderVal != -1:
+    this.windowSettings.borderColorUrgent = urgentBorderVal
 
   # Bar settings
   this.populateBarSettings(settingsTable)
