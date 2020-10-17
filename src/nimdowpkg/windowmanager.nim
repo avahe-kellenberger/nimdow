@@ -845,8 +845,10 @@ proc updateWMHints(this: WindowManager, client: Client) =
   if hints != nil:
     this.selectedMonitor.taggedClients.withSomeCurrClient(c):
       if c == client and (hints.flags and XUrgencyHint) != 0:
-        hints[].flags = hints[].flags and (not XUrgencyHint)
+        hints.flags = hints.flags and (not XUrgencyHint)
         discard XSetWMHints(this.display, client.window, hints)
+      else:
+        client.isUrgent = (hints.flags and XUrgencyHint) != 0
       discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =

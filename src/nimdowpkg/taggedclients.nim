@@ -9,8 +9,7 @@ import
 import
   client,
   tag,
-  taginfo,
-  logger
+  taginfo
 
 export tag, taginfo, client, lists, sets
 
