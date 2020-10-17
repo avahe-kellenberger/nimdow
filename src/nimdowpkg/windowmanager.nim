@@ -480,6 +480,47 @@ proc goToTag(this: WindowManager, tagID: var TagID) =
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
+proc jumpToUrgentWindow(this: WindowManager) =
+  var
+    urgentClient: Client
+    urgentMonitor: Monitor
+
+  # Find the first urgent window.
+  for monitor in this.monitors:
+    for client in monitor.taggedClients.clientSelection:
+      if client.isUrgent:
+        urgentClient = client
+        urgentMonitor = monitor
+        break
+
+  if urgentClient == nil:
+    # There are no urgent clients.
+    return
+
+  if urgentClient.tagIDs.len < 1:
+    # Should never happen.
+    return
+
+  if urgentMonitor != this.selectedMonitor:
+    # Go to the client's monitor if needed.
+    this.setSelectedMonitor(urgentMonitor)
+
+  # urgentMonitor and this.selectedMonitor are now the same.
+
+  this.selectedMonitor.setSelectedClient(urgentClient)
+  # Go to the first tag the client is on.
+  # `goToTag` jumps to the monitor's selected/current client.
+
+  # Find the first tag.
+  var tagID: TagID
+  for id in urgentClient.tagIDs:
+    tagID = id
+    break
+
+  this.selectedMonitor.setSelectedTags(tagID)
+  this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+    this.display.warpTo(client)
+
 template createControl(keycode: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keycode: int) = action)
 
@@ -548,6 +589,9 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "toggleFloating"):
     this.selectedMonitor.toggleFloatingForSelectedClient()
+
+  createControl(keycode, "jumpToUrgentWindow"):
+    this.jumpToUrgentWindow()
 
 proc hookConfigKeys*(this: WindowManager) =
   ## Grabs key combos defined in the user's config

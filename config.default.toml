@@ -125,3 +125,7 @@ exec = [
   keys = [ "space" ]
   modifiers = [ "super" ]
 
+  [controls.jumpToUrgentWindow]
+  keys = [ "u" ]
+  modifiers = [ "super" ]
+
