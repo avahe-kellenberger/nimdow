@@ -501,25 +501,19 @@ proc jumpToUrgentWindow(this: WindowManager) =
     # Should never happen.
     return
 
-  if urgentMonitor != this.selectedMonitor:
-    # Go to the client's monitor if needed.
-    this.setSelectedMonitor(urgentMonitor)
-
-  # urgentMonitor and this.selectedMonitor are now the same.
-
-  this.selectedMonitor.setSelectedClient(urgentClient)
-  # Go to the first tag the client is on.
-  # `goToTag` jumps to the monitor's selected/current client.
-
   # Find the first tag.
   var tagID: TagID
   for id in urgentClient.tagIDs:
     tagID = id
     break
 
-  this.selectedMonitor.setSelectedTags(tagID)
-  this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-    this.display.warpTo(client)
+  # Set the previousTag.
+  for id in urgentMonitor.taggedClients.selectedTags:
+    urgentMonitor.previousTagID = id
+    break
+
+  urgentMonitor.setSelectedTags(tagID)
+  this.display.warpTo(urgentClient)
 
 template createControl(keycode: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keycode: int) = action)
