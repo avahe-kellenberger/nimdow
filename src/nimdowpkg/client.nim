@@ -26,7 +26,7 @@ type
     # Non-resizable
     isFixed*: bool
     needsResize*: bool
-    isUrgent*: bool
+    isUrgent: bool
 
 proc hash*(this: Client): Hash
 
@@ -153,6 +153,8 @@ proc takeFocus*(this: Client, display: PDisplay) =
     CurrentTime,
     0, 0, 0
   )
+
+template isUrgent*(this: Client): bool = this.isUrgent
 
 proc setUrgent*(this: Client, display: PDisplay, isUrgent: bool) =
   this.isUrgent = isUrgent

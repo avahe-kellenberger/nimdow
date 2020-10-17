@@ -125,6 +125,8 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     log "Attempted to set nil client as the selected client", lvlError
     return
 
+  client.setUrgent(this.display, false)
+
   if this.clients.find(client.window) == nil:
     log "Attempted to select a client not on the current tags"
     return

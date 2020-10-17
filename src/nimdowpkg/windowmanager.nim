@@ -848,7 +848,7 @@ proc updateWMHints(this: WindowManager, client: Client) =
         hints.flags = hints.flags and (not XUrgencyHint)
         discard XSetWMHints(this.display, client.window, hints)
       else:
-        client.isUrgent = (hints.flags and XUrgencyHint) != 0
+        client.setUrgent(this.display, (hints.flags and XUrgencyHint) != 0)
       discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
@@ -1242,7 +1242,7 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     return
 
   if client.isUrgent:
-    client.isUrgent = false
+    client.setUrgent(this.display, false)
 
   this.selectedMonitor.setActiveWindowProperty(e.window)
   this.selectedMonitor.setSelectedClient(client)

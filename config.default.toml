@@ -31,14 +31,14 @@ exec = [
   # Window settings
   gapSize = 12
   borderWidth = 1
-  borderColorFocused = "#519f50"
-  borderColorUnfocused = "#1c1b19"
+  borderColorFocused = "#00c1bc"
+  borderColorUnfocused = "#252d33"
   # Bar settings
   barHeight = 20
-  barBackgroundColor = "#1c1b19"
-  barForegroundColor = "#fce8c3"
-  barSelectionColor = "#519f50"
-  barUrgentColor = "#ef2f27"
+  barBackgroundColor = "#252d33"
+  barForegroundColor = "#ccd9db"
+  barSelectionColor = "#00c1bc"
+  barUrgentColor = "#d3532c"
   barFonts = [
     "monospace:size=10:anialias=false",
     "NotoColorEmoji:size=10:anialias=false"

@@ -537,7 +537,6 @@ proc renderTags(this: StatusBar): int =
     # Determine the render color.
     var
       fgColor = this.fgColor
-      urgentColor = this.urgentColor
       tagIsEmpty = true
       tagHasCurrentClient = false
       tagIsUrgent = false
@@ -558,10 +557,11 @@ proc renderTags(this: StatusBar): int =
 
     if not tagIsEmpty:
       if tagIsUrgent:
-        XftDrawRect(this.draw, urgentColor.addr, i * cellWidth, 0, cellWidth, this.area.height.cuint)
+        XftDrawRect(this.draw, this.urgentColor.unsafeAddr, i * cellWidth, 0, cellWidth, this.area.height.cuint)
       XftDrawRect(this.draw, fgColor.addr, i * cellWidth, 0, 4, 4)
       if not tagHasCurrentClient:
-        XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
+        var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
+        XftDrawRect(this.draw, bgColor.addr, i * cellWidth + 1, 1, 2, 2)
 
     textXPos = cellWidth div 2 + cellWidth * i
     discard this.renderString($(i + 1), textXPos, fgColor)
