@@ -26,14 +26,15 @@ type
   WindowSettings* = ref object
     gapSize*: uint
     tagCount*: uint
-    borderColorFocused*: int
     borderColorUnfocused*: int
+    borderColorFocused*: int
+    borderColorUrgent*: int
     borderWidth*: uint
   BarSettings* = ref object
     height*: uint
     fonts*: seq[string]
     # Hex values
-    fgColor*, bgColor*, selectionColor*: int
+    fgColor*, bgColor*, selectionColor*, urgentColor*: int
   Config* = ref object
     eventManager: XEventManager
     identifierTable*: Table[string, Action]
@@ -51,8 +52,9 @@ proc newConfig*(eventManager: XEventManager): Config =
     windowSettings: WindowSettings(
       gapSize: 12,
       tagCount: 9,
-      borderColorFocused: 0x519f50,
       borderColorUnfocused: 0x1c1b19,
+      borderColorFocused: 0x519f50,
+      borderColorUrgent: 0xff5555,
       borderWidth: 1
     ),
     barSettings: BarSettings(
@@ -63,7 +65,8 @@ proc newConfig*(eventManager: XEventManager): Config =
       ],
       fgColor: 0xfce8c3,
       bgColor: 0x1c1b19,
-      selectionColor: 0x519f50
+      selectionColor: 0x519f50,
+      urgentColor: 0xef2f27
     ),
     loggingEnabled: false
   )
@@ -194,6 +197,10 @@ proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
   if selectionColor != -1:
     this.barSettings.selectionColor = selectionColor
 
+  let urgentColor = this.loadHexValue(settingsTable, "barUrgentColor")
+  if urgentColor != -1:
+    this.barSettings.urgentColor = urgentColor
+
   if settingsTable.hasKey("barHeight"):
     let barHeight = settingsTable["barHeight"]
     if barHeight.kind == TomlValueKind.Int:
@@ -240,6 +247,10 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   let focusedBorderVal = this.loadHexValue(settingsTable, "borderColorFocused")
   if focusedBorderVal != -1:
     this.windowSettings.borderColorFocused = focusedBorderVal
+
+  let urgentBorderVal = this.loadHexValue(settingsTable, "borderColorUrgent")
+  if urgentBorderVal != -1:
+    this.windowSettings.borderColorUrgent = urgentBorderVal
 
   # Bar settings
   this.populateBarSettings(settingsTable)

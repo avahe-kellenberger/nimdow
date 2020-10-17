@@ -125,6 +125,9 @@ proc setSelectedClient*(this: Monitor, client: Client) =
     log "Attempted to set nil client as the selected client", lvlError
     return
 
+  if client.isUrgent:
+    client.setUrgent(this.display, false)
+
   if this.clients.find(client.window) == nil:
     log "Attempted to select a client not on the current tags"
     return
@@ -133,11 +136,13 @@ proc setSelectedClient*(this: Monitor, client: Client) =
   this.updateWindowTitle()
 
   for n in this.taggedClients.currClientsIter:
-    discard XSetWindowBorder(
-      this.display,
-      n.value.window,
-      this.config.borderColorUnfocused
-    )
+    let client = n.value
+    if not client.isUrgent:
+      discard XSetWindowBorder(
+        this.display,
+        n.value.window,
+        this.config.borderColorUnfocused
+      )
 
   this.taggedClients.withSomeCurrClient(c):
     if not c.isFixed and not c.isFullscreen:

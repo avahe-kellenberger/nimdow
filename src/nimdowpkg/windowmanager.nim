@@ -297,6 +297,8 @@ proc reloadConfig*(this: WindowManager) =
     monitor.setConfig(this.config)
     monitor.redrawStatusBar()
 
+  this.updateSystray()
+
 template onEvent(theType: int, e, body: untyped): untyped =
   this.eventManager.addListener(
     proc (event: XEvent) =
@@ -478,6 +480,41 @@ proc goToTag(this: WindowManager, tagID: var TagID) =
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
+proc jumpToUrgentWindow(this: WindowManager) =
+  var
+    urgentClient: Client
+    urgentMonitor: Monitor
+
+  # Find the first urgent window.
+  for monitor in this.monitors:
+    for client in monitor.taggedClients.clientSelection:
+      if client.isUrgent:
+        urgentClient = client
+        urgentMonitor = monitor
+        break
+
+  if urgentClient == nil:
+    # There are no urgent clients.
+    return
+
+  if urgentClient.tagIDs.len < 1:
+    # Should never happen.
+    return
+
+  # Find the first tag.
+  var tagID: TagID
+  for id in urgentClient.tagIDs:
+    tagID = id
+    break
+
+  # Set the previousTag.
+  for id in urgentMonitor.taggedClients.selectedTags:
+    urgentMonitor.previousTagID = id
+    break
+
+  urgentMonitor.setSelectedTags(tagID)
+  this.display.warpTo(urgentClient)
+
 template createControl(keycode: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keycode: int) = action)
 
@@ -546,6 +583,9 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keycode, "toggleFloating"):
     this.selectedMonitor.toggleFloatingForSelectedClient()
+
+  createControl(keycode, "jumpToUrgentWindow"):
+    this.jumpToUrgentWindow()
 
 proc hookConfigKeys*(this: WindowManager) =
   ## Grabs key combos defined in the user's config
@@ -843,13 +883,20 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints != nil:
-    this.selectedMonitor.taggedClients.withSomeCurrClient(c):
-      if c == client and (hints.flags and XUrgencyHint) != 0:
-        hints.flags = hints.flags and (not XUrgencyHint)
-        discard XSetWMHints(this.display, client.window, hints)
-      else:
-        client.isUrgent = (hints.flags and XUrgencyHint) != 0
-      discard XFree(hints)
+    let currClient = this.selectedMonitor.taggedClients.currClient
+    if currClient != nil and currClient == client and (hints.flags and XUrgencyHint) != 0:
+      hints.flags = hints.flags and (not XUrgencyHint)
+      discard XSetWMHints(this.display, client.window, hints)
+    else:
+      # Only case where this should be set directly.
+      client.isUrgent = (hints.flags and XUrgencyHint) != 0
+      if client.isUrgent:
+        discard XSetWindowBorder(
+          this.display,
+          client.window,
+          this.config.windowSettings.borderColorUrgent
+        )
+    discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
   var state = [state, x.None]
@@ -1241,10 +1288,15 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     # A window is another tag or monitor took focus.
     return
 
+  if client.isUrgent:
+    client.setUrgent(this.display, false)
+
   this.selectedMonitor.setActiveWindowProperty(e.window)
   this.selectedMonitor.setSelectedClient(client)
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
+
+  this.selectedMonitor.redrawStatusBar()
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   if not this.monitors.isInRange(monitorIndex):

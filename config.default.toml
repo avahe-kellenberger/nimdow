@@ -31,13 +31,15 @@ exec = [
   # Window settings
   gapSize = 12
   borderWidth = 1
-  borderColorFocused = "#519f50"
-  borderColorUnfocused = "#1c1b19"
+  borderColorUnfocused = "#282a36"
+  borderColorFocused = "#50fa7b"
+  borderColorUrgent = "#ff5555"
   # Bar settings
   barHeight = 20
-  barBackgroundColor = "#1c1b19"
-  barForegroundColor = "#fce8c3"
-  barSelectionColor = "#519f50"
+  barBackgroundColor = "#282a36"
+  barForegroundColor = "#f8f8f2"
+  barSelectionColor = "#50fa7b"
+  barUrgentColor = "#ff5555"
   barFonts = [
     "monospace:size=10:anialias=false",
     "NotoColorEmoji:size=10:anialias=false"
@@ -121,5 +123,9 @@ exec = [
 
   [controls.toggleFloating]
   keys = [ "space" ]
+  modifiers = [ "super" ]
+
+  [controls.jumpToUrgentWindow]
+  keys = [ "u" ]
   modifiers = [ "super" ]
 
