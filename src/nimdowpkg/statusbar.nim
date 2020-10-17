@@ -38,7 +38,7 @@ type
     draw: PXftDraw
     visual: PVisual
     colormap: Colormap
-    fgColor*, bgColor*, selectionColor*: XftColor
+    fgColor*, bgColor*, selectionColor*, urgentColor*: XftColor
     area*: Area
     systrayWidth: int
 
@@ -204,8 +204,9 @@ proc freeColor(this: StatusBar, color: PXftColor) =
 
 proc freeAllColors(this: StatusBar) =
   this.freeColor(this.fgColor.unsafeAddr)
-  this.freeColor(this.selectionColor.unsafeAddr)
   this.freeColor(this.bgColor.unsafeAddr)
+  this.freeColor(this.selectionColor.unsafeAddr)
+  this.freeColor(this.urgentColor.unsafeAddr)
 
 proc toRGB(hex: int): tuple[r, g, b: int] =
   return (
@@ -228,6 +229,7 @@ proc configureColors(this: StatusBar) =
   this.configureColor(this.settings.fgColor, this.fgColor)
   this.configureColor(this.settings.bgColor, this.bgColor)
   this.configureColor(this.settings.selectionColor, this.selectionColor)
+  this.configureColor(this.settings.urgentColor, this.urgentColor)
 
 proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
@@ -533,27 +535,36 @@ proc renderTags(this: StatusBar): int =
 
   for tag in this.tags:
     # Determine the render color.
-    var color = this.fgColor
-    if this.selectedTags.contains(tag.id):
-      color = this.selectionColor
-
-    let i = tag.id - 1
-    textXPos = cellWidth div 2 + cellWidth * i
-    discard this.renderString($(i + 1), textXPos, color)
-
     var
+      fgColor = this.fgColor
+      urgentColor = this.urgentColor
       tagIsEmpty = true
       tagHasCurrentClient = false
+      tagIsUrgent = false
+
+    if this.selectedTags.contains(tag.id):
+      fgColor = this.selectionColor
+
+    let i = tag.id - 1
+
     for node in this.taggedClients.clientWithTagIter(tag.id):
       tagIsEmpty = false
-      if node.value == this.taggedClients.currClient:
+      let client = node.value
+      tagIsUrgent = tagIsUrgent or client.isUrgent
+      if client == this.taggedClients.currClient:
         tagHasCurrentClient = true
-        break
+        if tagIsUrgent:
+          break
 
     if not tagIsEmpty:
-      XftDrawRect(this.draw, color.addr, i * cellWidth, 0, 4, 4)
+      if tagIsUrgent:
+        XftDrawRect(this.draw, urgentColor.addr, i * cellWidth, 0, cellWidth, this.area.height.cuint)
+      XftDrawRect(this.draw, fgColor.addr, i * cellWidth, 0, 4, 4)
       if not tagHasCurrentClient:
         XftDrawRect(this.draw, this.bgColor.unsafeAddr, i * cellWidth + 1, 1, 2, 2)
+
+    textXPos = cellWidth div 2 + cellWidth * i
+    discard this.renderString($(i + 1), textXPos, fgColor)
 
   return textXPos + cellWidth
 

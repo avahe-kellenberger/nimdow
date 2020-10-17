@@ -38,6 +38,7 @@ exec = [
   barBackgroundColor = "#1c1b19"
   barForegroundColor = "#fce8c3"
   barSelectionColor = "#519f50"
+  barUrgentColor = "#ef2f27"
   barFonts = [
     "monospace:size=10:anialias=false",
     "NotoColorEmoji:size=10:anialias=false"

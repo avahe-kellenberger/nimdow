@@ -1241,10 +1241,15 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     # A window is another tag or monitor took focus.
     return
 
+  if client.isUrgent:
+    client.isUrgent = false
+
   this.selectedMonitor.setActiveWindowProperty(e.window)
   this.selectedMonitor.setSelectedClient(client)
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
+
+  this.selectedMonitor.redrawStatusBar()
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   if not this.monitors.isInRange(monitorIndex):
