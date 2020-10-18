@@ -507,7 +507,14 @@ proc jumpToUrgentWindow(this: WindowManager) =
     tagID = id
     break
 
-  if urgentMonitor != this.selectedMonitor:
+  # Check if any tags the urgentClient is on is in the set of selected tags.
+  var isClientVisible = false
+  for id in urgentClient.tagIDs:
+    if urgentMonitor.selectedTags.contains(id):
+      isClientVisible = true
+      break
+
+  if not isClientVisible:
     # Set the previousTag.
     for id in urgentMonitor.taggedClients.selectedTags:
       urgentMonitor.previousTagID = id
