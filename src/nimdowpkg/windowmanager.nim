@@ -507,7 +507,7 @@ proc jumpToUrgentWindow(this: WindowManager) =
     tagID = id
     break
 
-  if urgentMonitor == this.selectedMonitor:
+  if urgentMonitor != this.selectedMonitor:
     # Set the previousTag.
     for id in urgentMonitor.taggedClients.selectedTags:
       urgentMonitor.previousTagID = id
