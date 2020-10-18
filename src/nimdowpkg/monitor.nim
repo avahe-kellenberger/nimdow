@@ -44,7 +44,12 @@ proc setSelectedClient*(this: Monitor, client: Client)
 proc updateCurrentDesktopProperty(this: Monitor)
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true)
 
-proc newMonitor*(display: PDisplay, rootWindow: Window, area: Area, currentConfig: Config): Monitor =
+proc newMonitor*(
+  display: PDisplay,
+  rootWindow: Window,
+  area: Area,
+  currentConfig: Config
+): Monitor =
   result = Monitor()
   result.display = display
   result.rootWindow = rootWindow
@@ -548,10 +553,14 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
   return -1
 
 proc find*(monitors: openArray[Monitor], x, y: int): int =
-  ## Finds a monitor's index based on the pointer location.
+  ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
+
+  var shortestDist = float.high
+  # Find the closest monitor based on distance to its center.
   for i, monitor in monitors:
-    if monitor.area.contains(x, y):
-      return i
-  return -1
+    let dist = min(shortestDist, monitor.area.distanceToCenterSquared(x, y))
+    if dist < shortestDist:
+      shortestDist = dist
+      result = i
 

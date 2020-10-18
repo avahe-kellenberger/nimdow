@@ -1,3 +1,5 @@
+import math
+
 type Area* = tuple[x, y: int, width, height: uint]
 
 proc center*(this: Area): tuple[x, y: float] =
@@ -13,4 +15,8 @@ proc contains*(this: Area, x, y: int): bool =
     y >= this.y and
     x < this.x + this.width.int and
     y < this.y + this.height.int
+
+proc distanceToCenterSquared*(this: Area, x, y: int): float =
+  let center = this.center()
+  return pow(abs(center.x - x.float), 2f) + pow(abs(center.y - y.float), 2f)
 
