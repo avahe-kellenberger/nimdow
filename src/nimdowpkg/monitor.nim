@@ -556,6 +556,10 @@ proc find*(monitors: openArray[Monitor], x, y: int): int =
   ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
 
+  for i, monitor in monitors:
+    if monitor.area.contains(x, y):
+      return i
+
   var shortestDist = float.high
   # Find the closest monitor based on distance to its center.
   for i, monitor in monitors:
