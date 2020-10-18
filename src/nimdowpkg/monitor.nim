@@ -103,6 +103,24 @@ template clients*(this: Monitor): DoublyLinkedList[Client] =
 template clientSelection*(this: Monitor): seq[Client] =
   this.taggedClients.clientSelection
 
+proc updateWindowBorders(this: Monitor) =
+  for n in this.taggedClients.currClientsIter:
+    let client = n.value
+    if not client.isUrgent:
+      discard XSetWindowBorder(
+        this.display,
+        n.value.window,
+        this.config.borderColorUnfocused
+      )
+
+  this.taggedClients.withSomeCurrClient(c):
+    if not c.isFixed and not c.isFullscreen:
+      discard XSetWindowBorder(
+        this.display,
+        c.window,
+        this.config.borderColorFocused
+      )
+
 proc setConfig*(this: Monitor, config: Config) =
   this.config = config.windowSettings
   for tag in this.tags:
@@ -111,6 +129,14 @@ proc setConfig*(this: Monitor, config: Config) =
 
   this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.setConfig(config.barSettings)
+
+  for client in this.taggedClients.clients:
+    if client.borderWidth != 0:
+      client.borderWidth = this.config.borderWidth
+    client.oldBorderWidth = this.config.borderWidth
+    if client.isFloating or client.isFixed:
+      client.adjustToState(this.display)
+
   this.doLayout(false, false)
 
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
@@ -134,23 +160,7 @@ proc setSelectedClient*(this: Monitor, client: Client) =
 
   this.taggedClients.selectClient(client.window)
   this.updateWindowTitle()
-
-  for n in this.taggedClients.currClientsIter:
-    let client = n.value
-    if not client.isUrgent:
-      discard XSetWindowBorder(
-        this.display,
-        n.value.window,
-        this.config.borderColorUnfocused
-      )
-
-  this.taggedClients.withSomeCurrClient(c):
-    if not c.isFixed and not c.isFullscreen:
-      discard XSetWindowBorder(
-        this.display,
-        c.window,
-        this.config.borderColorFocused
-      )
+  this.updateWindowBorders()
 
 proc redrawStatusBar*(this: Monitor) =
   this.statusBar.redraw()
