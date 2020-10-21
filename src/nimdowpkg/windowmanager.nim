@@ -890,21 +890,27 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
 
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
-  if hints != nil:
-    let currClient = this.selectedMonitor.taggedClients.currClient
-    if currClient != nil and currClient == client and (hints.flags and XUrgencyHint) != 0:
-      hints.flags = hints.flags and (not XUrgencyHint)
-      discard XSetWMHints(this.display, client.window, hints)
-    else:
-      # Only case where this should be set directly.
-      client.isUrgent = (hints.flags and XUrgencyHint) != 0
-      if client.isUrgent:
-        discard XSetWindowBorder(
-          this.display,
-          client.window,
-          this.config.windowSettings.borderColorUrgent
-        )
-    discard XFree(hints)
+  if hints == nil:
+    return
+
+  let currClient = this.selectedMonitor.taggedClients.currClient
+  if currClient != nil and currClient == client and (hints.flags and XUrgencyHint) != 0:
+    hints.flags = hints.flags and (not XUrgencyHint)
+    discard XSetWMHints(this.display, client.window, hints)
+  else:
+    # Only case where this should be set directly.
+    client.isUrgent = (hints.flags and XUrgencyHint) != 0
+    if client.isUrgent:
+      discard XSetWindowBorder(
+        this.display,
+        client.window,
+        this.config.windowSettings.borderColorUrgent
+      )
+      for monitor in this.monitors:
+        if monitor.taggedClients.contains(client.window):
+          monitor.redrawStatusBar()
+          break
+  discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
   var clientState = [state, x.None]

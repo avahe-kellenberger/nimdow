@@ -162,12 +162,14 @@ proc setUrgent*(this: Client, display: PDisplay, isUrgent: bool) =
 
   var hints: PXWMHints = XGetWMHints(display, this.window)
   if hints == nil:
-    return
+    hints = XAllocWMHints()
+    if hints == nil:
+      return
 
   if isUrgent:
     hints.flags = hints.flags or XUrgencyHint
   else:
-    hints.flags = hints.flags and not XUrgencyHint
+    hints.flags = hints.flags and (not XUrgencyHint)
 
   discard XSetWMHints(display, this.window, hints)
   discard XFree(hints)
