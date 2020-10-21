@@ -120,12 +120,19 @@ iterator currClientsSelectionOldToNewIter*(this: TaggedClients): Client {.inline
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield client
 
+proc getFirstSelectedTagID*(this: TaggedClients): TagID =
+  ## Gets the ID of the first selected tag,
+  ## or `1` if no tags are selected.
+  for id in this.selectedTags:
+    return id
+
 proc getFirstSelectedTag*(this: TaggedClients): Tag =
   ## Gets the first selected tag,
-  ## or `nil` if to tags are selected.
+  ## or `nil` if no tags are selected.
+  let firstTagID = this.getFirstSelectedTagID()
   for tag in this.tags.items:
-    result = tag
-    break
+    if tag.id == firstTagID:
+      return tag
 
 proc findCurrentClients*(this: TaggedClients): seq[Client] =
   for node in this.currClientsIter:
