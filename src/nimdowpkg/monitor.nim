@@ -339,11 +339,25 @@ proc toggleTagsForClient*(
   client: var Client,
   tagIDs: varargs[TagID]
 ) =
+  # Cache if the client was on the current tags.
+  let wasOnCurrTags = client.tagIDs.anyIt(this.selectedTags.contains(it))
+
+  var firstTagToggledOff: int = 0
   for id in tagIDs:
     if client.tagIDs.contains(id):
+      if firstTagToggledOff == 0:
+        firstTagToggledOff = id
       client.tagIDs.excl(id)
     else:
       client.tagIDs.incl(id)
+
+  # Ensure the client is assigned at least one tag.
+  if client.tagIDs.len == 0:
+      client.tagIDs.incl(firstTagToggledOff.TagID)
+
+  # Perform the layout if the client was removed from the current tags.
+  if wasOnCurrTags and not client.tagIDs.anyIt(this.selectedTags.contains(it)):
+    this.doLayout()
 
 proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
   let selectedTags: OrderedSet[TagID] = this.selectedTags

@@ -29,7 +29,6 @@ proc contains*(this: TaggedClients, window: Window): bool
 proc currClientsContains*(this: TaggedClients, window: Window): bool
 proc currClientsContains*(this: TaggedClients, client: Client): bool
 proc findCurrentClients*(this: TaggedClients): seq[Client]
-proc getFirstSelectedTag*(this: TaggedClients): Tag
 
 proc newTaggedClients*(tagCount: int): TaggedClients = TaggedClients()
 
@@ -119,20 +118,6 @@ iterator currClientsSelectionOldToNewIter*(this: TaggedClients): Client {.inline
   for client in this.clientSelection:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield client
-
-proc getFirstSelectedTagID*(this: TaggedClients): TagID =
-  ## Gets the ID of the first selected tag,
-  ## or `1` if no tags are selected.
-  for id in this.selectedTags:
-    return id
-
-proc getFirstSelectedTag*(this: TaggedClients): Tag =
-  ## Gets the first selected tag,
-  ## or `nil` if no tags are selected.
-  let firstTagID = this.getFirstSelectedTagID()
-  for tag in this.tags.items:
-    if tag.id == firstTagID:
-      return tag
 
 proc findCurrentClients*(this: TaggedClients): seq[Client] =
   for node in this.currClientsIter:

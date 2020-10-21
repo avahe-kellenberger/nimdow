@@ -434,7 +434,7 @@ proc moveClientToNextMonitor(this: WindowManager) =
   this.moveClientToMonitor(nextMonitorIndex)
 
 proc increaseMasterCount(this: WindowManager) =
-  let firstSelectedTag = this.selectedMonitor.taggedClients.getFirstSelectedTag()
+  let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
   if firstSelectedTag == nil:
     return
 
@@ -446,7 +446,7 @@ proc increaseMasterCount(this: WindowManager) =
     this.selectedMonitor.doLayout()
 
 proc decreaseMasterCount(this: WindowManager) =
-  let firstSelectedTag = this.selectedMonitor.taggedClients.getFirstSelectedTag()
+  let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
   if firstSelectedTag == nil:
     return
 
