@@ -212,12 +212,13 @@ proc keycodeToTag*(this: Monitor, keycode: int): Tag =
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
   this.setSelectedClient(client)
 
-  discard XSetInputFocus(
-    this.display,
-    client.window,
-    RevertToPointerRoot,
-    CurrentTime
-  )
+  if client.hasBeenMapped:
+    discard XSetInputFocus(
+      this.display,
+      client.window,
+      RevertToPointerRoot,
+      CurrentTime
+    )
 
   client.takeFocus(this.display)
 

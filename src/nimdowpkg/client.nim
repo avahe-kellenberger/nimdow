@@ -27,13 +27,16 @@ type
     isFixed*: bool
     needsResize*: bool
     isUrgent*: bool
+    # Clients start as unmapped; this property signifies if it was ever mapped.
+    hasBeenMapped*: bool
 
 proc hash*(this: Client): Hash
 
 proc newClient*(window: Window, tagIDs: varargs[TagID]): Client =
   Client(
     window: window,
-    tagIDs: tagIDs.toHashSet()
+    tagIDs: tagIDs.toHashSet(),
+    hasBeenMapped: false
   )
 
 # Area helper procs

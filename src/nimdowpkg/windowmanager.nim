@@ -907,7 +907,7 @@ proc updateWMHints(this: WindowManager, client: Client) =
     discard XFree(hints)
 
 proc setClientState(this: WindowManager, client: Client, state: int) =
-  var state = [state, x.None]
+  var clientState = [state, x.None]
   discard XChangeProperty(
     this.display,
     client.window,
@@ -915,7 +915,7 @@ proc setClientState(this: WindowManager, client: Client, state: int) =
     $WMState,
     32,
     PropModeReplace,
-    cast[Pcuchar](state.addr),
+    cast[Pcuchar](clientState.addr),
     2
   )
 
@@ -988,6 +988,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       monitor.focusClient(client, not client.isFloating)
 
   discard XMapWindow(this.display, window)
+  client.hasBeenMapped = true
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
