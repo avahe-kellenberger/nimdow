@@ -392,8 +392,8 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
   this.redrawStatusBar()
 
 proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
-  if this.taggedClients.currClient != nil:
-    this.moveClientToTag(this.taggedClients.currClient, tag)
+  this.taggedClients.withSomeCurrClient(client):
+    this.moveClientToTag(client, tag)
 
 proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
   ## Views the given tags.
