@@ -58,6 +58,7 @@ type
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: Window
+    rootWindowWidth: int
     systray: Systray
     eventManager: XEventManager
     config: Config
@@ -109,6 +110,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
+  result.rootWindowWidth = DisplayWidth(result.display, DefaultScreen(result.display))
   result.eventManager = eventManager
   discard XSetErrorHandler(errorHandler)
 
@@ -350,7 +352,8 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
   if monitorIndex == -1:
     return
   var monitor = this.monitors[monitorIndex]
-  if monitor.taggedClients.findCurrentClients.len == 0:
+
+  if monitor.taggedClients.currClient == nil:
     let center = monitor.area.center()
     discard XWarpPointer(
       this.display,
@@ -385,19 +388,19 @@ proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
   this.selectedMonitor.statusBar.setIsMonitorSelected(true)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex < 0:
-    return
-
-  var client = this.selectedMonitor.taggedClients.currClient
-  if client == nil:
+  if monitorIndex notin {this.monitors.low .. this.monitors.high}:
     return
 
   let startMonitor = this.selectedMonitor
 
+  var client = startMonitor.taggedClients.currClient
+  if client == nil:
+    return
+
   this.setSelectedMonitor(this.monitors[monitorIndex])
 
   if startMonitor.removeWindow(client.window):
-    startMonitor.doLayout()
+    startMonitor.doLayout(false)
 
   # Add client to all selected tags
   this.selectedMonitor.addClient(client)
@@ -937,9 +940,9 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   else:
     client = newClient(window)
     monitor.addClient(client)
-    client.x = this.selectedMonitor.area.x + windowAttr.x
+    client.x = monitor.area.x + max(0, windowAttr.x)
     client.oldX = client.x
-    client.y = this.selectedMonitor.area.y + windowAttr.y
+    client.y = monitor.area.y + max(0, windowAttr.y)
     client.oldY = client.y
     client.width = windowAttr.width
     client.oldWidth = client.width
@@ -947,11 +950,23 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.oldHeight = client.height
     client.oldBorderWidth = windowAttr.border_width
 
-  # If no tags are selected, add the client to the first tag.
+  if client.x - monitor.area.x <= 0 or
+     (client.x + client.totalWidth) > monitor.area.x + monitor.area.width:
+    client.x = (
+      monitor.area.x.float +
+      (monitor.area.width.float - client.totalWidth.float) / 2
+    ).int
+
+  if client.y - monitor.area.y <= monitor.statusBar.area.height or
+     (client.y + client.totalHeight) > monitor.area.x + monitor.area.width:
+    client.y = (
+      monitor.area.y.float +
+      (monitor.area.height.float - client.totalHeight.float) / 2
+    ).int
+
+    # If no tags are selected, add the client to the first tag.
   if client.tagIDs.len == 0:
     client.tagIDs.incl(monitor.taggedClients.tags[0].id)
-
-  monitor.addWindowToClientListProperty(window)
 
   discard XSetWindowBorder(
     this.display,
@@ -975,10 +990,12 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   this.updateSizeHints(client, monitor)
   this.updateWMHints(client)
 
+  monitor.addWindowToClientListProperty(window)
+
   discard XMoveResizeWindow(
     this.display,
     window,
-    client.x,
+    client.x + 2 * this.rootWindowWidth,
     client.y,
     client.width.cuint,
     client.height.cuint
@@ -1018,6 +1035,11 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
     return
   if windowAttr.override_redirect:
     return
+
+  let (_, existingClient) = this.windowToClient(e.window)
+  if existingClient != nil:
+    return
+
   this.manage(e.window, windowAttr)
 
 proc unmanage(this: WindowManager, window: Window, destroyed: bool) =

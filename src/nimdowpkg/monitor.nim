@@ -147,23 +147,23 @@ proc setConfig*(this: Monitor, config: Config) =
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
-  this.taggedClients.withSomeCurrClient(client):
-    let title = this.display.getWindowName(client.window)
-    this.statusBar.setActiveWindowTitle(title, redrawBar)
+  let currClient = this.taggedClients.currClient
+  var title: string
+  if currClient != nil:
+    title = this.display.getWindowName(currClient.window)
+  this.statusBar.setActiveWindowTitle(title, redrawBar)
 
 proc setSelectedClient*(this: Monitor, client: Client) =
-  if client == nil:
-    log "Attempted to set nil client as the selected client", lvlError
-    return
+  if client != nil:
+    if client.isUrgent:
+      client.setUrgent(this.display, false)
 
-  if client.isUrgent:
-    client.setUrgent(this.display, false)
+    if this.clients.find(client.window) == nil:
+      log "Attempted to select a client not on the current tags"
+      return
 
-  if this.clients.find(client.window) == nil:
-    log "Attempted to select a client not on the current tags"
-    return
+    this.taggedClients.selectClient(client.window)
 
-  this.taggedClients.selectClient(client.window)
   this.updateWindowTitle()
   this.updateWindowBorders()
 
@@ -268,7 +268,6 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
-
   for client in this.clients.items:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       client.show(this.display)
@@ -325,15 +324,16 @@ proc restack*(this: Monitor) =
 proc removeWindowFromTagTable*(this: Monitor, window: Window): bool =
   ## Removes a window from the tag table on this monitor.
   ## Returns if the window was removed from the table.
-  return this.taggedClients.removeByWindow(window)
+  result = this.taggedClients.removeByWindow(window)
+  this.deleteActiveWindowProperty()
+  this.updateClientList()
+  this.updateWindowTitle()
 
 proc removeWindow*(this: Monitor, window: Window): bool =
   ## Returns if the window was removed.
   ## After a window is removed, you should typically call
-  ## doLayout and ensureWindowFocus (unless you have a specific use case).
-  result = this.removeWindowFromTagTable(window)
-  this.deleteActiveWindowProperty()
-  this.updateClientList()
+  ## doLayout (unless you have a specific use case).
+  return this.removeWindowFromTagTable(window)
 
 proc toggleTagsForClient*(
   this: Monitor,
