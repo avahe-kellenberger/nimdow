@@ -251,7 +251,12 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
     )
 
   block setDesktopViewport:
-    let data: array[2, clong] = [0, 0]
+    var data = newSeq[seq[clong]]()
+    for monitor in result.monitors:
+      data.add(
+        @[monitor.area.x.clong, monitor.area.y.clong]
+      )
+
     discard XChangeProperty(
       result.display,
       result.rootWindow,
@@ -260,7 +265,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
       32,
       PropModeReplace,
       cast[Pcuchar](data.unsafeAddr),
-      2
+      data.len
     )
 
   result.setSelectedMonitor(result.monitors[0])
@@ -964,7 +969,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       (monitor.area.height.float - client.totalHeight.float) / 2
     ).int
 
-    # If no tags are selected, add the client to the first tag.
+  # If no tags are selected, add the client to the first tag.
   if client.tagIDs.len == 0:
     client.tagIDs.incl(monitor.taggedClients.tags[0].id)
 
@@ -1065,7 +1070,7 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
 
     if monitor == this.selectedMonitor:
       this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
-        this.selectedMonitor.focusClient(currClient, true)
+        this.selectedMonitor.focusClient(currClient, false)
 
 proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent) =
   let (client, _) = this.windowToClient(e.window)
@@ -1325,15 +1330,10 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     # A window is another tag or monitor took focus.
     return
 
-  if client.isUrgent:
-    client.setUrgent(this.display, false)
-
   this.selectedMonitor.setActiveWindowProperty(e.window)
   this.selectedMonitor.setSelectedClient(client)
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
-
-  this.selectedMonitor.redrawStatusBar()
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   if not this.monitors.isInRange(monitorIndex):
