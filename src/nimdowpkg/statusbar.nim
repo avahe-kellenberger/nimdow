@@ -531,7 +531,7 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
   return stringWidth
 
 proc renderTags(this: StatusBar): int =
-  var textXPos: int
+  var textXPos: int = cellWidth div 2
 
   for tag in this.tags:
     # Determine the render color.
@@ -563,8 +563,9 @@ proc renderTags(this: StatusBar): int =
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
         XftDrawRect(this.draw, bgColor.addr, i * cellWidth + 1, 1, 2, 2)
 
-    textXPos = cellWidth div 2 + cellWidth * i
-    discard this.renderString($(i + 1), textXPos, fgColor)
+    let text = this.settings.tagDisplayStrings[i]
+    let stringLength = this.renderString(text, textXPos, fgColor)
+    textXPos += cellWidth div 2 + stringLength
 
   return textXPos + cellWidth
 

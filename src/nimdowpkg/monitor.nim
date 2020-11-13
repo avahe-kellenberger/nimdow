@@ -74,13 +74,7 @@ proc newMonitor*(
   # Select the 2nd tag as the previous tag.
   result.previousTagID = result.taggedClients.tags[1].id
 
-  # Dynamically calculate the smallest needed size.
-  # Must be a power of 2.
-  var initialSize: int = 2
-  while initialSize < tagCount:
-    initialSize *= 2
-
-  result.taggedClients.selectedTags = initOrderedSet[TagID](initialSize)
+  result.taggedClients.selectedTags = initOrderedSet[TagID](tagCount)
   result.taggedClients.selectedTags.incl(1)
 
   result.updateCurrentDesktopProperty()
@@ -200,6 +194,7 @@ proc updateCurrentDesktopProperty(this: Monitor) =
     )
 
 proc keycodeToTag*(this: Monitor, keycode: int): Tag =
+  # TODO: Have a map of keycode to tagID and display character
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 1 or tagNumber > this.tags.len:

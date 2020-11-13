@@ -33,6 +33,7 @@ type
   BarSettings* = ref object
     height*: uint
     fonts*: seq[string]
+    tagDisplayStrings*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
   Config* = ref object
@@ -75,7 +76,19 @@ proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
-proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string,
+  keys: seq[string]
+): seq[KeyCombo]
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string
+): seq[KeyCombo]
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef]
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string]
@@ -148,8 +161,58 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
   if controlsTable.kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid config table")
 
-  for action in controlsTable.tableVal[].keys():
+  for action in controlsTable.tableVal.keys():
     this.populateControlAction(display, action, controlsTable[action].tableVal[])
+
+proc populateTagControlAction(
+  this: Config,
+  display: PDisplay,
+  action: string,
+  configTable: TomlTable,
+  keys: seq[string]
+) =
+  let keyCombos = this.getKeyCombos(configTable, display, action, keys)
+  for keyCombo in keyCombos:
+    if this.identifierTable.hasKey(action):
+      this.keyComboTable[keyCombo] = this.identifierTable[action]
+    else:
+      raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
+
+proc populateTagControlsTable*(this: Config, configTable: TomlTable, display: PDisplay) =
+  if not configTable.hasKey("tagcontrols"):
+    return
+
+  # Populate tag controls
+  let controlsTable = configTable["tagcontrols"]
+  if controlsTable.kind != TomlValueKind.Table:
+    raise newException(Exception, "Invalid tagcontrols table")
+
+  if not controlsTable.hasKey("taglayout"):
+    log "taglayout is missing from config!", lvlWarn
+    return
+
+  let taglayout = controlsTable["taglayout"]
+  if taglayout.kind != TomlValueKind.Array:
+    raise newException(Exception, "Invalid taglayout array")
+
+  var keys: seq[string]
+  for tagPair in tagLayout.arrayVal:
+    let key = tagPair["key"]
+    if key.kind != TomlValueKind.String:
+      log "taglayout key is not a string value!", lvlWarn
+      continue
+
+    let show = tagPair["show"]
+    if show.kind != TomlValueKind.String:
+      log "taglayout show is not a string value!", lvlWarn
+      continue
+
+    keys.add(key.stringVal)
+    this.barSettings.tagDisplayStrings.add(show.stringVal)
+
+  for action, table in controlsTable.tableVal.pairs():
+    if table.kind == TomlValueKind.Table:
+      this.populateTagControlAction(display, action, table.tableVal[], keys)
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
@@ -266,6 +329,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
   this.populateControlsTable(configTable, display)
+  this.populateTagControlsTable(configTable, display)
   this.populateExternalProcessSettings(configTable, display)
 
 proc loadConfigFile*(): TomlTable =
@@ -287,14 +351,32 @@ proc populateControlAction(this: Config, display: PDisplay, action: string, conf
     else:
       raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
 
-proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string,
+  keys: seq[string]
+): seq[KeyCombo] =
   ## Gets the KeyCombos associated with the given `action` from the table.
   let modifierArray = this.getModifiersForAction(configTable, action)
   let modifiers: int = bitorModifiers(modifierArray)
-  let keys: seq[string] = this.getKeysForAction(configTable, action)
   for key in keys:
     let keycode = key.toKeycode(display)
     result.add((keycode, cleanMask(modifiers)))
+
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string
+): seq[KeyCombo] =
+  return this.getKeyCombos(
+    configTable,
+    display,
+    action,
+    this.getKeysForAction(configTable, action)
+  )
 
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
   if not configTable.hasKey("keys"):

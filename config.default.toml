@@ -77,25 +77,9 @@ exec = [
   keys = [ "q" ]
   modifiers = [ "super", "shift" ]
 
-  [controls.moveWindowToTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "shift" ]
-
-  [controls.goToTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super" ]
-
   [controls.goToPreviousTag]
   keys = [ "w" ]
   modifiers = [ "super" ]
-
-  [controls.toggleTagView]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "control" ]
-
-  [controls.toggleWindowTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "shift", "control" ]
 
   [controls.focusPreviousMonitor]
   keys = [ "comma" ]
@@ -128,4 +112,31 @@ exec = [
   [controls.jumpToUrgentWindow]
   keys = [ "u" ]
   modifiers = [ "super" ]
+
+# Controls that use keys that reference tags.
+[tagcontrols]
+  taglayout = [
+    # { "Activation key", "Displayed/shown String" }
+    { key = "(", show = "code" },
+    { key = ")", show = "🎮"},
+    { key = "}", show = "3" },
+    { key = "+", show = "4" },
+    { key = "{", show = "5" },
+    { key = "]", show = "6" },
+    { key = "[", show = "7" },
+    { key = "!", show = "8" },
+    { key = "=", show = "9" }
+  ]
+
+  [tagcontrols.moveWindowToTag]
+  modifiers = [ "super", "shift" ]
+
+  [tagcontrols.goToTag]
+  modifiers = [ "super" ]
+
+  [tagcontrols.toggleTagView]
+  modifiers = [ "super", "control" ]
+
+  [tagcontrols.toggleWindowTag]
+  modifiers = [ "super", "shift", "control" ]
 
