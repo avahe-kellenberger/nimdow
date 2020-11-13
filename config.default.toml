@@ -117,26 +117,26 @@ exec = [
 [tagcontrols]
   taglayout = [
     # { "Activation key", "Displayed/shown String" }
-    { key = "(", show = "code" },
-    { key = ")", show = "🎮"},
-    { key = "}", show = "3" },
-    { key = "+", show = "4" },
-    { key = "{", show = "5" },
-    { key = "]", show = "6" },
-    { key = "[", show = "7" },
-    { key = "!", show = "8" },
-    { key = "=", show = "9" }
+    { key = "parentleft", show = "code" },
+    { key = "parentright", show = "🎮"},
+    { key = "bracketright", show = "3" },
+    { key = "plus", show = "4" },
+    { key = "bracketleft", show = "5" },
+    { key = "braceright", show = "6" },
+    { key = "braceleft", show = "7" },
+    { key = "exclam", show = "8" },
+    { key = "equal", show = "9" }
   ]
 
-  [tagcontrols.moveWindowToTag]
-  modifiers = [ "super", "shift" ]
+  # [tagcontrols.moveWindowToTag]
+  # modifiers = [ "super", "shift" ]
 
   [tagcontrols.goToTag]
   modifiers = [ "super" ]
 
-  [tagcontrols.toggleTagView]
-  modifiers = [ "super", "control" ]
+#   [tagcontrols.toggleTagView]
+#   modifiers = [ "super", "control" ]
 
-  [tagcontrols.toggleWindowTag]
-  modifiers = [ "super", "shift", "control" ]
+#   [tagcontrols.toggleWindowTag]
+#   modifiers = [ "super", "shift", "control" ]
 

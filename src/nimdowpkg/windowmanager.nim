@@ -465,10 +465,11 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-proc goToTag(this: WindowManager, tagID: var TagID) =
+proc goToTag(this: WindowManager, tagID: TagID) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
 
+  var destTag = tagID
   if selectedTags.len == 1:
     # Find the only selected tag
     var selectedTag: TagID
@@ -477,14 +478,14 @@ proc goToTag(this: WindowManager, tagID: var TagID) =
       break
 
     # If attempting to select the same single tag, view the previous tag instead.
-    if this.selectedMonitor.previousTagID != 0 and selectedTag == tagID:
+    if this.selectedMonitor.previousTagID != 0 and selectedTag == destTag:
       # Change the tag ID which is used later.
-      tagID = this.selectedMonitor.previousTagID
+      destTag = this.selectedMonitor.previousTagID
 
     # Swap the previous tag.
     this.selectedMonitor.previousTagID = selectedTag
 
-  this.selectedMonitor.setSelectedTags(tagID)
+  this.selectedMonitor.setSelectedTags(destTag)
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
@@ -558,8 +559,11 @@ proc mapConfigActions*(this: WindowManager) =
     this.focusNextMonitor()
 
   createControl(keycode, "goToTag"):
-    var tagID = this.selectedMonitor.keycodeToTag(keycode).id
-    this.goToTag(tagID)
+    log "goToTag"
+    let tagID = this.config.tagKeys.find(keycode)
+    log "tagID: " & $tagID
+    if tagID != -1:
+      this.goToTag(tagID)
 
   createControl(keycode, "goToPreviousTag"):
     var previousTag = this.selectedMonitor.previousTagID

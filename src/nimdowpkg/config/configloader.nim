@@ -42,6 +42,7 @@ type
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
     barSettings*: BarSettings
+    tagKeys*: seq[int]
     listener*: XEventListener
     loggingEnabled*: bool
 
@@ -208,6 +209,9 @@ proc populateTagControlsTable*(this: Config, configTable: TomlTable, display: PD
       continue
 
     keys.add(key.stringVal)
+    let keycode = keys[^1].toKeycode(display)
+    log keys[^1] & ": " & $keycode
+    this.tagKeys.add(keycode)
     this.barSettings.tagDisplayStrings.add(show.stringVal)
 
   for action, table in controlsTable.tableVal.pairs():
