@@ -197,12 +197,6 @@ proc populateTagSettings(this: Config, configTable: TomlTable, display: PDisplay
       if keyString.kind == TomlValueKind.String:
         currentTagSettings.keycode = keyString.stringVal.toKeycode(display)
 
-    if currentTagSettingsTable.hasKey("modifiers"):
-      let modifiersTomlArray = currentTagSettingsTable["modifiers"]
-      if modifiersTomlArray.kind == TomlValueKind.Array:
-        let modifiers: int = bitorModifiers(modifiersTomlArray.arrayVal)
-        currentTagSettings.modifiers = modifiers
-
 proc populateControlsTable(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("controls"):
     return
@@ -227,9 +221,8 @@ proc populateTagControlAction(
   let
     modifierArray = this.getModifiersForAction(configTable[], action)
     modifiers: int = bitorModifiers(modifierArray)
-    keyCombo = (tagSetting.keycode, tagSetting.modifiers or modifiers)
+    keyCombo = (tagSetting.keycode, modifiers)
 
-  tagSetting.totalModifiers = keyCombo[1]
   this.keyComboTable[keyCombo] = this.identifierTable[action]
 
 proc populateTagControlsTable*(this: Config, configTable: TomlTable, display: PDisplay) =

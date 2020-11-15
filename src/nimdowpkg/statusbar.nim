@@ -547,8 +547,6 @@ proc renderTags(this: StatusBar): int =
     if this.selectedTags.contains(tagID):
       fgColor = this.selectionColor
 
-    let i = tagID - 1
-
     for node in this.taggedClients.clientWithTagIter(tagID):
       tagIsEmpty = false
       let client = node.value
@@ -558,20 +556,22 @@ proc renderTags(this: StatusBar): int =
         if tagIsUrgent:
           break
 
+    let boxWidth = 4
     if not tagIsEmpty:
+      let boxPos = textXPos - boxWidth
       if tagIsUrgent:
         XftDrawRect(
           this.draw,
           this.urgentColor.unsafeAddr,
-          i * cellWidth,
+          boxPos,
           0,
           cellWidth,
           this.area.height.cuint
         )
-      XftDrawRect(this.draw, fgColor.addr, i * cellWidth, 0, 4, 4)
+      XftDrawRect(this.draw, fgColor.addr, boxPos, 0, 4, 4)
       if not tagHasCurrentClient:
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
-        XftDrawRect(this.draw, bgColor.addr, i * cellWidth + 1, 1, 2, 2)
+        XftDrawRect(this.draw, bgColor.addr, boxPos + 1, 1, 2, 2)
 
     let text = tagSettings.displayString
     let stringLength = this.renderString(text, textXPos, fgColor)

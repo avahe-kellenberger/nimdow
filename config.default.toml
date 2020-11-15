@@ -115,61 +115,53 @@ exec = [
 
 # Controls that use keys that reference tags.
 [tagcontrols]
-
   [tagcontrols.goToTag]
   modifiers = [ "super" ]
 
-  # [tagcontrols.moveWindowToTag]
-  # modifiers = [ "super", "shift" ]
+  [tagcontrols.moveWindowToTag]
+  modifiers = [ "super", "shift" ]
 
-  # [tagcontrols.toggleTagView]
-  # modifiers = [ "super", "control" ]
+  [tagcontrols.toggleTagView]
+  modifiers = [ "super", "control" ]
 
-  # [tagcontrols.toggleWindowTag]
-  # modifiers = [ "super", "shift", "control" ]
+  [tagcontrols.toggleWindowTag]
+  modifiers = [ "super", "shift", "control" ]
 
-# Tag configurations.
+# Tag configurations
 [tags]
-
   [tags.1]
-  displayString = "code"
-  key = "parenleft"
-  modifiers = [ "shift" ]
+  key = "1"
+  displayString = "1"
 
   [tags.2]
-  key = "parenright"
-  displayString = "two"
-  modifiers = [ "shift" ]
+  key = "2"
+  displayString = "2"
 
   [tags.3]
-  key = "bracketright"
+  key = "3"
   displayString = "3"
-  modifiers = [ "shift" ]
 
   [tags.4]
-  key = "plus"
+  key = "4"
   displayString = "4"
-  modifiers = [ "shift" ]
 
   [tags.5]
-  key = "bracketleft"
+  key = "5"
   displayString = "5"
-  modifiers = [ "shift" ]
 
   [tags.6]
-  key = "braceright"
+  key = "6"
   displayString = "6"
 
   [tags.7]
-  key = "braceleft"
+  key = "7"
   displayString = "7"
 
   [tags.8]
-  key = "exclam"
+  key = "8"
   displayString = "8"
-  modifiers = [ "shift" ]
 
   [tags.9]
-  key = "equal"
+  key = "9"
   displayString = "9"
 

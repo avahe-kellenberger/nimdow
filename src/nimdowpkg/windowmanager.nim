@@ -560,8 +560,7 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, "goToTag"):
     for tagID, tagSetting in this.config.tagSettings.pairs():
-      if tagSetting.keycode == keyCombo.keycode and
-         tagSetting.totalModifiers == keyCombo.modifiers:
+      if tagSetting.keycode == keyCombo.keycode:
         this.goToTag(tagID)
         break
 
@@ -571,13 +570,13 @@ proc mapConfigActions*(this: WindowManager) =
       this.goToTag(previousTag)
 
   createControl(keyCombo, "toggleTagView"):
-    let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
-    this.selectedMonitor.toggleTags(tag.id)
+    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    this.selectedMonitor.toggleTags(tagID)
 
   createControl(keyCombo, "toggleWindowTag"):
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
-      this.selectedMonitor.toggleTagsForClient(client, tag.id)
+      let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+      this.selectedMonitor.toggleTagsForClient(client, tagID)
 
   createControl(keyCombo, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
@@ -592,8 +591,8 @@ proc mapConfigActions*(this: WindowManager) =
     this.selectedMonitor.moveClientNext()
 
   createControl(keyCombo, "moveWindowToTag"):
-    let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
-    this.selectedMonitor.moveSelectedWindowToTag(tag)
+    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    this.selectedMonitor.moveSelectedWindowToTag(tagID)
 
   createControl(keyCombo, "toggleFullscreen"):
     this.selectedMonitor.toggleFullscreenForSelectedClient()

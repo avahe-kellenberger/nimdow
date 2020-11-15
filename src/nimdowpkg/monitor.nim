@@ -32,7 +32,8 @@ type
     rootWindow: Window
     statusBar*: StatusBar
     area*: Area
-    config: WindowSettings
+    config: Config
+    windowSettings: WindowSettings
     # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
     layoutOffset: LayoutOffset
@@ -55,7 +56,8 @@ proc newMonitor*(
   result.rootWindow = rootWindow
   result.area = area
   let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
-  result.config = currentConfig.windowSettings
+  result.config = currentConfig
+  result.windowSettings = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
   # TODO:
@@ -113,7 +115,7 @@ proc updateWindowBorders(this: Monitor) =
       discard XSetWindowBorder(
         this.display,
         n.value.window,
-        this.config.borderColorUnfocused
+        this.windowSettings.borderColorUnfocused
       )
 
   this.taggedClients.withSomeCurrClient(c):
@@ -121,22 +123,23 @@ proc updateWindowBorders(this: Monitor) =
       discard XSetWindowBorder(
         this.display,
         c.window,
-        this.config.borderColorFocused
+        this.windowSettings.borderColorFocused
       )
 
 proc setConfig*(this: Monitor, config: Config) =
-  this.config = config.windowSettings
+  this.config = config
+  this.windowSettings = config.windowSettings
   for tag in this.tags:
-    tag.layout.gapSize = this.config.gapSize
-    tag.layout.borderWidth = this.config.borderWidth
+    tag.layout.gapSize = this.windowSettings.gapSize
+    tag.layout.borderWidth = this.windowSettings.borderWidth
 
   this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.setConfig(config.barSettings)
 
   for client in this.taggedClients.clients:
     if client.borderWidth != 0:
-      client.borderWidth = this.config.borderWidth
-    client.oldBorderWidth = this.config.borderWidth
+      client.borderWidth = this.windowSettings.borderWidth
+    client.oldBorderWidth = this.windowSettings.borderWidth
     if client.isFloating or client.isFixed:
       client.adjustToState(this.display)
 
@@ -197,16 +200,10 @@ proc updateCurrentDesktopProperty(this: Monitor) =
       1
     )
 
-proc keycodeToTag*(this: Monitor, keycode: int): Tag =
-  # TODO: Have a map of keycode to tagID and display character
-  try:
-    let tagNumber = parseInt(keycode.toString(this.display))
-    if tagNumber < 1 or tagNumber > this.tags.len:
-      raise newException(Exception, "Invalid tag number: " & tagNumber)
-
-    return this.tags[tagNumber - 1]
-  except:
-    log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
+proc keycodeToTagID*(this: Monitor, keycode: int): TagID =
+  for tagID, tagSetting in this.config.tagSettings.pairs():
+    if tagSetting.keycode == keycode:
+      return tagID
 
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
   this.setSelectedClient(client)
@@ -370,17 +367,17 @@ proc addClient*(this: Monitor, client: var Client) =
   client.tagIDs.clear()
   this.toggleSelectedTagsForClient(client)
 
-proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
-  if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
+proc moveClientToTag*(this: Monitor, client: Client, destinationTagID: TagID) =
+  if client.tagIDs.len == 1 and destinationTagID in client.tagIDs:
     return
 
   # Change client tags to only destinationTag id.
   client.tagIDs.clear()
-  client.tagIDs.incl(destinationTag.id)
+  client.tagIDs.incl(destinationTagID)
 
   this.doLayout()
 
-  if destinationTag.id in this.selectedTags:
+  if destinationTagID in this.selectedTags:
     this.setSelectedClient(client)
   else:
     this.setSelectedClient(this.taggedClients.currClient)
@@ -390,9 +387,9 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
     this.statusBar.setActiveWindowTitle("", false)
   this.redrawStatusBar()
 
-proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
+proc moveSelectedWindowToTag*(this: Monitor, tagID: TagID) =
   this.taggedClients.withSomeCurrClient(client):
-    this.moveClientToTag(client, tag)
+    this.moveClientToTag(client, tagID)
 
 proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
   ## Views the given tags.
@@ -532,7 +529,7 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
   if floating:
     if client.borderWidth == 0:
       client.oldBorderWidth = 0
-      client.borderWidth = this.config.borderWidth
+      client.borderWidth = this.windowSettings.borderWidth
     if client.totalWidth() > this.area.width:
       client.width = this.area.width - client.borderWidth * 2
     if client.totalHeight() > this.area.height - this.statusBar.area.height:
