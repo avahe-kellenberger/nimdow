@@ -12,7 +12,6 @@ import
   area,
   layouts/layout,
   layouts/masterstacklayout,
-  keys/keyutils,
   config/configloader,
   statusbar,
   logger
@@ -134,7 +133,7 @@ proc setConfig*(this: Monitor, config: Config) =
     tag.layout.borderWidth = this.windowSettings.borderWidth
 
   this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
-  this.statusBar.setConfig(config.barSettings)
+  this.statusBar.setConfig(config.barSettings, this.config.tagSettings)
 
   for client in this.taggedClients.clients:
     if client.borderWidth != 0:

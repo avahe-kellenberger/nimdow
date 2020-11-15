@@ -246,12 +246,13 @@ proc configureFonts(this: var StatusBar) =
   for fontString in this.settings.fonts:
     this.fonts.add(this.configureFont(fontString))
 
-proc setConfig*(this: var StatusBar, config: BarSettings, redraw: bool = true) =
+proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettings, redraw: bool = true) =
   this.freeAllColors()
   for font in this.fonts:
     XftFontClose(this.display, font)
 
   this.settings = config
+  this.tagSettings = tagSettings
   this.area.height = config.height
   this.configureColors()
   this.configureFonts()

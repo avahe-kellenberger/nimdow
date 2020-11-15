@@ -36,15 +36,16 @@ type
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
+  TagSettings* = OrderedTable[TagID, TagSetting]
   Config* = ref object
     eventManager: XEventManager
     identifierTable*: Table[string, Action]
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
     barSettings*: BarSettings
+    tagSettings*: TagSettings
     listener*: XEventListener
     loggingEnabled*: bool
-    tagSettings*: OrderedTable[TagID, TagSetting]
 
 proc newConfig*(eventManager: XEventManager): Config =
   Config(
