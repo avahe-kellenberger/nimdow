@@ -532,79 +532,79 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-template createControl(keycode: untyped, id: string, action: untyped) =
-  this.config.configureAction(id, proc(keycode: int) = action)
+template createControl(keyCombo: untyped, id: string, action: untyped) =
+  this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  createControl(keycode, "reloadConfig"):
+  createControl(keyCombo, "reloadConfig"):
     this.reloadConfig()
 
-  createControl(keycode, "increaseMasterCount"):
+  createControl(keyCombo, "increaseMasterCount"):
     this.increaseMasterCount()
 
-  createControl(keycode, "decreaseMasterCount"):
+  createControl(keyCombo, "decreaseMasterCount"):
     this.decreaseMasterCount()
 
-  createControl(keycode, "moveWindowToPreviousMonitor"):
+  createControl(keyCombo, "moveWindowToPreviousMonitor"):
     this.moveClientToPreviousMonitor()
 
-  createControl(keycode, "moveWindowToNextMonitor"):
+  createControl(keyCombo, "moveWindowToNextMonitor"):
     this.moveClientToNextMonitor()
 
-  createControl(keycode, "focusPreviousMonitor"):
+  createControl(keyCombo, "focusPreviousMonitor"):
     this.focusPreviousMonitor()
 
-  createControl(keycode, "focusNextMonitor"):
+  createControl(keyCombo, "focusNextMonitor"):
     this.focusNextMonitor()
 
-  createControl(keycode, "goToTag"):
-    log "goToTag"
-    let tagID = this.config.tagKeys.find(keycode)
-    log "tagID: " & $tagID
-    if tagID != -1:
-      this.goToTag(tagID)
+  createControl(keyCombo, "goToTag"):
+    for tagID, tagSetting in this.config.tagSettings.pairs():
+      if tagSetting.keycode == keyCombo.keycode and
+         tagSetting.totalModifiers == keyCombo.modifiers:
+        this.goToTag(tagID)
+        break
 
-  createControl(keycode, "goToPreviousTag"):
+  createControl(keyCombo, "goToPreviousTag"):
     var previousTag = this.selectedMonitor.previousTagID
     if previousTag != 0:
       this.goToTag(previousTag)
 
-  createControl(keycode, "toggleTagView"):
-    let tag = this.selectedMonitor.keycodeToTag(keycode)
+  createControl(keyCombo, "toggleTagView"):
+    let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
     this.selectedMonitor.toggleTags(tag.id)
 
-  createControl(keycode, "toggleWindowTag"):
+  createControl(keyCombo, "toggleWindowTag"):
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      let tag = this.selectedMonitor.keycodeToTag(keycode)
+      let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
       this.selectedMonitor.toggleTagsForClient(client, tag.id)
 
-  createControl(keycode, "focusNext"):
+  createControl(keyCombo, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
 
-  createControl(keycode, "focusPrevious"):
+  createControl(keyCombo, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient(true)
 
-  createControl(keycode, "moveWindowPrevious"):
+  createControl(keyCombo, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
 
-  createControl(keycode, "moveWindowNext"):
+  createControl(keyCombo, "moveWindowNext"):
     this.selectedMonitor.moveClientNext()
 
-  createControl(keycode, "moveWindowToTag"):
-    let tag = this.selectedMonitor.keycodeToTag(keycode)
+  createControl(keyCombo, "moveWindowToTag"):
+    let tag = this.selectedMonitor.keycodeToTag(keyCombo.keycode)
     this.selectedMonitor.moveSelectedWindowToTag(tag)
 
-  createControl(keycode, "toggleFullscreen"):
+  createControl(keyCombo, "toggleFullscreen"):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
-  createControl(keycode, "destroySelectedWindow"):
+  createControl(keyCombo, "destroySelectedWindow"):
     this.destroySelectedWindow()
 
-  createControl(keycode, "toggleFloating"):
+  createControl(keyCombo, "toggleFloating"):
     this.selectedMonitor.toggleFloatingForSelectedClient()
 
-  createControl(keycode, "jumpToUrgentWindow"):
+  createControl(keyCombo, "jumpToUrgentWindow"):
     this.jumpToUrgentWindow()
 
 proc hookConfigKeys*(this: WindowManager) =

@@ -7,7 +7,8 @@ import
   x11 / [x,  xlib],
   "../keys/keyutils",
   "../event/xeventmanager",
-  "../logger"
+  "../logger",
+  "../tag"
 
 var configLoc*: string
 
@@ -22,7 +23,7 @@ proc findConfigPath*(): string =
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
-  Action* = proc(keycode: int): void
+  Action* = proc(keyCombo: KeyCombo): void
   WindowSettings* = ref object
     gapSize*: uint
     tagCount*: uint
@@ -33,7 +34,6 @@ type
   BarSettings* = ref object
     height*: uint
     fonts*: seq[string]
-    tagDisplayStrings*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
   Config* = ref object
@@ -42,9 +42,9 @@ type
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
     barSettings*: BarSettings
-    tagKeys*: seq[int]
     listener*: XEventListener
     loggingEnabled*: bool
+    tagSettings*: OrderedTable[TagID, TagSetting]
 
 proc newConfig*(eventManager: XEventManager): Config =
   Config(
@@ -143,7 +143,7 @@ proc configureAction*(this: Config, actionName: string, actionInvokee: Action) =
 
 proc configureExternalProcess(this: Config, command: string) =
   this.identifierTable[command] =
-    proc(keycode: int) =
+    proc(keyCombo: KeyCombo) =
       this.runCommands(command)
 
 proc hookConfig*(this: Config) =
@@ -151,8 +151,57 @@ proc hookConfig*(this: Config) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):
-      this.keyComboTable[keyCombo](keyCombo.keycode)
+      this.keyComboTable[keyCombo](keyCombo)
   this.eventManager.addListener(this.listener, KeyPress)
+
+proc populateDefaultTagSettings(this: Config, display: PDisplay) =
+  for i in 1..tagCount:
+    this.tagSettings[i] = TagSetting(
+      displayString: $i,
+      keycode: ($i).toKeycode(display)
+    )
+
+proc populateTagSettings(this: Config, configTable: TomlTable, display: PDisplay) =
+  this.populateDefaultTagSettings(display)
+
+  if not configTable.hasKey("tags"):
+    return
+
+  let tagsTable = configTable["tags"]
+  if tagsTable.kind != TomlValueKind.Table:
+    raise newException(Exception, "Invalid tags config table")
+
+  for tagIDstr, settingsToml in tagsTable.tableVal.pairs():
+    if settingsToml.kind != TomlValueKind.Table:
+      log "Settings table incorrect type for tag ID: " & tagIDstr
+      continue
+
+    # Parse the tag ID.
+    var tagID: int
+    try:
+      tagID = parseInt(tagIDstr)
+    except:
+      log "Invalid tag id: " & tagIDstr
+      continue
+
+    let currentTagSettingsTable = settingsToml.tableVal
+    var currentTagSettings: TagSetting = this.tagSettings[tagID]
+
+    if currentTagSettingsTable.hasKey("displayString"):
+      let displayString = currentTagSettingsTable["displayString"]
+      if displayString.kind == TomlValueKind.String:
+        currentTagSettings.displayString = displayString.stringVal
+
+    if currentTagSettingsTable.hasKey("key"):
+      let keyString = currentTagSettingsTable["key"]
+      if keyString.kind == TomlValueKind.String:
+        currentTagSettings.keycode = keyString.stringVal.toKeycode(display)
+
+    if currentTagSettingsTable.hasKey("modifiers"):
+      let modifiersTomlArray = currentTagSettingsTable["modifiers"]
+      if modifiersTomlArray.kind == TomlValueKind.Array:
+        let modifiers: int = bitorModifiers(modifiersTomlArray.arrayVal)
+        currentTagSettings.modifiers = modifiers
 
 proc populateControlsTable(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("controls"):
@@ -160,7 +209,7 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
   # Populate window manager controls
   let controlsTable = configTable["controls"]
   if controlsTable.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid config table")
+    raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
     this.populateControlAction(display, action, controlsTable[action].tableVal[])
@@ -169,15 +218,19 @@ proc populateTagControlAction(
   this: Config,
   display: PDisplay,
   action: string,
-  configTable: TomlTable,
-  keys: seq[string]
+  configTable: TomlTableRef,
+  tagSetting: var TagSetting
 ) =
-  let keyCombos = this.getKeyCombos(configTable, display, action, keys)
-  for keyCombo in keyCombos:
-    if this.identifierTable.hasKey(action):
-      this.keyComboTable[keyCombo] = this.identifierTable[action]
-    else:
-      raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
+  if not this.identifierTable.hasKey(action):
+    raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
+
+  let
+    modifierArray = this.getModifiersForAction(configTable[], action)
+    modifiers: int = bitorModifiers(modifierArray)
+    keyCombo = (tagSetting.keycode, tagSetting.modifiers or modifiers)
+
+  tagSetting.totalModifiers = keyCombo[1]
+  this.keyComboTable[keyCombo] = this.identifierTable[action]
 
 proc populateTagControlsTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("tagcontrols"):
@@ -188,35 +241,10 @@ proc populateTagControlsTable*(this: Config, configTable: TomlTable, display: PD
   if controlsTable.kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid tagcontrols table")
 
-  if not controlsTable.hasKey("taglayout"):
-    log "taglayout is missing from config!", lvlWarn
-    return
-
-  let taglayout = controlsTable["taglayout"]
-  if taglayout.kind != TomlValueKind.Array:
-    raise newException(Exception, "Invalid taglayout array")
-
-  var keys: seq[string]
-  for tagPair in tagLayout.arrayVal:
-    let key = tagPair["key"]
-    if key.kind != TomlValueKind.String:
-      log "taglayout key is not a string value!", lvlWarn
-      continue
-
-    let show = tagPair["show"]
-    if show.kind != TomlValueKind.String:
-      log "taglayout show is not a string value!", lvlWarn
-      continue
-
-    keys.add(key.stringVal)
-    let keycode = keys[^1].toKeycode(display)
-    log keys[^1] & ": " & $keycode
-    this.tagKeys.add(keycode)
-    this.barSettings.tagDisplayStrings.add(show.stringVal)
-
-  for action, table in controlsTable.tableVal.pairs():
-    if table.kind == TomlValueKind.Table:
-      this.populateTagControlAction(display, action, table.tableVal[], keys)
+  for tagSetting in this.tagSettings.mvalues():
+    for action, table in controlsTable.tableVal.pairs():
+      if table.kind == TomlValueKind.Table:
+        this.populateTagControlAction(display, action, table.tableVal, tagSetting)
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
@@ -333,6 +361,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
   this.populateControlsTable(configTable, display)
+  this.populateTagSettings(configTable, display)
   this.populateTagControlsTable(configTable, display)
   this.populateExternalProcessSettings(configTable, display)
 
@@ -384,7 +413,7 @@ proc getKeyCombos(
 
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
   if not configTable.hasKey("keys"):
-    log "\"keys\" not found in config tabile for action \"" & action & "\"", lvlError
+    log "\"keys\" not found in config table for action \"" & action & "\"", lvlError
     return
   var tomlKeys = configTable["keys"]
   if tomlKeys.kind != TomlValueKind.Array:

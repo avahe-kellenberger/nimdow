@@ -27,6 +27,7 @@ const
 type
   StatusBar* = object
     settings: BarSettings
+    tagSettings*: OrderedTable[TagID, TagSetting]
     isMonitorSelected: bool
     status: string
     activeWindowTitle: string
@@ -57,10 +58,12 @@ proc newStatusBar*(
     rootWindow: Window,
     area: Area,
     settings: BarSettings,
-    taggedClients: TaggedClients
+    taggedClients: TaggedClients,
+    tagSettings: OrderedTable[TagID, TagSetting]
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.settings = settings
+  result.tagSettings = tagSettings
   result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
@@ -533,7 +536,7 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
 proc renderTags(this: StatusBar): int =
   var textXPos: int = cellWidth div 2
 
-  for tag in this.tags:
+  for tagID, tagSettings in this.tagSettings.pairs():
     # Determine the render color.
     var
       fgColor = this.fgColor
@@ -541,12 +544,12 @@ proc renderTags(this: StatusBar): int =
       tagHasCurrentClient = false
       tagIsUrgent = false
 
-    if this.selectedTags.contains(tag.id):
+    if this.selectedTags.contains(tagID):
       fgColor = this.selectionColor
 
-    let i = tag.id - 1
+    let i = tagID - 1
 
-    for node in this.taggedClients.clientWithTagIter(tag.id):
+    for node in this.taggedClients.clientWithTagIter(tagID):
       tagIsEmpty = false
       let client = node.value
       tagIsUrgent = tagIsUrgent or client.isUrgent
@@ -557,13 +560,20 @@ proc renderTags(this: StatusBar): int =
 
     if not tagIsEmpty:
       if tagIsUrgent:
-        XftDrawRect(this.draw, this.urgentColor.unsafeAddr, i * cellWidth, 0, cellWidth, this.area.height.cuint)
+        XftDrawRect(
+          this.draw,
+          this.urgentColor.unsafeAddr,
+          i * cellWidth,
+          0,
+          cellWidth,
+          this.area.height.cuint
+        )
       XftDrawRect(this.draw, fgColor.addr, i * cellWidth, 0, 4, 4)
       if not tagHasCurrentClient:
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
         XftDrawRect(this.draw, bgColor.addr, i * cellWidth + 1, 1, 2, 2)
 
-    let text = this.settings.tagDisplayStrings[i]
+    let text = tagSettings.displayString
     let stringLength = this.renderString(text, textXPos, fgColor)
     textXPos += cellWidth div 2 + stringLength
 

@@ -115,28 +115,61 @@ exec = [
 
 # Controls that use keys that reference tags.
 [tagcontrols]
-  taglayout = [
-    # { "Activation key", "Displayed/shown String" }
-    { key = "parentleft", show = "code" },
-    { key = "parentright", show = "🎮"},
-    { key = "bracketright", show = "3" },
-    { key = "plus", show = "4" },
-    { key = "bracketleft", show = "5" },
-    { key = "braceright", show = "6" },
-    { key = "braceleft", show = "7" },
-    { key = "exclam", show = "8" },
-    { key = "equal", show = "9" }
-  ]
-
-  # [tagcontrols.moveWindowToTag]
-  # modifiers = [ "super", "shift" ]
 
   [tagcontrols.goToTag]
   modifiers = [ "super" ]
 
-#   [tagcontrols.toggleTagView]
-#   modifiers = [ "super", "control" ]
+  # [tagcontrols.moveWindowToTag]
+  # modifiers = [ "super", "shift" ]
 
-#   [tagcontrols.toggleWindowTag]
-#   modifiers = [ "super", "shift", "control" ]
+  # [tagcontrols.toggleTagView]
+  # modifiers = [ "super", "control" ]
+
+  # [tagcontrols.toggleWindowTag]
+  # modifiers = [ "super", "shift", "control" ]
+
+# Tag configurations.
+[tags]
+
+  [tags.1]
+  displayString = "code"
+  key = "parenleft"
+  modifiers = [ "shift" ]
+
+  [tags.2]
+  key = "parenright"
+  displayString = "two"
+  modifiers = [ "shift" ]
+
+  [tags.3]
+  key = "bracketright"
+  displayString = "3"
+  modifiers = [ "shift" ]
+
+  [tags.4]
+  key = "plus"
+  displayString = "4"
+  modifiers = [ "shift" ]
+
+  [tags.5]
+  key = "bracketleft"
+  displayString = "5"
+  modifiers = [ "shift" ]
+
+  [tags.6]
+  key = "braceright"
+  displayString = "6"
+
+  [tags.7]
+  key = "braceleft"
+  displayString = "7"
+
+  [tags.8]
+  key = "exclam"
+  displayString = "8"
+  modifiers = [ "shift" ]
+
+  [tags.9]
+  key = "equal"
+  displayString = "9"
 
