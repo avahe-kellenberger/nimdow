@@ -13,6 +13,7 @@ import
   layouts/layout,
   layouts/masterstacklayout,
   config/configloader,
+  keys/keyutils,
   statusbar,
   logger
 
@@ -27,11 +28,13 @@ const masterSlots = 1
 
 type
   Monitor* = ref object of RootObj
+    id*: MonitorID
     display: PDisplay
     rootWindow: Window
     statusBar*: StatusBar
     area*: Area
     config: Config
+    monitorSettings: MonitorSettings
     windowSettings: WindowSettings
     # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
@@ -45,17 +48,20 @@ proc updateCurrentDesktopProperty(this: Monitor)
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true)
 
 proc newMonitor*(
+  id: MonitorID,
   display: PDisplay,
   rootWindow: Window,
   area: Area,
   currentConfig: Config
 ): Monitor =
   result = Monitor()
+  result.id = id
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
-  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
   result.config = currentConfig
+  result.monitorSettings = currentConfig.monitorSettings[id]
+  let barArea: Area = (area.x, 0, area.width, result.monitorSettings.barSettings.height)
   result.windowSettings = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
@@ -86,9 +92,9 @@ proc newMonitor*(
     display.newStatusBar(
       rootWindow,
       barArea,
-      currentConfig.barSettings,
+      result.monitorSettings.barSettings,
       result.taggedClients,
-      currentConfig.tagSettings
+      result.monitorSettings.tagSettings
     )
 
 ########################################################
@@ -128,12 +134,13 @@ proc updateWindowBorders(this: Monitor) =
 proc setConfig*(this: Monitor, config: Config) =
   this.config = config
   this.windowSettings = config.windowSettings
+
   for tag in this.tags:
     tag.layout.gapSize = this.windowSettings.gapSize
     tag.layout.borderWidth = this.windowSettings.borderWidth
 
-  this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
-  this.statusBar.setConfig(config.barSettings, this.config.tagSettings)
+  this.layoutOffset = (this.monitorSettings.barSettings.height, 0.uint, 0.uint, 0.uint)
+  this.statusBar.setConfig(this.monitorSettings.barSettings, this.monitorSettings.tagSettings)
 
   for client in this.taggedClients.clients:
     if client.borderWidth != 0:
@@ -200,9 +207,14 @@ proc updateCurrentDesktopProperty(this: Monitor) =
     )
 
 proc keycodeToTagID*(this: Monitor, keycode: int): TagID =
-  for tagID, tagSetting in this.config.tagSettings.pairs():
-    if tagSetting.keycode == keycode:
-      return tagID
+  try:
+    let tagNumber = parseInt(keycode.toString(this.display))
+    if tagNumber < 1 or tagNumber > this.tags.len:
+      raise newException(Exception, "Invalid tag number: " & tagNumber)
+
+    return this.tags[tagNumber - 1].id
+  except:
+    log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
   this.setSelectedClient(client)
@@ -562,7 +574,7 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
       return i - 1
   return -1
 
-proc find*(monitors: openArray[Monitor], x, y: int): int =
+proc find*(monitors: Table[MonitorID, Monitor], x, y: int): int =
   ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
 

@@ -21,7 +21,7 @@ converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  cellWidth = 21
+  boxWidth = 4
   rightPadding = 4
 
 type
@@ -535,7 +535,11 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
   return stringWidth
 
 proc renderTags(this: StatusBar): int =
-  var textXPos: int = cellWidth div 2
+  # Tag rendering layout is as follows:
+  # <space><box><tag text><space><space>
+  # Each <space> is the same width as the <box>
+
+  var textXPos: int = boxWidth * 2
 
   for tagID, tagSettings in this.tagSettings.pairs():
     # Determine the render color.
@@ -557,28 +561,28 @@ proc renderTags(this: StatusBar): int =
         if tagIsUrgent:
           break
 
-    let boxWidth = 4
+    let text = tagSettings.displayString
+    let stringLength = this.renderString(text, textXPos, fgColor)
+
     if not tagIsEmpty:
-      let boxPos = textXPos - boxWidth
+      let boxXLoc = textXPos - boxWidth
       if tagIsUrgent:
         XftDrawRect(
           this.draw,
           this.urgentColor.unsafeAddr,
-          boxPos,
+          boxXLoc - boxWidth,
           0,
-          cellWidth,
+          stringLength + boxWidth * 4,
           this.area.height.cuint
         )
-      XftDrawRect(this.draw, fgColor.addr, boxPos, 0, 4, 4)
+      XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, 4, 4)
       if not tagHasCurrentClient:
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
-        XftDrawRect(this.draw, bgColor.addr, boxPos + 1, 1, 2, 2)
+        XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
-    let text = tagSettings.displayString
-    let stringLength = this.renderString(text, textXPos, fgColor)
-    textXPos += cellWidth div 2 + stringLength
+    textXPos += stringLength + boxWidth * 4
 
-  return textXPos + cellWidth
+  return textXPos
 
 proc renderStatus(this: StatusBar): int =
   if this.status.len > 0:
@@ -610,7 +614,7 @@ proc redraw*(this: StatusBar) =
   this.clearBar()
   let
     tagLengthPixels = this.renderTags()
-    maxRenderX = this.currentWidth - this.renderStatus() - cellWidth
+    maxRenderX = this.currentWidth - this.renderStatus()
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =

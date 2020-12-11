@@ -113,55 +113,29 @@ exec = [
   keys = [ "u" ]
   modifiers = [ "super" ]
 
-# Controls that use keys that reference tags.
-[tagcontrols]
-  [tagcontrols.goToTag]
+  [controls.goToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super" ]
 
-  [tagcontrols.moveWindowToTag]
+  [controls.moveWindowToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift" ]
 
-  [tagcontrols.toggleTagView]
+  [controls.toggleTagView]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "control" ]
 
-  [tagcontrols.toggleWindowTag]
+  [controls.toggleWindowTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
-# Tag configurations
-[tags]
-  [tags.1]
-  key = "1"
-  displayString = "1"
+[monitors]
+  [monitors.default]
+    tags.1.displayString = "one"
 
-  [tags.2]
-  key = "2"
-  displayString = "2"
+  [monitors.1.tags]
+    tags.2.displayString = "two"
 
-  [tags.3]
-  key = "3"
-  displayString = "3"
-
-  [tags.4]
-  key = "4"
-  displayString = "4"
-
-  [tags.5]
-  key = "5"
-  displayString = "5"
-
-  [tags.6]
-  key = "6"
-  displayString = "6"
-
-  [tags.7]
-  key = "7"
-  displayString = "7"
-
-  [tags.8]
-  key = "8"
-  displayString = "8"
-
-  [tags.9]
-  key = "9"
-  displayString = "9"
+  [monitors.2]
+    tags.2.displayString = "three"
 
