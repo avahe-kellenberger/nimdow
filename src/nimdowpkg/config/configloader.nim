@@ -52,7 +52,6 @@ type
     xEventListener*: XEventListener
     loggingEnabled*: bool
     tagKeys*: seq[string]
-    # TODO: Need this?
     defaultMonitorSettings*: MonitorSettings
     # Specific monitor settings
     monitorSettings*: Table[MonitorID, MonitorSettings]
@@ -179,7 +178,6 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
 proc populateTagSettings(this: var MonitorSettings, tagSettingsTable: TomlTableRef, display: PDisplay) =
   for tagIDstr, settingsToml in tagSettingsTable.pairs():
-    log tagIDstr
     if settingsToml.kind != TomlValueKind.Table:
       log "Settings table incorrect type for tag ID: " & tagIDstr
       continue
@@ -198,7 +196,6 @@ proc populateTagSettings(this: var MonitorSettings, tagSettingsTable: TomlTableR
     if currentTagSettingsTable.hasKey("displayString"):
       let displayString = currentTagSettingsTable["displayString"]
       if displayString.kind == TomlValueKind.String:
-        log "displayString: " & displayString.stringVal
         currentTagSettings.displayString = displayString.stringVal
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
@@ -214,22 +211,13 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
   # Change default monitor settings.
   if monitorsTable.hasKey("default"):
     let changedDefaults = monitorsTable["default"]
-    var displayString: string
-
-    if changedDefaults.hasKey("displayString"):
-      if changedDefaults["displayString"].kind != TomlValueKind.String:
-        log "displayString incorrect type for default monitor settings"
-      else:
-        displayString = monitorsTable["displayString"].stringVal
-
-    for i in 1..tagCount:
-      var currentTagSettings = this.defaultMonitorSettings.tagSettings[i]
-      if displayString.len > 0:
-        currentTagSettings.displayString = displayString
+    if changedDefaults.hasKey("tags"):
+      let tagsTable = changedDefaults["tags"]
+      if tagsTable.kind == TomlValueKind.Table:
+        this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
 
   # Populate settings per-monitor
   for monitorIDStr, settingsToml in monitorsTable.tableVal.pairs():
-    # TODO: Combine with the above
     if monitorIDStr == "default":
       continue
 
@@ -245,7 +233,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
       log "Invalid monitor ID: " & monitorIDStr, lvlError
       continue
 
-    var monitorSettings: MonitorSettings = this.defaultMonitorSettings
+    var monitorSettings: MonitorSettings = deepcopy this.defaultMonitorSettings
 
     if settingsToml.hasKey("tags"):
       let tagsTable = settingsToml["tags"]

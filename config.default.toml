@@ -41,8 +41,8 @@ exec = [
   barSelectionColor = "#50fa7b"
   barUrgentColor = "#ff5555"
   barFonts = [
-    "monospace:size=10:anialias=false",
-    "NotoColorEmoji:size=10:anialias=false"
+    "monospace:size=10:antialias=true",
+    "NotoColorEmoji:size=10:antialias=true"
   ]
   # General settings
   loggingEnabled = false
@@ -131,11 +131,12 @@ exec = [
 
 [monitors]
   [monitors.default]
-    tags.1.displayString = "one"
+  tags.1.displayString = "one"
+  tags.2.displayString = "foobar"
 
   [monitors.1.tags]
-    tags.2.displayString = "two"
+  2.displayString = "two"
 
-  [monitors.2]
-    tags.2.displayString = "three"
+  [monitors.2.tags]
+  2.displayString = "too"
 

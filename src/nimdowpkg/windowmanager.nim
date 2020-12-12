@@ -107,7 +107,11 @@ proc windowToClient(
 ): tuple[client: Client, monitor: Monitor]
 proc windowToMonitor(this: WindowManager, window: Window): Monitor
 
-proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
+proc newWindowManager*(
+  eventManager: XEventManager,
+  config: Config,
+  configTable: TomlTable
+): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
