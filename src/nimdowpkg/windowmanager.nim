@@ -122,9 +122,9 @@ proc newWindowManager*(
   # Config setup
   try:
     result.config = config
-    result.config.populateGeneralSettings(configTable)
     result.mapConfigActions()
     result.config.populateKeyComboTable(configTable, result.display)
+    result.config.populateGeneralSettings(configTable)
     result.config.hookConfig()
     result.hookConfigKeys()
   except:
@@ -291,10 +291,10 @@ proc reloadConfig*(this: WindowManager) =
 
   try:
     let configTable = configloader.loadConfigFile()
-    this.config.populateGeneralSettings(configTable)
-    logger.enabled = this.config.loggingEnabled
     this.mapConfigActions()
     this.config.populateKeyComboTable(configTable, this.display)
+    this.config.populateGeneralSettings(configTable)
+    logger.enabled = this.config.loggingEnabled
   except:
     logger.enabled = oldLoggingEnabled
     # If the config fails to load, restore the old config.
