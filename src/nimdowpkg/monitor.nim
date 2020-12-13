@@ -134,6 +134,10 @@ proc updateWindowBorders(this: Monitor) =
 proc setConfig*(this: Monitor, config: Config) =
   this.config = config
   this.windowSettings = config.windowSettings
+  if config.monitorSettings.hasKey(this.id):
+    this.monitorSettings = config.monitorSettings[this.id]
+  else:
+    this.monitorSettings = config.defaultMonitorSettings
 
   for tag in this.tags:
     tag.layout.gapSize = this.windowSettings.gapSize

@@ -269,6 +269,12 @@ proc newWindowManager*(
   result.setSelectedMonitor(result.monitors[1])
   result.updateSystray()
 
+template selectedMonitorConfig(this: WindowManager): MonitorSettings =
+  if this.config.monitorSettings.hasKey(this.selectedMonitor.id):
+    this.config.monitorSettings[this.selectedMonitor.id]
+  else:
+    this.config.defaultMonitorSettings
+
 template systrayMonitor(this: WindowManager): Monitor =
   this.monitors[systrayMonitorID]
 
@@ -1130,7 +1136,7 @@ proc updateSystray(this: WindowManager) =
 
   let
     backgroundPixel = backgroundColor.pixel
-    barHeight = this.config.monitorSettings[this.selectedMonitor.id].barSettings.height
+    barHeight = this.selectedMonitorConfig.barSettings.height
 
   if this.systray == nil:
     this.systray = Systray()
