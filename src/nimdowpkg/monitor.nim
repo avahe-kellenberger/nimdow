@@ -578,7 +578,7 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
       return i - 1
   return -1
 
-proc find*(monitors: Table[MonitorID, Monitor], x, y: int): int =
+proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): int =
   ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
 

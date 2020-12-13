@@ -11,7 +11,7 @@ proc first*[T](arr: openArray[T], condition: proc(t: T): bool): T =
     if condition(t):
       return t
 
-proc valuesToSeq*[K, V](table: Table[K, V]): seq[V] =
+proc valuesToSeq*[K, V](table: OrderedTable[K, V]): seq[V] =
   for value in table.values():
     result.add(value)
 

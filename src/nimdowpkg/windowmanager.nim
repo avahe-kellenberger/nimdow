@@ -64,7 +64,7 @@ type
     eventManager: XEventManager
     config: Config
     windowSettings: WindowSettings
-    monitors: Table[MonitorID, Monitor]
+    monitors: OrderedTable[MonitorID, Monitor]
     selectedMonitor: Monitor
     mouseState: MouseState
     lastMousePress: tuple[x, y: int]
@@ -224,16 +224,17 @@ proc newWindowManager*(
     )
 
   block setDesktopNames:
-    var tags: array[tagCount, cstring] =
-      ["1".cstring,
-       "2".cstring,
-       "3".cstring,
-       "4".cstring,
-       "5".cstring,
-       "6".cstring,
-       "7".cstring,
-       "8".cstring,
-       "9".cstring]
+    var tags: array[tagCount, cstring] = [
+      "1".cstring,
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ]
     var text: XTextProperty
     discard Xutf8TextListToTextProperty(
       result.display,
@@ -358,9 +359,11 @@ proc configureRootWindow(this: WindowManager): Window =
   discard XSync(this.display, false)
 
 proc focusMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex == -1:
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     return
-  var monitor = this.monitors[monitorIndex]
+
+  var monitor = this.monitors[monitorID]
 
   if monitor.taggedClients.currClient == nil:
     let center = monitor.area.center()
@@ -397,7 +400,8 @@ proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
   this.selectedMonitor.statusBar.setIsMonitorSelected(true)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex notin {0 .. this.monitors.len - 1}:
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     return
 
   let startMonitor = this.selectedMonitor
@@ -406,7 +410,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if client == nil:
     return
 
-  this.setSelectedMonitor(this.monitors[monitorIndex])
+  this.setSelectedMonitor(this.monitors[monitorID])
 
   if startMonitor.removeWindow(client.window):
     startMonitor.doLayout(false)
@@ -1341,9 +1345,10 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     discard XRaiseWindow(this.display, client.window)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
-  if not this.monitors.hasKey(monitorIndex + 1):
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     raise newException(ValueError,  "monitor index " & $monitorIndex & " is out of range")
-  this.monitors[monitorIndex].statusBar.setStatus(status)
+  this.monitors[monitorID].statusBar.setStatus(status)
 
 proc setStatusForAllMonitors(this: WindowManager, status: string) =
   for monitor in this.monitors.values():
