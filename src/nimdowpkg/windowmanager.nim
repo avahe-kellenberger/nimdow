@@ -48,11 +48,6 @@ const
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
-# Helper procs that don't really fit anywhere.
-# Should move these somewhere appropriate.
-proc isInRange[T](arr: openArray[T], index: int): bool {.inline.} =
-  return index >= arr.low and index <= arr.high
-
 type
   MouseState* = enum
     Normal, Moving, Resizing

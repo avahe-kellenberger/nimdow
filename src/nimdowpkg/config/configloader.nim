@@ -74,8 +74,9 @@ proc newConfig*(eventManager: XEventManager): Config =
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
-proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
+proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
+proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc getKeyCombos(
   this: Config,
   configTable: TomlTable,
@@ -210,6 +211,9 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
 
   # Change default monitor settings.
   if monitorsTable.hasKey("default"):
+    let settingsTable = configTable["settings"].tableVal
+    this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
+
     let changedDefaults = monitorsTable["default"]
     if changedDefaults.hasKey("tags"):
       let tagsTable = changedDefaults["tags"]
@@ -326,6 +330,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
     raise newException(Exception, "Invalid settings table")
 
   let settingsTable = configTable["settings"].tableVal
+  this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
 
   # Window settings
   if settingsTable.hasKey("gapSize"):

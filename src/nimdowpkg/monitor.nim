@@ -65,9 +65,6 @@ proc newMonitor*(
   result.windowSettings = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
-  # TODO:
-  # Tag configs will be stored in settings.
-  # Use them to populate tags here.
   result.taggedClients = newTaggedClients(tagCount)
   for i in 1..tagCount:
     let tag: Tag = newTag(
