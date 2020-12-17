@@ -503,6 +503,24 @@ proc renderStringCentered*(
     )
     xLoc += glyph.xOff
 
+proc calcStringRenderLength*(this: StatusBar, str: string, x: int, color: XftColor): int =
+  ## Returns the length of the string in pixels.
+  var
+    glyph: XGlyphInfo
+    pos = 0
+    stringWidth: int
+
+  for rune in str.runes:
+    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+    pos += rune.size
+    for font in this.fonts:
+      if XftCharExists(this.display, font, rune.FcChar32) == 1:
+        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
+        stringWidth += glyph.xOff
+        break
+
+  return stringWidth
+
 proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
   ## Renders a string at position x.
   ## Returns the length of the rendered string in pixels.
@@ -562,7 +580,7 @@ proc renderTags(this: StatusBar): int =
           break
 
     let text = tagSettings.displayString
-    let stringLength = this.renderString(text, textXPos, fgColor)
+    let stringLength = this.calcStringRenderLength(text, textXPos, fgColor)
 
     if not tagIsEmpty:
       let boxXLoc = textXPos - boxWidth
@@ -580,6 +598,7 @@ proc renderTags(this: StatusBar): int =
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
         XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
+    discard this.renderString(text, textXPos, fgColor)
     textXPos += stringLength + boxWidth * 4
 
   return textXPos
