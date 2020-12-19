@@ -336,8 +336,8 @@ const
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
 
 proc renderStringRightAligned(this: StatusBar, str: string, x: int, defaultColor: XftColor): int =
-  ## Renders a string centered at position x. This supports ANSI CSI SGR colors
-  ## by using the normal 3/4
+  ## Renders a string right aligned to position x.
+  ## This supports ANSI CSI SGR colors by using the normal 3/4
   var
     runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
     stringWidth, xLoc, pos: int
@@ -503,7 +503,26 @@ proc renderStringCentered*(
     )
     xLoc += glyph.xOff
 
-proc calcStringRenderLength*(this: StatusBar, str: string, x: int, color: XftColor): int =
+type CharRenderCallback = proc(
+  font: PXftFont,
+  glyph: XGlyphInfo,
+  rune: Rune,
+  runeAddr: PFcChar8
+)
+
+proc calcStringRenderLength*(
+  this: StatusBar,
+  str: string,
+  x: int,
+  color: XftColor,
+  characterCallback: CharRenderCallback =
+    proc(
+      font: PXftFont,
+      glyph: XGlyphInfo,
+      rune: Rune,
+      runeAddr: PFcChar8
+    ) = discard
+): int =
   ## Returns the length of the string in pixels.
   var
     glyph: XGlyphInfo
@@ -516,6 +535,7 @@ proc calcStringRenderLength*(this: StatusBar, str: string, x: int, color: XftCol
     for font in this.fonts:
       if XftCharExists(this.display, font, rune.FcChar32) == 1:
         XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
+        characterCallback(font, glyph, rune, runeAddr)
         stringWidth += glyph.xOff
         break
 
@@ -524,33 +544,21 @@ proc calcStringRenderLength*(this: StatusBar, str: string, x: int, color: XftCol
 proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
   ## Renders a string at position x.
   ## Returns the length of the rendered string in pixels.
-  var
-    glyph: XGlyphInfo
-    pos = 0
-    xLoc = x
-    stringWidth: int
-
-  for rune in str.runes:
-    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
-    pos += rune.size
-    for font in this.fonts:
-      if XftCharExists(this.display, font, rune.FcChar32) == 1:
-        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
-        let centerY = font.ascent + (this.area.height.int - font.height) div 2
-        XftDrawStringUtf8(
-          this.draw,
-          color.unsafeAddr,
-          font,
-          xLoc,
-          centerY,
-          runeAddr,
-          rune.size
-        )
-        xLoc += glyph.xOff
-        stringWidth += glyph.xOff
-        break
-
-  return stringWidth
+  var xLoc = x
+  let callback: CharRenderCallback =
+    proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
+      let centerY = font.ascent + (this.area.height.int - font.height) div 2
+      XftDrawStringUtf8(
+        this.draw,
+        color.unsafeAddr,
+        font,
+        xLoc,
+        centerY,
+        runeAddr,
+        rune.size
+      )
+      xLoc += glyph.xOff
+  return this.calcStringRenderLength(str, x, color, callback)
 
 proc renderTags(this: StatusBar): int =
   # Tag rendering layout is as follows:
@@ -633,7 +641,7 @@ proc redraw*(this: StatusBar) =
   this.clearBar()
   let
     tagLengthPixels = this.renderTags()
-    maxRenderX = this.currentWidth - this.renderStatus()
+    maxRenderX = this.currentWidth - this.renderStatus() - (boxWidth * 2 + rightPadding)
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
