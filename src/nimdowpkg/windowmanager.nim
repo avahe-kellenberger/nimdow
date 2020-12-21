@@ -1253,7 +1253,8 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
   if icon == nil:
     return
 
-  let barHeight = this.config.monitorSettings[this.selectedMonitor.id].barSettings.height
+
+  let barHeight = this.selectedMonitorConfig.barSettings.height
   icon.height = barHeight
   if width == height:
     icon.width = barHeight
