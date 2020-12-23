@@ -17,7 +17,8 @@ import
   event/xeventmanager,
   layouts/masterstacklayout,
   keys/keyutils,
-  logger
+  logger,
+  utils
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -33,7 +34,7 @@ const
   wmName = "nimdow"
   minimumUpdateInterval = math.round(1000 / 60).int
 
-  systrayMonitorIndex = 0
+  systrayMonitorID = 1
   STATUS_MONITOR_PREFIX = "NIMDOW_MONITOR_INDEX="
 
   SYSTEM_TRAY_REQUEST_DOCK = 0
@@ -47,11 +48,6 @@ const
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
-# Helper procs that don't really fit anywhere.
-# Should move these somewhere appropriate.
-proc isInRange[T](arr: openArray[T], index: int): bool {.inline.} =
-  return index >= arr.low and index <= arr.high
-
 type
   MouseState* = enum
     Normal, Moving, Resizing
@@ -63,7 +59,7 @@ type
     eventManager: XEventManager
     config: Config
     windowSettings: WindowSettings
-    monitors: seq[Monitor]
+    monitors: OrderedTable[MonitorID, Monitor]
     selectedMonitor: Monitor
     mouseState: MouseState
     lastMousePress: tuple[x, y: int]
@@ -106,7 +102,11 @@ proc windowToClient(
 ): tuple[client: Client, monitor: Monitor]
 proc windowToMonitor(this: WindowManager, window: Window): Monitor
 
-proc newWindowManager*(eventManager: XEventManager, config: Config, configTable: TomlTable): WindowManager =
+proc newWindowManager*(
+  eventManager: XEventManager,
+  config: Config,
+  configTable: TomlTable
+): WindowManager =
   result = WindowManager()
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
@@ -115,22 +115,15 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
   discard XSetErrorHandler(errorHandler)
 
   # Config setup
-  result.config = config
-
   try:
-    result.config.populateGeneralSettings(configTable)
-  except:
-    log getCurrentExceptionMsg(), lvlError
-
-  result.mapConfigActions()
-
-  try:
+    result.config = config
+    result.mapConfigActions()
     result.config.populateKeyComboTable(configTable, result.display)
+    result.config.populateGeneralSettings(configTable)
+    result.config.hookConfig()
+    result.hookConfigKeys()
   except:
     log getCurrentExceptionMsg(), lvlError
-
-  result.config.hookConfig()
-  result.hookConfigKeys()
 
   result.windowSettings = result.config.windowSettings
   # Populate atoms
@@ -140,10 +133,10 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
   result.initListeners()
 
   # Create monitors
-  for area in result.display.getMonitorAreas(result.rootWindow):
-    result.monitors.add(
-      newMonitor(result.display, result.rootWindow, area, result.config)
-    )
+  for i, area in result.display.getMonitorAreas(result.rootWindow):
+    let id: MonitorID = i + 1
+    result.monitors[id] =
+      newMonitor(id, result.display, result.rootWindow, area, result.config)
 
   result.renderStatus()
 
@@ -226,16 +219,17 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
     )
 
   block setDesktopNames:
-    var tags: array[tagCount, cstring] =
-      ["1".cstring,
-       "2".cstring,
-       "3".cstring,
-       "4".cstring,
-       "5".cstring,
-       "6".cstring,
-       "7".cstring,
-       "8".cstring,
-       "9".cstring]
+    var tags: array[tagCount, cstring] = [
+      "1".cstring,
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ]
     var text: XTextProperty
     discard Xutf8TextListToTextProperty(
       result.display,
@@ -252,7 +246,7 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
 
   block setDesktopViewport:
     var data = newSeq[seq[clong]]()
-    for monitor in result.monitors:
+    for monitor in result.monitors.values():
       data.add(
         @[monitor.area.x.clong, monitor.area.y.clong]
       )
@@ -268,15 +262,21 @@ proc newWindowManager*(eventManager: XEventManager, config: Config, configTable:
       data.len
     )
 
-  result.setSelectedMonitor(result.monitors[0])
+  result.setSelectedMonitor(result.monitors[1])
   result.updateSystray()
 
+template selectedMonitorConfig(this: WindowManager): MonitorSettings =
+  if this.config.monitorSettings.hasKey(this.selectedMonitor.id):
+    this.config.monitorSettings[this.selectedMonitor.id]
+  else:
+    this.config.defaultMonitorSettings
+
 template systrayMonitor(this: WindowManager): Monitor =
-  this.monitors[systrayMonitorIndex]
+  this.monitors[systrayMonitorID]
 
 proc reloadConfig*(this: WindowManager) =
   # Remove old config listener.
-  this.eventManager.removeListener(this.config.listener, KeyPress)
+  this.eventManager.removeListener(this.config.xEventListener, KeyPress)
 
   let
     oldConfig = this.config
@@ -286,10 +286,10 @@ proc reloadConfig*(this: WindowManager) =
 
   try:
     let configTable = configloader.loadConfigFile()
-    this.config.populateGeneralSettings(configTable)
-    logger.enabled = this.config.loggingEnabled
     this.mapConfigActions()
     this.config.populateKeyComboTable(configTable, this.display)
+    this.config.populateGeneralSettings(configTable)
+    logger.enabled = this.config.loggingEnabled
   except:
     logger.enabled = oldLoggingEnabled
     # If the config fails to load, restore the old config.
@@ -300,7 +300,7 @@ proc reloadConfig*(this: WindowManager) =
   this.hookConfigKeys()
 
   this.windowSettings = this.config.windowSettings
-  for monitor in this.monitors:
+  for monitor in this.monitors.mvalues():
     monitor.setConfig(this.config)
     monitor.redrawStatusBar()
 
@@ -354,9 +354,11 @@ proc configureRootWindow(this: WindowManager): Window =
   discard XSync(this.display, false)
 
 proc focusMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex == -1:
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     return
-  var monitor = this.monitors[monitorIndex]
+
+  var monitor = this.monitors[monitorID]
 
   if monitor.taggedClients.currClient == nil:
     let center = monitor.area.center()
@@ -376,11 +378,11 @@ proc focusMonitor(this: WindowManager, monitorIndex: int) =
       this.display.warpTo(c)
 
 proc focusPreviousMonitor(this: WindowManager) =
-  let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
+  let previousMonitorIndex = this.monitors.valuesToSeq().findPrevious(this.selectedMonitor)
   this.focusMonitor(previousMonitorIndex)
 
 proc focusNextMonitor(this: WindowManager) =
-  let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
+  let nextMonitorIndex = this.monitors.valuesToSeq().findNext(this.selectedMonitor)
   this.focusMonitor(nextMonitorIndex)
 
 proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
@@ -393,7 +395,8 @@ proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
   this.selectedMonitor.statusBar.setIsMonitorSelected(true)
 
 proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
-  if monitorIndex notin {this.monitors.low .. this.monitors.high}:
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     return
 
   let startMonitor = this.selectedMonitor
@@ -402,7 +405,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   if client == nil:
     return
 
-  this.setSelectedMonitor(this.monitors[monitorIndex])
+  this.setSelectedMonitor(this.monitors[monitorID])
 
   if startMonitor.removeWindow(client.window):
     startMonitor.doLayout(false)
@@ -434,11 +437,11 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   this.selectedMonitor.focusClient(client, true)
 
 proc moveClientToPreviousMonitor(this: WindowManager) =
-  let previousMonitorIndex = this.monitors.findPrevious(this.selectedMonitor)
+  let previousMonitorIndex = this.monitors.valuesToSeq().findPrevious(this.selectedMonitor)
   this.moveClientToMonitor(previousMonitorIndex)
 
 proc moveClientToNextMonitor(this: WindowManager) =
-  let nextMonitorIndex = this.monitors.findNext(this.selectedMonitor)
+  let nextMonitorIndex = this.monitors.valuesToSeq().findNext(this.selectedMonitor)
   this.moveClientToMonitor(nextMonitorIndex)
 
 proc increaseMasterCount(this: WindowManager) =
@@ -465,10 +468,11 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-proc goToTag(this: WindowManager, tagID: var TagID) =
+proc goToTag(this: WindowManager, tagID: TagID) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
 
+  var destTag = tagID
   if selectedTags.len == 1:
     # Find the only selected tag
     var selectedTag: TagID
@@ -477,14 +481,14 @@ proc goToTag(this: WindowManager, tagID: var TagID) =
       break
 
     # If attempting to select the same single tag, view the previous tag instead.
-    if this.selectedMonitor.previousTagID != 0 and selectedTag == tagID:
+    if this.selectedMonitor.previousTagID != 0 and selectedTag == destTag:
       # Change the tag ID which is used later.
-      tagID = this.selectedMonitor.previousTagID
+      destTag = this.selectedMonitor.previousTagID
 
     # Swap the previous tag.
     this.selectedMonitor.previousTagID = selectedTag
 
-  this.selectedMonitor.setSelectedTags(tagID)
+  this.selectedMonitor.setSelectedTags(destTag)
   this.selectedMonitor.taggedClients.withSomeCurrClient(client):
     this.display.warpTo(client)
 
@@ -494,7 +498,7 @@ proc jumpToUrgentWindow(this: WindowManager) =
     urgentMonitor: Monitor
 
   # Find the first urgent window.
-  for monitor in this.monitors:
+  for monitor in this.monitors.values():
     for client in monitor.taggedClients.clientSelection:
       if client.isUrgent:
         urgentClient = client
@@ -531,76 +535,76 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-template createControl(keycode: untyped, id: string, action: untyped) =
-  this.config.configureAction(id, proc(keycode: int) = action)
+template createControl(keyCombo: untyped, id: string, action: untyped) =
+  this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  createControl(keycode, "reloadConfig"):
+  createControl(keyCombo, "reloadConfig"):
     this.reloadConfig()
 
-  createControl(keycode, "increaseMasterCount"):
+  createControl(keyCombo, "increaseMasterCount"):
     this.increaseMasterCount()
 
-  createControl(keycode, "decreaseMasterCount"):
+  createControl(keyCombo, "decreaseMasterCount"):
     this.decreaseMasterCount()
 
-  createControl(keycode, "moveWindowToPreviousMonitor"):
+  createControl(keyCombo, "moveWindowToPreviousMonitor"):
     this.moveClientToPreviousMonitor()
 
-  createControl(keycode, "moveWindowToNextMonitor"):
+  createControl(keyCombo, "moveWindowToNextMonitor"):
     this.moveClientToNextMonitor()
 
-  createControl(keycode, "focusPreviousMonitor"):
+  createControl(keyCombo, "focusPreviousMonitor"):
     this.focusPreviousMonitor()
 
-  createControl(keycode, "focusNextMonitor"):
+  createControl(keyCombo, "focusNextMonitor"):
     this.focusNextMonitor()
 
-  createControl(keycode, "goToTag"):
-    var tagID = this.selectedMonitor.keycodeToTag(keycode).id
+  createControl(keyCombo, "goToTag"):
+    var tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     this.goToTag(tagID)
 
-  createControl(keycode, "goToPreviousTag"):
+  createControl(keyCombo, "goToPreviousTag"):
     var previousTag = this.selectedMonitor.previousTagID
     if previousTag != 0:
       this.goToTag(previousTag)
 
-  createControl(keycode, "toggleTagView"):
-    let tag = this.selectedMonitor.keycodeToTag(keycode)
-    this.selectedMonitor.toggleTags(tag.id)
+  createControl(keyCombo, "toggleTagView"):
+    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    this.selectedMonitor.toggleTags(tagID)
 
-  createControl(keycode, "toggleWindowTag"):
+  createControl(keyCombo, "toggleWindowTag"):
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      let tag = this.selectedMonitor.keycodeToTag(keycode)
-      this.selectedMonitor.toggleTagsForClient(client, tag.id)
+      let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+      this.selectedMonitor.toggleTagsForClient(client, tagID)
 
-  createControl(keycode, "focusNext"):
+  createControl(keyCombo, "focusNext"):
     this.selectedMonitor.focusNextClient(true)
 
-  createControl(keycode, "focusPrevious"):
+  createControl(keyCombo, "focusPrevious"):
     this.selectedMonitor.focusPreviousClient(true)
 
-  createControl(keycode, "moveWindowPrevious"):
+  createControl(keyCombo, "moveWindowPrevious"):
     this.selectedMonitor.moveClientPrevious()
 
-  createControl(keycode, "moveWindowNext"):
+  createControl(keyCombo, "moveWindowNext"):
     this.selectedMonitor.moveClientNext()
 
-  createControl(keycode, "moveWindowToTag"):
-    let tag = this.selectedMonitor.keycodeToTag(keycode)
-    this.selectedMonitor.moveSelectedWindowToTag(tag)
+  createControl(keyCombo, "moveWindowToTag"):
+    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    this.selectedMonitor.moveSelectedWindowToTag(tagID)
 
-  createControl(keycode, "toggleFullscreen"):
+  createControl(keyCombo, "toggleFullscreen"):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
-  createControl(keycode, "destroySelectedWindow"):
+  createControl(keyCombo, "destroySelectedWindow"):
     this.destroySelectedWindow()
 
-  createControl(keycode, "toggleFloating"):
+  createControl(keyCombo, "toggleFloating"):
     this.selectedMonitor.toggleFloatingForSelectedClient()
 
-  createControl(keycode, "jumpToUrgentWindow"):
+  createControl(keyCombo, "jumpToUrgentWindow"):
     this.jumpToUrgentWindow()
 
 proc hookConfigKeys*(this: WindowManager) =
@@ -914,7 +918,7 @@ proc updateWMHints(this: WindowManager, client: Client) =
         client.window,
         this.config.windowSettings.borderColorUrgent
       )
-      for monitor in this.monitors:
+      for monitor in this.monitors.values():
         if monitor.taggedClients.contains(client.window):
           monitor.redrawStatusBar()
           break
@@ -1098,7 +1102,7 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
       this.updateSystray()
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
-  for monitor in this.monitors:
+  for monitor in this.monitors.values():
     if not monitor.area.contains(x, y):
       continue
 
@@ -1131,7 +1135,7 @@ proc updateSystray(this: WindowManager) =
 
   let
     backgroundPixel = backgroundColor.pixel
-    barHeight = this.config.barSettings.height
+    barHeight = this.selectedMonitorConfig.barSettings.height
 
   if this.systray == nil:
     this.systray = Systray()
@@ -1249,7 +1253,8 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
   if icon == nil:
     return
 
-  let barHeight = this.config.barSettings.height
+
+  let barHeight = this.selectedMonitorConfig.barSettings.height
   icon.height = barHeight
   if width == height:
     icon.width = barHeight
@@ -1302,7 +1307,7 @@ proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent) =
     return
 
   this.updateSystrayIconGeom(icon, e.width, e.height)
-  let monitor = this.monitors[systrayMonitorIndex]
+  let monitor = this.monitors[systrayMonitorID]
   monitor.statusBar.resizeForSystray(this.systray.getWidth())
   this.updateSystray()
 
@@ -1336,12 +1341,13 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     discard XRaiseWindow(this.display, client.window)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
-  if not this.monitors.isInRange(monitorIndex):
+  let monitorID = monitorIndex + 1
+  if not this.monitors.hasKey(monitorID):
     raise newException(ValueError,  "monitor index " & $monitorIndex & " is out of range")
-  this.monitors[monitorIndex].statusBar.setStatus(status)
+  this.monitors[monitorID].statusBar.setStatus(status)
 
 proc setStatusForAllMonitors(this: WindowManager, status: string) =
-  for monitor in this.monitors:
+  for monitor in this.monitors.values():
     monitor.statusBar.setStatus(status)
 
 proc renderStatus(this: WindowManager) =
@@ -1369,7 +1375,7 @@ proc renderStatus(this: WindowManager) =
       log(msg, lvlError)
 
 proc windowToMonitor(this: WindowManager, window: Window): Monitor =
-  for monitor in this.monitors:
+  for monitor in this.monitors.values():
     if window == monitor.statusBar.barWindow:
       return monitor
     if monitor.taggedClients.contains(window):
@@ -1382,7 +1388,7 @@ proc windowToClient(
   ## Finds a client based on its window.
   ## Both the returned values will either be nil, or valid.
   var client: Client
-  for monitor in this.monitors:
+  for monitor in this.monitors.values():
     client = monitor.taggedClients.findByWindow(window)
     if client != nil:
       return (client, monitor)
@@ -1418,7 +1424,7 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
         this.updateSizeHints(client, monitor)
       of XA_WM_HINTS:
         this.updateWMHints(client)
-        for monitor in this.monitors:
+        for monitor in this.monitors.values():
           monitor.redrawStatusBar()
       else:
         discard
@@ -1470,34 +1476,27 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
     return
 
   var client = this.moveResizingClient
+  # Unset the client being moved/resized
+  this.moveResizingClient = nil
 
   # Check if we are on a new monitor.
   let
     centerX = client.x + client.width.int div 2
     centerY = client.y + client.height.int div 2
 
-  let monitorIndex = this.monitors.find(centerX, centerY)
+  let (_, nextMonitor) = this.monitors.find(centerX, centerY)
 
-  if monitorIndex notin {this.monitors.low .. this.monitors.high} or
-     this.monitors[monitorIndex] == this.selectedMonitor:
-    this.moveResizingClient = nil
+  if nextMonitor == nil or nextMonitor == this.selectedMonitor:
     return
 
-  let
-    nextMonitor = this.monitors[monitorIndex]
-    prevMonitor = this.selectedMonitor
+  let prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag
   if not prevMonitor.removeWindow(client.window):
     log "Failed to remove window " & $client.window & " from monitor"
-    this.moveResizingClient = nil
     return
 
-  nextMonitor.addClient(client)
-
   # NOTE: `nextMonitor` is set as the selectedMonitor via `onMotionNotify`
-
-  # Unset the client being moved/resized
-  this.moveResizingClient = nil
+  nextMonitor.addClient(client)
 
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
   if this.mouseState == Normal or this.moveResizingClient == nil:

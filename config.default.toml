@@ -41,8 +41,8 @@ exec = [
   barSelectionColor = "#50fa7b"
   barUrgentColor = "#ff5555"
   barFonts = [
-    "monospace:size=10:anialias=false",
-    "NotoColorEmoji:size=10:anialias=false"
+    "monospace:size=10:antialias=true",
+    "NotoColorEmoji:size=10:antialias=true"
   ]
   # General settings
   loggingEnabled = false
@@ -77,25 +77,9 @@ exec = [
   keys = [ "q" ]
   modifiers = [ "super", "shift" ]
 
-  [controls.moveWindowToTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "shift" ]
-
-  [controls.goToTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super" ]
-
   [controls.goToPreviousTag]
   keys = [ "w" ]
   modifiers = [ "super" ]
-
-  [controls.toggleTagView]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "control" ]
-
-  [controls.toggleWindowTag]
-  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
-  modifiers = [ "super", "shift", "control" ]
 
   [controls.focusPreviousMonitor]
   keys = [ "comma" ]
@@ -128,4 +112,31 @@ exec = [
   [controls.jumpToUrgentWindow]
   keys = [ "u" ]
   modifiers = [ "super" ]
+
+  [controls.goToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super" ]
+
+  [controls.moveWindowToTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.toggleTagView]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super", "control" ]
+
+  [controls.toggleWindowTag]
+  keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super", "shift", "control" ]
+
+[monitors]
+  [monitors.default]
+  tags.1.displayString = "one"
+  tags.2.displayString = "foobar"
+
+  [monitors.1.tags]
+  2.displayString = "two"
+
+  [monitors.2.tags]
+  2.displayString = "too"
 

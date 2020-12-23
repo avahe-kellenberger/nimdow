@@ -7,7 +7,8 @@ import
   x11 / [x,  xlib],
   "../keys/keyutils",
   "../event/xeventmanager",
-  "../logger"
+  "../logger",
+  "../tag"
 
 var configLoc*: string
 
@@ -22,32 +23,43 @@ proc findConfigPath*(): string =
 
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
-  Action* = proc(keycode: int): void
-  WindowSettings* = ref object
+  Action* = proc(keyCombo: KeyCombo): void
+
+  WindowSettings* = object
     gapSize*: uint
     tagCount*: uint
     borderColorUnfocused*: int
     borderColorFocused*: int
     borderColorUrgent*: int
     borderWidth*: uint
-  BarSettings* = ref object
+  BarSettings* = object
     height*: uint
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
+  TagSettings* = OrderedTable[TagID, TagSetting]
+  MonitorSettings* = object
+    tagSettings*: TagSettings
+    barSettings*: BarSettings
+  MonitorSettingsRef* = ref MonitorSettings
+
+  MonitorID* = int
   Config* = ref object
     eventManager: XEventManager
-    identifierTable*: Table[string, Action]
+    actionIdentifierTable*: Table[string, Action]
     keyComboTable*: Table[KeyCombo, Action]
     windowSettings*: WindowSettings
-    barSettings*: BarSettings
-    listener*: XEventListener
+    xEventListener*: XEventListener
     loggingEnabled*: bool
+    tagKeys*: seq[string]
+    defaultMonitorSettings*: MonitorSettings
+    # Specific monitor settings
+    monitorSettings*: Table[MonitorID, MonitorSettings]
 
 proc newConfig*(eventManager: XEventManager): Config =
   Config(
     eventManager: eventManager,
-    identifierTable: initTable[string, Action](),
+    actionIdentifierTable: initTable[string, Action](),
     keyComboTable: initTable[KeyCombo, Action](),
     windowSettings: WindowSettings(
       gapSize: 12,
@@ -57,25 +69,27 @@ proc newConfig*(eventManager: XEventManager): Config =
       borderColorUrgent: 0xff5555,
       borderWidth: 1
     ),
-    barSettings: BarSettings(
-      height: 20,
-      fonts: @[
-        "monospace:size=10:anialias=false",
-        "NotoColorEmoji:size=10:anialias=false"
-      ],
-      fgColor: 0xfce8c3,
-      bgColor: 0x1c1b19,
-      selectionColor: 0x519f50,
-      urgentColor: 0xef2f27
-    ),
     loggingEnabled: false
   )
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
-proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
+proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
-proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo]
+proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string,
+  keys: seq[string]
+): seq[KeyCombo]
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string
+): seq[KeyCombo]
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string]
 proc getModifiersForAction(this: Config, configTable: TomlTable, action: string): seq[TomlValueRef]
 proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string]
@@ -125,20 +139,112 @@ proc bitorModifiers(modifiers: openarray[TomlValueRef]): int =
     result = result or getModifierMask(tomlElement)
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action) =
-  this.identifierTable[actionName] = actionInvokee
+  this.actionIdentifierTable[actionName] = actionInvokee
 
 proc configureExternalProcess(this: Config, command: string) =
-  this.identifierTable[command] =
-    proc(keycode: int) =
+  this.actionIdentifierTable[command] =
+    proc(keyCombo: KeyCombo) =
       this.runCommands(command)
 
 proc hookConfig*(this: Config) =
-  this.listener = proc(e: XEvent) =
+  this.xEventListener = proc(e: XEvent) =
     let mask: int = cleanMask(int(e.xkey.state))
     let keyCombo: KeyCombo = (int(e.xkey.keycode), mask)
     if this.keyComboTable.hasKey(keyCombo):
-      this.keyComboTable[keyCombo](keyCombo.keycode)
-  this.eventManager.addListener(this.listener, KeyPress)
+      this.keyComboTable[keyCombo](keyCombo)
+  this.eventManager.addListener(this.xEventListener, KeyPress)
+
+proc populateDefaultTagSettings(this: var TagSettings, display: PDisplay) =
+  for i in 1..tagCount:
+    this[i] = TagSetting(
+      displayString: $i
+    )
+
+proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
+  this.defaultMonitorSettings = MonitorSettings()
+
+  this.defaultMonitorSettings.barSettings = BarSettings(
+      height: 20,
+      fonts: @[
+        "monospace:size=10:anialias=false",
+        "NotoColorEmoji:size=10:anialias=false"
+      ],
+      fgColor: 0xfce8c3,
+      bgColor: 0x1c1b19,
+      selectionColor: 0x519f50,
+      urgentColor: 0xef2f27
+  )
+
+  this.defaultMonitorSettings.tagSettings.populateDefaultTagSettings(display)
+
+proc populateTagSettings(this: var MonitorSettings, tagSettingsTable: TomlTableRef, display: PDisplay) =
+  for tagIDstr, settingsToml in tagSettingsTable.pairs():
+    if settingsToml.kind != TomlValueKind.Table:
+      log "Settings table incorrect type for tag ID: " & tagIDstr
+      continue
+
+    # Parse the tag ID.
+    var tagID: int
+    try:
+      tagID = parseInt(tagIDstr)
+    except:
+      log "Invalid tag id: " & tagIDstr
+      continue
+
+    let currentTagSettingsTable = settingsToml.tableVal
+    var currentTagSettings: TagSetting = this.tagSettings[tagID]
+
+    if currentTagSettingsTable.hasKey("displayString"):
+      let displayString = currentTagSettingsTable["displayString"]
+      if displayString.kind == TomlValueKind.String:
+        currentTagSettings.displayString = displayString.stringVal
+
+proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
+  this.populateDefaultMonitorSettings(display)
+
+  if not configTable.hasKey("monitors"):
+    return
+
+  let monitorsTable = configTable["monitors"]
+  if monitorsTable.kind != TomlValueKind.Table:
+    raise newException(Exception, "Invalid monitors config table")
+
+  # Change default monitor settings.
+  if monitorsTable.hasKey("default"):
+    let settingsTable = configTable["settings"].tableVal
+    this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
+
+    let changedDefaults = monitorsTable["default"]
+    if changedDefaults.hasKey("tags"):
+      let tagsTable = changedDefaults["tags"]
+      if tagsTable.kind == TomlValueKind.Table:
+        this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
+
+  # Populate settings per-monitor
+  for monitorIDStr, settingsToml in monitorsTable.tableVal.pairs():
+    if monitorIDStr == "default":
+      continue
+
+    if settingsToml.kind != TomlValueKind.Table:
+      log "Settings table incorrect type for monitor ID: " & monitorIDStr
+      continue
+
+    # Parse the ID into a integer.
+    var monitorID: MonitorID
+    try:
+      monitorID = parseInt(monitorIDStr)
+    except:
+      log "Invalid monitor ID: " & monitorIDStr, lvlError
+      continue
+
+    var monitorSettings: MonitorSettings = deepcopy this.defaultMonitorSettings
+
+    if settingsToml.hasKey("tags"):
+      let tagsTable = settingsToml["tags"]
+      if tagsTable.kind == TomlValueKind.Table:
+        monitorSettings.populateTagSettings(tagsTable.tableVal, display)
+
+    this.monitorSettings[monitorID] = monitorSettings
 
 proc populateControlsTable(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("controls"):
@@ -146,9 +252,9 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
   # Populate window manager controls
   let controlsTable = configTable["controls"]
   if controlsTable.kind != TomlValueKind.Table:
-    raise newException(Exception, "Invalid config table")
+    raise newException(Exception, "Invalid controls config table")
 
-  for action in controlsTable.tableVal[].keys():
+  for action in controlsTable.tableVal.keys():
     this.populateControlAction(display, action, controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
@@ -184,27 +290,27 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
       raise newException(Exception, valueName & " is not a proper hex value! Ensure it is wrapped in double quotes")
   return -1
 
-proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
+proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef) =
   let bgColor = this.loadHexValue(settingsTable, "barBackgroundColor")
   if bgColor != -1:
-    this.barSettings.bgColor = bgColor
+    barSettings.bgColor = bgColor
 
   let fgColor = this.loadHexValue(settingsTable, "barForegroundColor")
   if fgColor != -1:
-    this.barSettings.fgColor = fgColor
+    barSettings.fgColor = fgColor
 
   let selectionColor = this.loadHexValue(settingsTable, "barSelectionColor")
   if selectionColor != -1:
-    this.barSettings.selectionColor = selectionColor
+    barSettings.selectionColor = selectionColor
 
   let urgentColor = this.loadHexValue(settingsTable, "barUrgentColor")
   if urgentColor != -1:
-    this.barSettings.urgentColor = urgentColor
+    barSettings.urgentColor = urgentColor
 
   if settingsTable.hasKey("barHeight"):
     let barHeight = settingsTable["barHeight"]
     if barHeight.kind == TomlValueKind.Int:
-      this.barSettings.height = max(0, barHeight.intVal).uint
+      barSettings.height = max(0, barHeight.intVal).uint
 
   if settingsTable.hasKey("barFonts"):
     let barFonts = settingsTable["barFonts"]
@@ -217,13 +323,14 @@ proc populateBarSettings*(this: Config, settingsTable: TomlTableRef) =
         fonts.add(font.stringVal)
       else:
         raise newException(Exception, "Invalid font - must be a string!")
-    this.barSettings.fonts = fonts
+    barSettings.fonts = fonts
 
 proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if not configTable.hasKey("settings") or configTable["settings"].kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid settings table")
 
   let settingsTable = configTable["settings"].tableVal
+  this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
 
   # Window settings
   if settingsTable.hasKey("gapSize"):
@@ -253,7 +360,8 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
     this.windowSettings.borderColorUrgent = urgentBorderVal
 
   # Bar settings
-  this.populateBarSettings(settingsTable)
+  for monitorSettings in this.monitorSettings.mvalues():
+    this.populateBarSettings(monitorSettings.barSettings, settingsTable)
 
   # General settings
   if settingsTable.hasKey("loggingEnabled"):
@@ -266,6 +374,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.
   this.populateControlsTable(configTable, display)
+  this.populateMonitorSettings(configTable, display)
   this.populateExternalProcessSettings(configTable, display)
 
 proc loadConfigFile*(): TomlTable =
@@ -282,23 +391,41 @@ proc loadConfigFile*(): TomlTable =
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombos = this.getKeyCombos(configTable, display, action)
   for keyCombo in keyCombos:
-    if this.identifierTable.hasKey(action):
-      this.keyComboTable[keyCombo] = this.identifierTable[action]
+    if this.actionIdentifierTable.hasKey(action):
+      this.keyComboTable[keyCombo] = this.actionIdentifierTable[action]
     else:
       raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
 
-proc getKeyCombos(this: Config, configTable: TomlTable, display: PDisplay, action: string): seq[KeyCombo] =
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string,
+  keys: seq[string]
+): seq[KeyCombo] =
   ## Gets the KeyCombos associated with the given `action` from the table.
   let modifierArray = this.getModifiersForAction(configTable, action)
   let modifiers: int = bitorModifiers(modifierArray)
-  let keys: seq[string] = this.getKeysForAction(configTable, action)
   for key in keys:
     let keycode = key.toKeycode(display)
     result.add((keycode, cleanMask(modifiers)))
 
+proc getKeyCombos(
+  this: Config,
+  configTable: TomlTable,
+  display: PDisplay,
+  action: string
+): seq[KeyCombo] =
+  return this.getKeyCombos(
+    configTable,
+    display,
+    action,
+    this.getKeysForAction(configTable, action)
+  )
+
 proc getKeysForAction(this: Config, configTable: TomlTable, action: string): seq[string] =
   if not configTable.hasKey("keys"):
-    log "\"keys\" not found in config tabile for action \"" & action & "\"", lvlError
+    log "\"keys\" not found in config table for action \"" & action & "\"", lvlError
     return
   var tomlKeys = configTable["keys"]
   if tomlKeys.kind != TomlValueKind.Array:

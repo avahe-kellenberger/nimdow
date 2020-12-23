@@ -12,8 +12,8 @@ import
   area,
   layouts/layout,
   layouts/masterstacklayout,
-  keys/keyutils,
   config/configloader,
+  keys/keyutils,
   statusbar,
   logger
 
@@ -28,11 +28,14 @@ const masterSlots = 1
 
 type
   Monitor* = ref object of RootObj
+    id*: MonitorID
     display: PDisplay
     rootWindow: Window
     statusBar*: StatusBar
     area*: Area
-    config: WindowSettings
+    config: Config
+    monitorSettings: MonitorSettings
+    windowSettings: WindowSettings
     # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
     layoutOffset: LayoutOffset
@@ -45,17 +48,25 @@ proc updateCurrentDesktopProperty(this: Monitor)
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true)
 
 proc newMonitor*(
+  id: MonitorID,
   display: PDisplay,
   rootWindow: Window,
   area: Area,
   currentConfig: Config
 ): Monitor =
   result = Monitor()
+  result.id = id
   result.display = display
   result.rootWindow = rootWindow
   result.area = area
-  let barArea: Area = (area.x, 0, area.width, currentConfig.barSettings.height)
-  result.config = currentConfig.windowSettings
+  result.config = currentConfig
+  if currentConfig.monitorSettings.hasKey(id):
+    result.monitorSettings = currentConfig.monitorSettings[id]
+  else:
+    result.monitorSettings = currentConfig.defaultMonitorSettings
+
+  let barArea: Area = (area.x, 0, area.width, result.monitorSettings.barSettings.height)
+  result.windowSettings = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
   result.taggedClients = newTaggedClients(tagCount)
@@ -74,13 +85,7 @@ proc newMonitor*(
   # Select the 2nd tag as the previous tag.
   result.previousTagID = result.taggedClients.tags[1].id
 
-  # Dynamically calculate the smallest needed size.
-  # Must be a power of 2.
-  var initialSize: int = 2
-  while initialSize < tagCount:
-    initialSize *= 2
-
-  result.taggedClients.selectedTags = initOrderedSet[TagID](initialSize)
+  result.taggedClients.selectedTags = initOrderedSet[TagID](tagCount)
   result.taggedClients.selectedTags.incl(1)
 
   result.updateCurrentDesktopProperty()
@@ -88,8 +93,9 @@ proc newMonitor*(
     display.newStatusBar(
       rootWindow,
       barArea,
-      currentConfig.barSettings,
-      result.taggedClients
+      result.monitorSettings.barSettings,
+      result.taggedClients,
+      result.monitorSettings.tagSettings
     )
 
 ########################################################
@@ -115,7 +121,7 @@ proc updateWindowBorders(this: Monitor) =
       discard XSetWindowBorder(
         this.display,
         n.value.window,
-        this.config.borderColorUnfocused
+        this.windowSettings.borderColorUnfocused
       )
 
   this.taggedClients.withSomeCurrClient(c):
@@ -123,22 +129,28 @@ proc updateWindowBorders(this: Monitor) =
       discard XSetWindowBorder(
         this.display,
         c.window,
-        this.config.borderColorFocused
+        this.windowSettings.borderColorFocused
       )
 
 proc setConfig*(this: Monitor, config: Config) =
-  this.config = config.windowSettings
-  for tag in this.tags:
-    tag.layout.gapSize = this.config.gapSize
-    tag.layout.borderWidth = this.config.borderWidth
+  this.config = config
+  this.windowSettings = config.windowSettings
+  if config.monitorSettings.hasKey(this.id):
+    this.monitorSettings = config.monitorSettings[this.id]
+  else:
+    this.monitorSettings = config.defaultMonitorSettings
 
-  this.layoutOffset = (config.barSettings.height, 0.uint, 0.uint, 0.uint)
-  this.statusBar.setConfig(config.barSettings)
+  for tag in this.tags:
+    tag.layout.gapSize = this.windowSettings.gapSize
+    tag.layout.borderWidth = this.windowSettings.borderWidth
+
+  this.layoutOffset = (this.monitorSettings.barSettings.height, 0.uint, 0.uint, 0.uint)
+  this.statusBar.setConfig(this.monitorSettings.barSettings, this.monitorSettings.tagSettings)
 
   for client in this.taggedClients.clients:
     if client.borderWidth != 0:
-      client.borderWidth = this.config.borderWidth
-    client.oldBorderWidth = this.config.borderWidth
+      client.borderWidth = this.windowSettings.borderWidth
+    client.oldBorderWidth = this.windowSettings.borderWidth
     if client.isFloating or client.isFixed:
       client.adjustToState(this.display)
 
@@ -199,13 +211,13 @@ proc updateCurrentDesktopProperty(this: Monitor) =
       1
     )
 
-proc keycodeToTag*(this: Monitor, keycode: int): Tag =
+proc keycodeToTagID*(this: Monitor, keycode: int): TagID =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 1 or tagNumber > this.tags.len:
       raise newException(Exception, "Invalid tag number: " & tagNumber)
 
-    return this.tags[tagNumber - 1]
+    return this.tags[tagNumber - 1].id
   except:
     log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 
@@ -371,17 +383,17 @@ proc addClient*(this: Monitor, client: var Client) =
   client.tagIDs.clear()
   this.toggleSelectedTagsForClient(client)
 
-proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
-  if client.tagIDs.len == 1 and destinationTag.id in client.tagIDs:
+proc moveClientToTag*(this: Monitor, client: Client, destinationTagID: TagID) =
+  if client.tagIDs.len == 1 and destinationTagID in client.tagIDs:
     return
 
   # Change client tags to only destinationTag id.
   client.tagIDs.clear()
-  client.tagIDs.incl(destinationTag.id)
+  client.tagIDs.incl(destinationTagID)
 
   this.doLayout()
 
-  if destinationTag.id in this.selectedTags:
+  if destinationTagID in this.selectedTags:
     this.setSelectedClient(client)
   else:
     this.setSelectedClient(this.taggedClients.currClient)
@@ -391,9 +403,9 @@ proc moveClientToTag*(this: Monitor, client: Client, destinationTag: Tag) =
     this.statusBar.setActiveWindowTitle("", false)
   this.redrawStatusBar()
 
-proc moveSelectedWindowToTag*(this: Monitor, tag: Tag) =
+proc moveSelectedWindowToTag*(this: Monitor, tagID: TagID) =
   this.taggedClients.withSomeCurrClient(client):
-    this.moveClientToTag(client, tag)
+    this.moveClientToTag(client, tagID)
 
 proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
   ## Views the given tags.
@@ -533,7 +545,7 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
   if floating:
     if client.borderWidth == 0:
       client.oldBorderWidth = 0
-      client.borderWidth = this.config.borderWidth
+      client.borderWidth = this.windowSettings.borderWidth
     if client.totalWidth() > this.area.width:
       client.width = this.area.width - client.borderWidth * 2
     if client.totalHeight() > this.area.height - this.statusBar.area.height:
@@ -567,13 +579,13 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
       return i - 1
   return -1
 
-proc find*(monitors: openArray[Monitor], x, y: int): int =
+proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): tuple[index: int, monitor: Monitor] =
   ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
 
   for i, monitor in monitors:
     if monitor.area.contains(x, y):
-      return i
+      return (i, monitor)
 
   var shortestDist = float.high
   # Find the closest monitor based on distance to its center.
@@ -581,5 +593,5 @@ proc find*(monitors: openArray[Monitor], x, y: int): int =
     let dist = min(shortestDist, monitor.area.distanceToCenterSquared(x, y))
     if dist < shortestDist:
       shortestDist = dist
-      result = i
+      result = (i, monitor)
 

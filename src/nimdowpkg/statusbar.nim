@@ -21,12 +21,13 @@ converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  cellWidth = 21
+  boxWidth = 4
   rightPadding = 4
 
 type
   StatusBar* = object
     settings: BarSettings
+    tagSettings*: OrderedTable[TagID, TagSetting]
     isMonitorSelected: bool
     status: string
     activeWindowTitle: string
@@ -57,10 +58,12 @@ proc newStatusBar*(
     rootWindow: Window,
     area: Area,
     settings: BarSettings,
-    taggedClients: TaggedClients
+    taggedClients: TaggedClients,
+    tagSettings: OrderedTable[TagID, TagSetting]
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.settings = settings
+  result.tagSettings = tagSettings
   result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
   result.visual = DefaultVisual(display, result.screen)
@@ -243,12 +246,13 @@ proc configureFonts(this: var StatusBar) =
   for fontString in this.settings.fonts:
     this.fonts.add(this.configureFont(fontString))
 
-proc setConfig*(this: var StatusBar, config: BarSettings, redraw: bool = true) =
+proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettings, redraw: bool = true) =
   this.freeAllColors()
   for font in this.fonts:
     XftFontClose(this.display, font)
 
   this.settings = config
+  this.tagSettings = tagSettings
   this.area.height = config.height
   this.configureColors()
   this.configureFonts()
@@ -332,8 +336,8 @@ const
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
 
 proc renderStringRightAligned(this: StatusBar, str: string, x: int, defaultColor: XftColor): int =
-  ## Renders a string centered at position x. This supports ANSI CSI SGR colors
-  ## by using the normal 3/4
+  ## Renders a string right aligned to position x.
+  ## This supports ANSI CSI SGR colors by using the normal 3/4
   var
     runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
     stringWidth, xLoc, pos: int
@@ -499,13 +503,30 @@ proc renderStringCentered*(
     )
     xLoc += glyph.xOff
 
-proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
-  ## Renders a string at position x.
-  ## Returns the length of the rendered string in pixels.
+type CharRenderCallback = proc(
+  font: PXftFont,
+  glyph: XGlyphInfo,
+  rune: Rune,
+  runeAddr: PFcChar8
+)
+
+proc calcStringRenderLength*(
+  this: StatusBar,
+  str: string,
+  x: int,
+  color: XftColor,
+  characterCallback: CharRenderCallback =
+    proc(
+      font: PXftFont,
+      glyph: XGlyphInfo,
+      rune: Rune,
+      runeAddr: PFcChar8
+    ) = discard
+): int =
+  ## Returns the length of the string in pixels.
   var
     glyph: XGlyphInfo
     pos = 0
-    xLoc = x
     stringWidth: int
 
   for rune in str.runes:
@@ -514,26 +535,39 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
     for font in this.fonts:
       if XftCharExists(this.display, font, rune.FcChar32) == 1:
         XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
-        let centerY = font.ascent + (this.area.height.int - font.height) div 2
-        XftDrawStringUtf8(
-          this.draw,
-          color.unsafeAddr,
-          font,
-          xLoc,
-          centerY,
-          runeAddr,
-          rune.size
-        )
-        xLoc += glyph.xOff
+        characterCallback(font, glyph, rune, runeAddr)
         stringWidth += glyph.xOff
         break
 
   return stringWidth
 
-proc renderTags(this: StatusBar): int =
-  var textXPos: int
+proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
+  ## Renders a string at position x.
+  ## Returns the length of the rendered string in pixels.
+  var xLoc = x
+  let callback: CharRenderCallback =
+    proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
+      let centerY = font.ascent + (this.area.height.int - font.height) div 2
+      XftDrawStringUtf8(
+        this.draw,
+        color.unsafeAddr,
+        font,
+        xLoc,
+        centerY,
+        runeAddr,
+        rune.size
+      )
+      xLoc += glyph.xOff
+  return this.calcStringRenderLength(str, x, color, callback)
 
-  for tag in this.tags:
+proc renderTags(this: StatusBar): int =
+  # Tag rendering layout is as follows:
+  # <space><box><tag text><space><space>
+  # Each <space> is the same width as the <box>
+
+  var textXPos: int = boxWidth * 2
+
+  for tagID, tagSettings in this.tagSettings.pairs():
     # Determine the render color.
     var
       fgColor = this.fgColor
@@ -541,12 +575,10 @@ proc renderTags(this: StatusBar): int =
       tagHasCurrentClient = false
       tagIsUrgent = false
 
-    if this.selectedTags.contains(tag.id):
+    if this.selectedTags.contains(tagID):
       fgColor = this.selectionColor
 
-    let i = tag.id - 1
-
-    for node in this.taggedClients.clientWithTagIter(tag.id):
+    for node in this.taggedClients.clientWithTagIter(tagID):
       tagIsEmpty = false
       let client = node.value
       tagIsUrgent = tagIsUrgent or client.isUrgent
@@ -555,18 +587,29 @@ proc renderTags(this: StatusBar): int =
         if tagIsUrgent:
           break
 
+    let text = tagSettings.displayString
+    let stringLength = this.calcStringRenderLength(text, textXPos, fgColor)
+
     if not tagIsEmpty:
+      let boxXLoc = textXPos - boxWidth
       if tagIsUrgent:
-        XftDrawRect(this.draw, this.urgentColor.unsafeAddr, i * cellWidth, 0, cellWidth, this.area.height.cuint)
-      XftDrawRect(this.draw, fgColor.addr, i * cellWidth, 0, 4, 4)
+        XftDrawRect(
+          this.draw,
+          this.urgentColor.unsafeAddr,
+          boxXLoc - boxWidth,
+          0,
+          stringLength + boxWidth * 4,
+          this.area.height.cuint
+        )
+      XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, 4, 4)
       if not tagHasCurrentClient:
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
-        XftDrawRect(this.draw, bgColor.addr, i * cellWidth + 1, 1, 2, 2)
+        XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
-    textXPos = cellWidth div 2 + cellWidth * i
-    discard this.renderString($(i + 1), textXPos, fgColor)
+    discard this.renderString(text, textXPos, fgColor)
+    textXPos += stringLength + boxWidth * 4
 
-  return textXPos + cellWidth
+  return textXPos
 
 proc renderStatus(this: StatusBar): int =
   if this.status.len > 0:
@@ -598,7 +641,7 @@ proc redraw*(this: StatusBar) =
   this.clearBar()
   let
     tagLengthPixels = this.renderTags()
-    maxRenderX = this.currentWidth - this.renderStatus() - cellWidth
+    maxRenderX = this.currentWidth - this.renderStatus() - (boxWidth * 2 + rightPadding)
   this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
