@@ -129,14 +129,3 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
-[monitors]
-  [monitors.default]
-  tags.1.displayString = "one"
-  tags.2.displayString = "foobar"
-
-  [monitors.1.tags]
-  2.displayString = "two"
-
-  [monitors.2.tags]
-  2.displayString = "too"
-
