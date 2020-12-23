@@ -1476,33 +1476,27 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
     return
 
   var client = this.moveResizingClient
+  # Unset the client being moved/resized
+  this.moveResizingClient = nil
 
   # Check if we are on a new monitor.
   let
     centerX = client.x + client.width.int div 2
     centerY = client.y + client.height.int div 2
 
-  let monitorIndex = this.monitors.find(centerX, centerY)
+  let (_, nextMonitor) = this.monitors.find(centerX, centerY)
 
-  if monitorIndex < 0:
-    this.moveResizingClient = nil
+  if nextMonitor == nil or nextMonitor == this.selectedMonitor:
     return
 
-  let
-    nextMonitor = this.monitors[monitorIndex]
-    prevMonitor = this.selectedMonitor
+  let prevMonitor = this.selectedMonitor
   # Remove client from current monitor/tag
   if not prevMonitor.removeWindow(client.window):
     log "Failed to remove window " & $client.window & " from monitor"
-    this.moveResizingClient = nil
     return
 
-  nextMonitor.addClient(client)
-
   # NOTE: `nextMonitor` is set as the selectedMonitor via `onMotionNotify`
-
-  # Unset the client being moved/resized
-  this.moveResizingClient = nil
+  nextMonitor.addClient(client)
 
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
   if this.mouseState == Normal or this.moveResizingClient == nil:

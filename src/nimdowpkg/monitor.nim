@@ -579,13 +579,13 @@ proc findPrevious*(monitors: openArray[Monitor], current: Monitor): int =
       return i - 1
   return -1
 
-proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): int =
+proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): tuple[index: int, monitor: Monitor] =
   ## Finds a monitor's index based on the given location.
   ## -1 is returned if no monitors contain the location.
 
   for i, monitor in monitors:
     if monitor.area.contains(x, y):
-      return i
+      return (i, monitor)
 
   var shortestDist = float.high
   # Find the closest monitor based on distance to its center.
@@ -593,5 +593,5 @@ proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): int =
     let dist = min(shortestDist, monitor.area.distanceToCenterSquared(x, y))
     if dist < shortestDist:
       shortestDist = dist
-      result = i
+      result = (i, monitor)
 
