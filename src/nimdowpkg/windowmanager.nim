@@ -265,6 +265,20 @@ proc newWindowManager*(
   result.setSelectedMonitor(result.monitors[1])
   result.updateSystray()
 
+proc focusRootWindow(this: WindowManager) =
+  discard XSetInputFocus(
+    this.display,
+    this.rootWindow,
+    RevertToPointerRoot,
+    CurrentTime
+  )
+
+proc findByWindow(this: WindowManager, window: Window): Client =
+  for monitor in this.monitors.values():
+    let client = monitor.taggedClients.findByWindow(window)
+    if client != nil:
+      return client
+
 template selectedMonitorConfig(this: WindowManager): MonitorSettings =
   if this.config.monitorSettings.hasKey(this.selectedMonitor.id):
     this.config.monitorSettings[this.selectedMonitor.id]
@@ -1330,12 +1344,24 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
     return
 
-  let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
+  var client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
     # A window is another tag or monitor took focus.
-    return
+    client = this.selectedMonitor.taggedClients.currClient
+    if client == nil:
+      # Focus the root window so a window elsewhere will not get keyboard events.
+      this.focusRootWindow()
+      return
 
-  this.selectedMonitor.setActiveWindowProperty(e.window)
+    # Find the original client window, mark it as urgent.
+    let originalClient = this.findByWindow(e.window)
+    if originalClient != nil:
+      discard XSetInputFocus(this.display, client.window, RevertToPointerRoot, CurrentTime)
+      discard XSync(this.display, false)
+      originalClient.setUrgent(this.display, true)
+      return
+
+  this.selectedMonitor.setActiveWindowProperty(client.window)
   this.selectedMonitor.setSelectedClient(client)
   if client.isFloating:
     discard XRaiseWindow(this.display, client.window)
