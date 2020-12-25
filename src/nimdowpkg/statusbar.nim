@@ -12,6 +12,7 @@ import
   area,
   strut,
   logger,
+  windowtitleposition,
   config/configloader
 
 converter XBoolToBool(x: XBool): bool = bool(x)
@@ -31,6 +32,7 @@ type
     isMonitorSelected: bool
     status: string
     activeWindowTitle: string
+    windowTitlePosition: WindowTitlePosition
     display: PDisplay
     screen: cint
     barWindow*: Window
@@ -63,6 +65,7 @@ proc newStatusBar*(
 ): StatusBar =
   result = StatusBar(display: display, rootWindow: rootWindow)
   result.settings = settings
+  result.windowTitlePosition = settings.windowTitlePosition
   result.tagSettings = tagSettings
   result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
@@ -252,6 +255,7 @@ proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettin
     XftFontClose(this.display, font)
 
   this.settings = config
+  this.windowTitlePosition = this.settings.windowTitlePosition
   this.tagSettings = tagSettings
   this.area.height = config.height
   this.configureColors()
@@ -510,7 +514,7 @@ type CharRenderCallback = proc(
   runeAddr: PFcChar8
 )
 
-proc calcStringRenderLength*(
+proc forEachCharacter*(
   this: StatusBar,
   str: string,
   x: int,
@@ -541,12 +545,14 @@ proc calcStringRenderLength*(
 
   return stringWidth
 
-proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
+proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int, maxX: int = int.high): int =
   ## Renders a string at position x.
   ## Returns the length of the rendered string in pixels.
-  var xLoc = x
+  var xLoc = startX
   let callback: CharRenderCallback =
     proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
+      if xLoc >= maxX:
+        return
       let centerY = font.ascent + (this.area.height.int - font.height) div 2
       XftDrawStringUtf8(
         this.draw,
@@ -558,7 +564,7 @@ proc renderString*(this: StatusBar, str: string, x: int, color: XftColor): int =
         rune.size
       )
       xLoc += glyph.xOff
-  return this.calcStringRenderLength(str, x, color, callback)
+  return this.forEachCharacter(str, startX, color, callback)
 
 proc renderTags(this: StatusBar): int =
   # Tag rendering layout is as follows:
@@ -588,7 +594,7 @@ proc renderTags(this: StatusBar): int =
           break
 
     let text = tagSettings.displayString
-    let stringLength = this.calcStringRenderLength(text, textXPos, fgColor)
+    let stringLength = this.forEachCharacter(text, textXPos, fgColor)
 
     if not tagIsEmpty:
       let boxXLoc = textXPos - boxWidth
@@ -606,7 +612,7 @@ proc renderTags(this: StatusBar): int =
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
         XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
-    discard this.renderString(text, textXPos, fgColor)
+    discard this.renderString(text, fgColor, textXPos)
     textXPos += stringLength + boxWidth * 4
 
   return textXPos
@@ -619,20 +625,37 @@ proc renderStatus(this: StatusBar): int =
       this.fgColor
     )
 
-proc renderActiveWindowTitle(this: StatusBar, minRenderX, maxRenderX: int) =
-  if this.activeWindowTitle.len > 0:
-    let textColor =
-      if this.isMonitorSelected:
-        this.selectionColor
-      else:
-        this.fgColor
-    this.renderStringCentered(
-      this.activeWindowTitle,
-      this.area.width.int div 2,
-      textColor,
-      minRenderX,
-      maxRenderX
-    )
+proc renderActiveWindowTitle(
+  this: StatusBar,
+  minRenderX,
+  maxRenderX: int,
+  position: WindowTitlePosition
+) =
+  if this.activeWindowTitle.len <= 0:
+    return
+
+  let textColor =
+    if this.isMonitorSelected:
+      this.selectionColor
+    else:
+      this.fgColor
+
+  case position:
+    of wtpLeft:
+      discard this.renderString(
+        this.activeWindowTitle,
+        textColor,
+        minRenderX,
+        maxRenderX
+      )
+    of wtpCenter:
+      this.renderStringCentered(
+        this.activeWindowTitle,
+        this.area.width.int div 2,
+        textColor,
+        minRenderX,
+        maxRenderX
+      )
 
 proc clearBar(this: StatusBar) =
   XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.currentWidth, this.area.height)
@@ -642,7 +665,7 @@ proc redraw*(this: StatusBar) =
   let
     tagLengthPixels = this.renderTags()
     maxRenderX = this.currentWidth - this.renderStatus() - (boxWidth * 2 + rightPadding)
-  this.renderActiveWindowTitle(tagLengthPixels, maxRenderX)
+  this.renderActiveWindowTitle(tagLengthPixels, maxRenderX, this.windowTitlePosition)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
   this.isMonitorSelected = isMonitorSelected

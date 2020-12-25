@@ -8,7 +8,8 @@ import
   "../keys/keyutils",
   "../event/xeventmanager",
   "../logger",
-  "../tag"
+  "../tag",
+  "../windowtitleposition"
 
 var configLoc*: string
 
@@ -34,6 +35,7 @@ type
     borderWidth*: uint
   BarSettings* = object
     height*: uint
+    windowTitlePosition*: WindowTitlePosition
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
@@ -165,6 +167,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
   this.defaultMonitorSettings.barSettings = BarSettings(
       height: 20,
+      windowTitlePosition: wtpCenter,
       fonts: @[
         "monospace:size=10:anialias=false",
         "NotoColorEmoji:size=10:anialias=false"
@@ -291,6 +294,19 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
   return -1
 
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef) =
+  if settingsTable.hasKey("windowTitlePosition"):
+    let wtpToml = settingsTable["windowTitlePosition"]
+    if wtpToml.kind != TomlValueKind.String:
+      raise newException(Exception, "windowTitlePosition needs to be a string!")
+
+    let windowTitlePosition = wtpToml.stringVal.toLower()
+    if windowTitlePosition == "center" or windowTitlePosition == "centre":
+      barSettings.windowTitlePosition = wtpCenter
+    elif windowTitlePosition == "left":
+      barSettings.windowTitlePosition = wtpLeft
+    else:
+      raise newException(Exception, "windowTitlePosition needs to be: center, centre, or left!")
+
   let bgColor = this.loadHexValue(settingsTable, "barBackgroundColor")
   if bgColor != -1:
     barSettings.bgColor = bgColor
