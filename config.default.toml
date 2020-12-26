@@ -82,6 +82,10 @@ exec = [
   keys = [ "w" ]
   modifiers = [ "super" ]
 
+  [controls.moveWindowToPreviousTag]
+  keys = [ "w" ]
+  modifiers = [ "super", "shift" ]
+
   [controls.focusPreviousMonitor]
   keys = [ "comma" ]
   modifiers = [ "super" ]

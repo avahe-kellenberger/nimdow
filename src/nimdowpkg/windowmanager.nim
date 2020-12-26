@@ -570,6 +570,11 @@ proc mapConfigActions*(this: WindowManager) =
     if previousTag != 0:
       this.goToTag(previousTag)
 
+  createControl(keyCombo, "moveWindowToPreviousTag"):
+    var previousTagID = this.selectedMonitor.previousTagID
+    if previousTagID != 0:
+      this.selectedMonitor.moveSelectedWindowToTag(previousTagID)
+
   createControl(keyCombo, "toggleTagView"):
     let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     this.selectedMonitor.toggleTags(tagID)
