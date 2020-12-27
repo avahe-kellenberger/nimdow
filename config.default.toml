@@ -36,7 +36,7 @@ exec = [
   borderColorUrgent = "#ff5555"
   # Bar settings
   barHeight = 20
-  windowTitlePosition = "center"
+  windowTitlePosition = "left"
   barBackgroundColor = "#282a36"
   barForegroundColor = "#f8f8f2"
   barSelectionColor = "#50fa7b"
