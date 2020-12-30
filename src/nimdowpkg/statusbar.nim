@@ -339,9 +339,21 @@ const
                  0xa8a8a8, 0xb2b2b2, 0xbcbcbc, 0xc6c6c6,
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
 
-proc renderStringRightAligned(this: StatusBar, str: string, x: int, defaultColor: XftColor): int =
+proc renderStringRightAligned(
+  this: StatusBar,
+  s: string,
+  defaultColor: XftColor,
+  x: int,
+  leftPadding: Natural = 0
+): int =
   ## Renders a string right aligned to position x.
   ## This supports ANSI CSI SGR colors by using the normal 3/4
+  let str =
+    if leftPadding > 0:
+      s.indent(leftPadding)
+    else:
+      s
+
   var
     runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
     stringWidth, xLoc, pos: int
@@ -468,11 +480,9 @@ proc renderStringCentered*(
   str: string,
   x: int,
   color: XftColor,
-  minRenderX: int = 0,
-  maxRenderX: int = 0
+  minRenderX: int = 0
 ) =
   ## Renders a string centered at position x.
-
   var
     runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
     stringWidth, xLoc, pos: int
@@ -493,8 +503,6 @@ proc renderStringCentered*(
   for (rune, font, glyph) in runeInfo:
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
-    if xLoc >= maxRenderX:
-      break
     let centerY = font.ascent + (this.area.height.int - font.height) div 2
     XftDrawStringUtf8(
       this.draw,
@@ -545,14 +553,12 @@ proc forEachCharacter*(
 
   return stringWidth
 
-proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int, maxX: int = int.high): int =
+proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int): int =
   ## Renders a string at position x.
   ## Returns the length of the rendered string in pixels.
   var xLoc = startX
   let callback: CharRenderCallback =
     proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
-      if xLoc >= maxX:
-        return
       let centerY = font.ascent + (this.area.height.int - font.height) div 2
       XftDrawStringUtf8(
         this.draw,
@@ -621,14 +627,14 @@ proc renderStatus(this: StatusBar): int =
   if this.status.len > 0:
     result = this.renderStringRightAligned(
       this.status,
+      this.fgColor,
       this.currentWidth - rightPadding,
-      this.fgColor
+      2
     )
 
 proc renderActiveWindowTitle(
   this: StatusBar,
-  minRenderX,
-  maxRenderX: int,
+  minRenderX: int,
   position: WindowTitlePosition
 ) =
   if this.activeWindowTitle.len <= 0:
@@ -645,16 +651,14 @@ proc renderActiveWindowTitle(
       discard this.renderString(
         this.activeWindowTitle,
         textColor,
-        minRenderX,
-        maxRenderX
+        minRenderX
       )
     of wtpCenter:
       this.renderStringCentered(
         this.activeWindowTitle,
         this.area.width.int div 2,
         textColor,
-        minRenderX,
-        maxRenderX
+        minRenderX
       )
 
 proc clearBar(this: StatusBar) =
@@ -662,10 +666,9 @@ proc clearBar(this: StatusBar) =
 
 proc redraw*(this: StatusBar) =
   this.clearBar()
-  let
-    tagLengthPixels = this.renderTags()
-    maxRenderX = this.currentWidth - this.renderStatus() - (boxWidth * 2 + rightPadding)
-  this.renderActiveWindowTitle(tagLengthPixels, maxRenderX, this.windowTitlePosition)
+  let tagLengthPixels = this.renderTags()
+  this.renderActiveWindowTitle(tagLengthPixels, this.windowTitlePosition)
+  discard this.renderStatus()
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
   this.isMonitorSelected = isMonitorSelected
