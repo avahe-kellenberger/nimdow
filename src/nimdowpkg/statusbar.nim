@@ -16,6 +16,7 @@ import
   config/configloader
 
 converter XBoolToBool(x: XBool): bool = bool(x)
+converter boolToXBool(x: bool): XBool = x.XBool
 converter intToCint(x: int): cint = x.cint
 converter intToCuint(x: int): cuint = x.cuint
 converter uintToCuint(x: uint): cuint = x.cuint
@@ -669,6 +670,7 @@ proc redraw*(this: StatusBar) =
   let tagLengthPixels = this.renderTags()
   this.renderActiveWindowTitle(tagLengthPixels, this.windowTitlePosition)
   discard this.renderStatus()
+  discard XSync(this.display, false)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
   this.isMonitorSelected = isMonitorSelected
