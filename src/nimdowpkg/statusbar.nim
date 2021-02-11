@@ -170,7 +170,7 @@ proc configureBar(this: StatusBar) =
   var strut: Strut
   strut.top = this.area.height
   strut.topStartX = this.area.x.culong
-  strut.topEndX = strut.topStartX + this.currentWidth - 1
+  strut.topEndX = strut.topStartX + this.currentWidth.culong - 1
 
   discard XChangeProperty(
     this.display,
