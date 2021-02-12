@@ -1,5 +1,10 @@
-# Start external programs
+[[appRule]]
+class = "Element"
+instance = "element"
+monitor = 2
+tags = [ 1 ]
 
+# Start external programs
 [[startProcess]]
 command = "pkill nimdow"
 keys = [ "Delete" ]
