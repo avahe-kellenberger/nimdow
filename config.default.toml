@@ -1,8 +1,11 @@
-[[appRule]]
-class = "Element"
-instance = "element"
-monitor = 2
-tags = [ 1 ]
+# App Rules
+# Example:
+# [[appRule]]
+# class = "Element"
+# instance = ""
+# title = ""
+# monitor = 1
+# tags = [ 1, 4, 7 ]
 
 # Start external programs
 [[startProcess]]

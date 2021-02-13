@@ -1,13 +1,18 @@
-import parsetoml
+import
+  parsetoml,
+  strutils
+
+import ../taginfo
 
 const tableName = "appRule"
+const globChar = '*'
 
 type AppRule* = ref object
   title*: string
   class*: string
   instance*: string
   monitorID*: Positive
-  tagIDs*: seq[Positive]
+  tagIDs*: seq[TagID]
 
 proc newAppRule*(): AppRule =
   AppRule(
@@ -42,7 +47,7 @@ proc getMonitorID(appRuleTable: TomlTableRef): Positive =
 
   return monitorID
 
-proc getTagIDs(appRuleTable: TomlTableRef): seq[Positive] =
+proc getTagIDs(appRuleTable: TomlTableRef): seq[TagID] =
   const propertyName = "tags"
   if not appRuleTable.hasKey(propertyName):
     raise newException(Exception, propertyName & " must be provided!")
@@ -61,6 +66,9 @@ proc getTagIDs(appRuleTable: TomlTableRef): seq[Positive] =
     let tagID = tagIDToml.intVal
     if tagID < 1:
       raise newException(Exception, propertyName & " must be an array of positive integers!")
+
+    if tagID > tagCount:
+      raise newException(Exception, propertyName & " cannot be greater than " & $tagCount & "!")
 
     result.add(tagID)
 
@@ -85,4 +93,40 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.monitorID = appRuleTable.getMonitorID()
     appRule.tagIDs = appRuleTable.getTagIDs()
     result.add(appRule)
+
+proc globMatches(str, sub: string): bool =
+  if str.len == 0 or sub.len == 0 or str == sub:
+    return true
+
+  if sub.startsWith(globChar):
+    var substring = sub
+    substring.removePrefix(globChar)
+
+    if sub.endsWith(globChar):
+      # sub is "*bar*" type of search
+      substring.removeSuffix(globChar)
+      return str.contains(substring)
+
+    # sub is "*bar" type of search
+    return str.endsWith(substring)
+
+  elif sub.endsWith(globChar):
+    var substring = sub
+    substring.removeSuffix(globChar)
+
+    if sub.startsWith(globChar):
+      # sub is "*foo*" type of search
+      substring.removePrefix(globChar)
+      return str.contains(substring)
+
+    # sub is "foo*" type of search
+    return str.startsWith(substring)
+
+  return false
+
+proc matches*(this: AppRule, title, instance, class: string): bool =
+  return
+    globMatches(instance, this.instance) and
+    globMatches(class, this.class) and
+    globMatches(title, this.title)
 

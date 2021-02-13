@@ -13,7 +13,7 @@ import
   parseutils,
   tag,
   area,
-  config/configloader,
+  config / [apprules, configloader],
   event/xeventmanager,
   layouts/masterstacklayout,
   keys/keyutils,
@@ -943,6 +943,16 @@ proc setClientState(this: WindowManager, client: Client, state: int) =
     2
   )
 
+proc getAppRule(this: WindowManager, client: Client): AppRule =
+  let classHint = this.display.getWindowClassHint(client.window)
+  if classHint == nil:
+    return nil
+
+  let title = this.display.getWindowName(client.window)
+  for rule in this.config.appRules:
+    if rule.matches(title, $classHint.res_name, $classHint.res_class):
+      return rule
+
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   var
     client: Client
@@ -953,16 +963,21 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     monitor = m
     client = c
   else:
-    # TODO: Assign to monitor & tags based on this.config.appRules
-    let classHint = this.display.getWindowClassHint(window)
-    if classHint != nil:
-      if not isNil(classHint.res_name):
-        echo "name: " & $classHint.res_name
-      if not isNil(classHint.res_class):
-        echo "class: " & $classHint.res_class
-      echo ""
     client = newClient(window)
-    monitor.addClient(client)
+
+    # Assign to monitor & tags based on this.config.appRules
+    let appRule = this.getAppRule(client)
+    if appRule != nil:
+      # Use appRule tags
+      client.tagIDs.clear()
+      for tagID in appRule.tagIDs:
+        client.tagIDs.incl(tagID)
+      # Assign to appRule monitor
+      if this.monitors.hasKey(appRule.monitorID):
+        monitor = this.monitors[appRule.monitorID]
+
+    let appRuleDoesNotHaveValidTags = appRule == nil or appRule.tagIDs.len == 0
+    monitor.addClient(client, appRuleDoesNotHaveValidTags)
     client.x = monitor.area.x + max(0, windowAttr.x)
     client.oldX = client.x
     client.y = monitor.area.y + max(0, windowAttr.y)

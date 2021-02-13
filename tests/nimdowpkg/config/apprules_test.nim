@@ -1,4 +1,5 @@
 import
+  taginfo,
   config/apprules,
   parsetoml
 
@@ -18,7 +19,7 @@ test "valid single app rule":
   doAssert firstRule.class == "Element"
   doAssert firstRule.instance == "element"
   doAssert firstRule.monitorID == 2.Positive
-  doAssert firstRule.tagIDs == @[ 1.Positive, 9 ]
+  doAssert firstRule.tagIDs == @[ 1.TagID, 9 ]
 
 test "valid multiple app rules":
   let testToml: string = """
@@ -44,13 +45,13 @@ test "valid multiple app rules":
   doAssert firstRule.class == "Element"
   doAssert firstRule.instance == "element"
   doAssert firstRule.monitorID == 2.Positive
-  doAssert firstRule.tagIDs == @[ 1.Positive, 9 ]
+  doAssert firstRule.tagIDs == @[ 1.TagID, 9 ]
 
   let secondRule = rules[1]
   doAssert secondRule.class == "st"
   doAssert secondRule.instance == "st"
   doAssert secondRule.monitorID == 1.Positive
-  doAssert secondRule.tagIDs == @[ 3.Positive, 7, 8 ]
+  doAssert secondRule.tagIDs == @[ 3.TagID, 7, 8 ]
 
 test "no app rules does not raise an exception":
   let testToml: string = ""
