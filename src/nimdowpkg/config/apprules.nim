@@ -64,7 +64,7 @@ proc getTagIDs(appRuleTable: TomlTableRef): seq[Positive] =
 
     result.add(tagID)
 
-proc parseTable*(table: TomlTableRef): seq[AppRule] =
+proc parseAppRules*(table: TomlTable): seq[AppRule] =
   ## Parses the table, looking for an array of "appRule" tables.
   if not table.hasKey(tableName):
     return result

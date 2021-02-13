@@ -35,6 +35,7 @@ when isMainModule:
   log "Starting Nimdow " & version
 
   try:
+    loadedConfig.populateAppRules(configTable)
     loadedConfig.runAutostartCommands(configTable)
   except:
     log getCurrentExceptionMsg(), lvlError

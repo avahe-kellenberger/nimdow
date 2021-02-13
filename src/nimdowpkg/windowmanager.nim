@@ -286,6 +286,7 @@ proc reloadConfig*(this: WindowManager) =
 
   try:
     let configTable = configloader.loadConfigFile()
+    this.config.populateAppRules(configTable)
     this.mapConfigActions()
     this.config.populateKeyComboTable(configTable, this.display)
     this.config.populateGeneralSettings(configTable)
@@ -952,6 +953,14 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     monitor = m
     client = c
   else:
+    # TODO: Assign to monitor & tags based on this.config.appRules
+    let classHint = this.display.getWindowClassHint(window)
+    if classHint != nil:
+      if not isNil(classHint.res_name):
+        echo "name: " & $classHint.res_name
+      if not isNil(classHint.res_class):
+        echo "class: " & $classHint.res_class
+      echo ""
     client = newClient(window)
     monitor.addClient(client)
     client.x = monitor.area.x + max(0, windowAttr.x)

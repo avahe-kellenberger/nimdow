@@ -12,7 +12,7 @@ test "valid single app rule":
   """
 
   let toml = parseString(testToml)
-  let rules: seq[AppRule] = parseTable(toml.tableVal)
+  let rules: seq[AppRule] = parseAppRules(toml.tableVal[])
 
   let firstRule = rules[0]
   doAssert firstRule.class == "Element"
@@ -36,7 +36,7 @@ test "valid multiple app rules":
   """
 
   let toml = parseString(testToml)
-  let rules: seq[AppRule] = parseTable(toml.tableVal)
+  let rules: seq[AppRule] = parseAppRules(toml.tableVal[])
 
   assert rules.len == 2
 
@@ -56,7 +56,7 @@ test "no app rules does not raise an exception":
   let testToml: string = ""
 
   let toml = parseString(testToml)
-  let rules: seq[AppRule] = parseTable(toml.tableVal)
+  let rules: seq[AppRule] = parseAppRules(toml.tableVal[])
   assert rules.len == 0
 
 test "has an invalid class":
@@ -70,7 +70,7 @@ test "has an invalid class":
 
   let toml = parseString(testToml)
   assertRaises(Exception, "class must be a string!"):
-    discard parseTable(toml.tableVal)
+    discard parseAppRules(toml.tableVal[])
 
 test "has an invalid instance":
   let testToml: string = """
@@ -83,7 +83,7 @@ test "has an invalid instance":
 
   let toml = parseString(testToml)
   assertRaises(Exception, "instance must be a string!"):
-    discard parseTable(toml.tableVal)
+    discard parseAppRules(toml.tableVal[])
 
 test "has an invalid monitor":
   let testToml: string = """
@@ -96,7 +96,7 @@ test "has an invalid monitor":
 
   let toml = parseString(testToml)
   assertRaises(Exception, "monitor must be an integer!"):
-    discard parseTable(toml.tableVal)
+    discard parseAppRules(toml.tableVal[])
 
 test "has an invalid tags array":
   let testToml: string = """
@@ -109,5 +109,5 @@ test "has an invalid tags array":
 
   let toml = parseString(testToml)
   assertRaises(Exception, "tags must be an array!"):
-    discard parseTable(toml.tableVal)
+    discard parseAppRules(toml.tableVal[])
 

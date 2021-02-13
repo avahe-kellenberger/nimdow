@@ -4,7 +4,10 @@ import
   parsetoml,
   strutils,
   tables,
-  x11 / [x,  xlib],
+  x11 / [x,  xlib]
+
+import
+  apprules,
   ../keys/keyutils,
   ../event/xeventmanager,
   ../logger,
@@ -57,6 +60,7 @@ type
     defaultMonitorSettings*: MonitorSettings
     # Specific monitor settings
     monitorSettings*: Table[MonitorID, MonitorSettings]
+    appRules*: seq[AppRule]
 
 proc newConfig*(eventManager: XEventManager): Config =
   Config(
@@ -124,6 +128,9 @@ proc runCommands(this: Config, commands: varargs[string]) =
       this.eventManager.submitProcess(process)
     except:
       log "Failed to start command: " & cmd, lvlWarn
+
+proc populateAppRules*(this: Config, configTable: TomlTable) =
+  this.appRules = configTable.parseAppRules()
 
 proc getModifierMask(modifier: TomlValueRef): int =
   if modifier.kind != TomlValueKind.String:
