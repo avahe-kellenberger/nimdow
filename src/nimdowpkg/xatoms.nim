@@ -1,5 +1,5 @@
 import
-  x11 / [x, xlib],
+  x11 / [x, xlib, xutil],
   options
 
 export options
@@ -159,6 +159,14 @@ proc getWindowName*(display: PDisplay, window: Window): string =
   if title.len == 0:
     title = display.getStringProperty(window, $WMName)
   return title
+
+proc getWindowClassHint*(display: PDisplay, window: Window): PXClassHint =
+  ## Gets the class hint of the window.
+  ## res_name is the `instance`,
+  ## res_class in the `class`.
+  var hint: PXClassHint = XAllocClassHint()
+  discard display.XGetClassHint(window, hint)
+  return hint
 
 proc sendEvent*(
   display: PDisplay,

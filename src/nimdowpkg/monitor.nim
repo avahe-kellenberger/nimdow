@@ -377,11 +377,12 @@ proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
   let tagIDs = toSeq(selectedTags.items)
   this.toggleTagsForClient(client, tagIDs)
 
-proc addClient*(this: Monitor, client: var Client) =
+proc addClient*(this: Monitor, client: var Client, assignToSelectedTags: bool = true) =
   this.clients.append(client)
   this.clientSelection.add(client)
-  client.tagIDs.clear()
-  this.toggleSelectedTagsForClient(client)
+  if assignToSelectedTags:
+    client.tagIDs.clear()
+    this.toggleSelectedTagsForClient(client)
 
 proc moveClientToTag*(this: Monitor, client: Client, destinationTagID: TagID) =
   if client.tagIDs.len == 1 and destinationTagID in client.tagIDs:

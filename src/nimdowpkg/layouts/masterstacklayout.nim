@@ -2,9 +2,9 @@ import
   x11/xlib,
   math,
   layout,
-  "../client",
-  "../area",
-  "../logger"
+  ../client,
+  ../area,
+  ../logger
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint

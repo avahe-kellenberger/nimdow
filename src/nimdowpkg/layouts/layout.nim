@@ -1,7 +1,7 @@
 import
   x11/xlib,
-  "../client",
-  "../area"
+  ../client,
+  ../area
 
 type
   Layout* = ref object of RootObj
