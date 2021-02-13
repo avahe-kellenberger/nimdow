@@ -34,7 +34,7 @@ proc getMonitorID(appRuleTable: TomlTableRef): Positive =
 
   let monitorIDToml = appRuleTable[propertyName]
   if monitorIDToml.kind != TomlValueKind.Int:
-    raise newException(Exception, propertyName & " must be a integer!")
+    raise newException(Exception, propertyName & " must be an integer!")
 
   let monitorID = monitorIDToml.intVal
   if monitorID < 1:

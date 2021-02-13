@@ -1,3 +1,7 @@
+template test*(description: string, test: untyped) =
+  block:
+    test
+
 template assertRaises*(exception: typedesc, errorMessage: string, code: untyped) =
   ## Raises ``AssertionDefect`` if specified ``code`` does not raise the
   ## specified exception. Example:
