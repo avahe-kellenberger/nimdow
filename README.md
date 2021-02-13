@@ -6,6 +6,8 @@ A window manager written in [Nim](https://nim-lang.org/)
 
 I am using this project to learn Nim, x11, and to replace my build of **dwm** (written in C).
 
+**Join #nimdow on freenode for questions/discussion**
+
 # Table of Contents
 
 1. [Screenshots](#screenshots)
@@ -50,6 +52,8 @@ Nimdow searches for a config file in 3 locations in this order:
 3. `/usr/share/nimdow/config.default.toml`
 
 If no config file is found, Nimdow will not launch.
+
+**See [the wiki](https://github.com/avahe-kellenberger/nimdow/wiki/User-Configuration-File) for information about the specifics of the config file.**
 
 ## Command line arguments <a name="cli"></a>
 
