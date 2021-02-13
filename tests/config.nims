@@ -1,1 +1,2 @@
---path:"../src/nimdowpkg"
+switch("path", "../src/nimdowpkg")
+switch("import", "./testutils")
