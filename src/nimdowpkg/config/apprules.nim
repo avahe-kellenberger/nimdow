@@ -2,7 +2,7 @@ import parsetoml
 
 const tableName = "appRule"
 
-type AppRule = ref object
+type AppRule* = ref object
   title*: string
   class*: string
   instance*: string
@@ -18,21 +18,21 @@ proc newAppRule*(): AppRule =
     tagIDs: @[]
   )
 
-proc getStringProperty(appRuleTable: TomlTable, property: string): string =
+proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
   ## Returns the string property if it exists.
-  let prop = appRuleTable{property}
-  if prop != nil:
+  if appRuleTable.hasKey(property):
+    let prop = appRuleTable[property]
     if prop.kind != TomlValueKind.String:
       raise newException(Exception, property & " must be a string!")
-    return prop
+    return prop.stringVal
 
-proc getMonitorID(appRuleTable: TomlTable): Positive =
-  const propertyName = "monitorID"
-  let monitorIDToml = appRuleTable{propertyName}
-
-  if monitorIDToml == nil:
+proc getMonitorID(appRuleTable: TomlTableRef): Positive =
+  result = 1
+  const propertyName = "monitor"
+  if not appRuleTable.hasKey(propertyName):
     raise newException(Exception, propertyName & " must be provided!")
 
+  let monitorIDToml = appRuleTable[propertyName]
   if monitorIDToml.kind != TomlValueKind.Int:
     raise newException(Exception, propertyName & " must be a integer!")
 
@@ -42,11 +42,12 @@ proc getMonitorID(appRuleTable: TomlTable): Positive =
 
   return monitorID
 
-proc getTagIDs(appRuleTable: TomlTable): seq[Positive] =
-  const propertyName = "tagIDs"
-  let tagIDsToml = appRuleTable{propertyName}
-  if tagIDsToml == nil:
+proc getTagIDs(appRuleTable: TomlTableRef): seq[Positive] =
+  const propertyName = "tags"
+  if not appRuleTable.hasKey(propertyName):
     raise newException(Exception, propertyName & " must be provided!")
+
+  let tagIDsToml = appRuleTable[propertyName]
   if tagIDsToml.kind != TomlValueKind.Array:
     raise newException(Exception, propertyName & " must be an array!")
 
@@ -65,17 +66,18 @@ proc getTagIDs(appRuleTable: TomlTable): seq[Positive] =
 
 proc parseTable*(table: TomlTableRef): seq[AppRule] =
   ## Parses the table, looking for an array of "appRule" tables.
-  let appRuleTables = table{tableName}
-  if appRuleTables == nil:
+  if not table.hasKey(tableName):
     return result
 
+  let appRuleTables = table[tableName]
   if appRuleTables.kind != TomlValueKind.Array:
     raise newException(Exception, "appRule must be an array of tables!")
 
-  for appRuleTable in appRuleTables.arrayVal:
-    if appRuleTable.kind != TomlValueKind.Table:
+  for appRuleTableToml in appRuleTables.arrayVal:
+    if appRuleTableToml.kind != TomlValueKind.Table:
       raise newException(Exception, "appRule must be a table!")
 
+    let appRuleTable = appRuleTableToml.tableVal
     let appRule = newAppRule()
     appRule.title = appRuleTable.getStringProperty("title")
     appRule.class = appRuleTable.getStringProperty("class")

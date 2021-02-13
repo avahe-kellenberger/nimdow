@@ -5,11 +5,11 @@ import
   strutils,
   tables,
   x11 / [x,  xlib],
-  "../keys/keyutils",
-  "../event/xeventmanager",
-  "../logger",
-  "../tag",
-  "../windowtitleposition"
+  ../keys/keyutils,
+  ../event/xeventmanager,
+  ../logger,
+  ../tag,
+  ../windowtitleposition
 
 var configLoc*: string
 
