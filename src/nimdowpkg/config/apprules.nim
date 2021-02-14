@@ -94,8 +94,8 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.tagIDs = appRuleTable.getTagIDs()
     result.add(appRule)
 
-proc globMatches(str, sub: string): bool =
-  if str.len == 0 or sub.len == 0 or str == sub:
+proc globMatches*(str, sub: string): bool =
+  if sub.len == 0 or str == sub:
     return true
 
   if sub.startsWith(globChar):

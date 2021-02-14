@@ -112,3 +112,17 @@ test "has an invalid tags array":
   assertRaises(Exception, "tags must be an array!"):
     discard parseAppRules(toml.tableVal[])
 
+test "globMatches":
+  assert globMatches("", "") == true
+  assert globMatches("foo", "") == true
+  assert globMatches("", "foo") == false
+
+  assert globMatches("foobar", "foo*") == true
+  assert globMatches("foobar", "*bar") == true
+  assert globMatches("foobar", "*oo*") == true
+  assert globMatches("foobar", "bar*") == false
+
+  assert globMatches("foobar", "Foobar") == false
+  assert globMatches("Foobar", "foobar") == false
+  assert globMatches("Foobar", "Foobar") == true
+
