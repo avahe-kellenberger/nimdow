@@ -8,6 +8,7 @@ import
 
 import
   apprules,
+  tagsettings,
   ../keys/keyutils,
   ../event/xeventmanager,
   ../logger,
@@ -42,7 +43,6 @@ type
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
-  TagSettings* = OrderedTable[TagID, TagSetting]
   MonitorSettings* = object
     tagSettings*: TagSettings
     barSettings*: BarSettings
@@ -163,12 +163,6 @@ proc hookConfig*(this: Config) =
       this.keyComboTable[keyCombo](keyCombo)
   this.eventManager.addListener(this.xEventListener, KeyPress)
 
-proc populateDefaultTagSettings(this: var TagSettings, display: PDisplay) =
-  for i in 1..tagCount:
-    this[i] = TagSetting(
-      displayString: $i
-    )
-
 proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
   this.defaultMonitorSettings = MonitorSettings()
 
@@ -176,8 +170,8 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       height: 20,
       windowTitlePosition: wtpCenter,
       fonts: @[
-        "monospace:size=10:anialias=false",
-        "NotoColorEmoji:size=10:anialias=false"
+        "monospace:size=10:antialias=true",
+        "NotoColorEmoji:size=10:antialias=true"
       ],
       fgColor: 0xfce8c3,
       bgColor: 0x1c1b19,
@@ -185,29 +179,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       urgentColor: 0xef2f27
   )
 
-  this.defaultMonitorSettings.tagSettings.populateDefaultTagSettings(display)
-
-proc populateTagSettings(this: var MonitorSettings, tagSettingsTable: TomlTableRef, display: PDisplay) =
-  for tagIDstr, settingsToml in tagSettingsTable.pairs():
-    if settingsToml.kind != TomlValueKind.Table:
-      log "Settings table incorrect type for tag ID: " & tagIDstr
-      continue
-
-    # Parse the tag ID.
-    var tagID: int
-    try:
-      tagID = parseInt(tagIDstr)
-    except:
-      log "Invalid tag id: " & tagIDstr
-      continue
-
-    let currentTagSettingsTable = settingsToml.tableVal
-    var currentTagSettings: TagSetting = this.tagSettings[tagID]
-
-    if currentTagSettingsTable.hasKey("displayString"):
-      let displayString = currentTagSettingsTable["displayString"]
-      if displayString.kind == TomlValueKind.String:
-        currentTagSettings.displayString = displayString.stringVal
+  this.defaultMonitorSettings.tagSettings = createDefaultTagSettings(tagCount)
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   this.populateDefaultMonitorSettings(display)
@@ -228,7 +200,8 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
     if changedDefaults.hasKey("tags"):
       let tagsTable = changedDefaults["tags"]
       if tagsTable.kind == TomlValueKind.Table:
-        this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
+        # this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
+        this.defaultMonitorSettings.tagSettings = populateTagSettings(tagsTable.tableVal)
 
   # Populate settings per-monitor
   for monitorIDStr, settingsToml in monitorsTable.tableVal.pairs():
@@ -252,7 +225,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
     if settingsToml.hasKey("tags"):
       let tagsTable = settingsToml["tags"]
       if tagsTable.kind == TomlValueKind.Table:
-        monitorSettings.populateTagSettings(tagsTable.tableVal, display)
+        monitorSettings.tagSettings = populateTagSettings(tagsTable.tableVal)
 
     this.monitorSettings[monitorID] = monitorSettings
 
