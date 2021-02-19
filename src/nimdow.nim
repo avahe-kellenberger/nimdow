@@ -1,23 +1,17 @@
 import
+  x11 / [x, xlib],
   os,
   parsetoml,
   nimdowpkg/windowmanager,
   nimdowpkg/event/xeventmanager,
   nimdowpkg/config/configloader,
+  nimdowpkg/ipc/cli,
+  nimdowpkg/ipc/ipc,
   nimdowpkg/logger
 
 when isMainModule:
-  const version = "v0.7.17"
-  when declared(commandLineParams):
-    let params = commandLineParams()
-    if params.len == 1:
-      let param = params[0].string
-      if param == "-v" or param == "--version":
-        echo "Nimdow ", version
-        quit()
-      else:
-        # If given a parameter for a config file, use it instead of the default.
-        configloader.configLoc = params[0].string
+  if not cli.handleCommandLineParams():
+    quit()
 
   let
     eventManager = newXEventManager()
@@ -39,6 +33,14 @@ when isMainModule:
     loadedConfig.runAutostartCommands(configTable)
   except:
     log getCurrentExceptionMsg(), lvlError
+
+  var thread: Thread[void]
+  thread.createThread(ipc.listen)
+
+  # let listener = proc(e: XEvent) =
+  #   echo "aoeu"
+
+  # eventManager.addListener(listener, GenericEvent)
 
   eventManager.startEventListenerLoop(nimdow.display)
 

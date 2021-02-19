@@ -18,7 +18,8 @@ import
   layouts/masterstacklayout,
   keys/keyutils,
   logger,
-  utils
+  utils,
+  wmcommands
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -541,76 +542,76 @@ template createControl(keyCombo: untyped, id: string, action: untyped) =
 
 proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
-  createControl(keyCombo, "reloadConfig"):
+  createControl(keyCombo, $wmcReloadConfig):
     this.reloadConfig()
 
-  createControl(keyCombo, "increaseMasterCount"):
+  createControl(keyCombo, $wmcIncreaseMasterCount):
     this.increaseMasterCount()
 
-  createControl(keyCombo, "decreaseMasterCount"):
+  createControl(keyCombo, $wmcDecreaseMasterCount):
     this.decreaseMasterCount()
 
-  createControl(keyCombo, "moveWindowToPreviousMonitor"):
+  createControl(keyCombo, $wmcMoveWindowToPreviousMonitor):
     this.moveClientToPreviousMonitor()
 
-  createControl(keyCombo, "moveWindowToNextMonitor"):
+  createControl(keyCombo, $wmcMoveWindowToNextMonitor):
     this.moveClientToNextMonitor()
 
-  createControl(keyCombo, "focusPreviousMonitor"):
+  createControl(keyCombo, $wmcFocusPreviousMonitor):
     this.focusPreviousMonitor()
 
-  createControl(keyCombo, "focusNextMonitor"):
+  createControl(keyCombo, $wmcFocusNextMonitor):
     this.focusNextMonitor()
 
-  createControl(keyCombo, "goToTag"):
+  createControl(keyCombo, $wmcGoToTag):
     var tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     this.goToTag(tagID)
 
-  createControl(keyCombo, "goToPreviousTag"):
+  createControl(keyCombo, $wmcGoToPreviousTag):
     var previousTag = this.selectedMonitor.previousTagID
     if previousTag != 0:
       this.goToTag(previousTag)
 
-  createControl(keyCombo, "moveWindowToPreviousTag"):
+  createControl(keyCombo, $wmcMoveWindowToPreviousTag):
     var previousTagID = this.selectedMonitor.previousTagID
     if previousTagID != 0:
       this.selectedMonitor.moveSelectedWindowToTag(previousTagID)
 
-  createControl(keyCombo, "toggleTagView"):
+  createControl(keyCombo, $wmcToggleTagView):
     let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     this.selectedMonitor.toggleTags(tagID)
 
-  createControl(keyCombo, "toggleWindowTag"):
+  createControl(keyCombo, $wmcToggleWindowTag):
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
       let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
       this.selectedMonitor.toggleTagsForClient(client, tagID)
 
-  createControl(keyCombo, "focusNext"):
+  createControl(keyCombo, $wmcFocusNext):
     this.selectedMonitor.focusNextClient(true)
 
-  createControl(keyCombo, "focusPrevious"):
+  createControl(keyCombo, $wmcFocusPrevious):
     this.selectedMonitor.focusPreviousClient(true)
 
-  createControl(keyCombo, "moveWindowPrevious"):
+  createControl(keyCombo, $wmcMoveWindowPrevious):
     this.selectedMonitor.moveClientPrevious()
 
-  createControl(keyCombo, "moveWindowNext"):
+  createControl(keyCombo, $wmcMoveWindowNext):
     this.selectedMonitor.moveClientNext()
 
-  createControl(keyCombo, "moveWindowToTag"):
+  createControl(keyCombo, $wmcMoveWindowToTag):
     let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     this.selectedMonitor.moveSelectedWindowToTag(tagID)
 
-  createControl(keyCombo, "toggleFullscreen"):
+  createControl(keyCombo, $wmcToggleFullscreen):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
 
-  createControl(keyCombo, "destroySelectedWindow"):
+  createControl(keyCombo, $wmcDestroySelectedWindow):
     this.destroySelectedWindow()
 
-  createControl(keyCombo, "toggleFloating"):
+  createControl(keyCombo, $wmcToggleFloating):
     this.selectedMonitor.toggleFloatingForSelectedClient()
 
-  createControl(keyCombo, "jumpToUrgentWindow"):
+  createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
 proc hookConfigKeys*(this: WindowManager) =

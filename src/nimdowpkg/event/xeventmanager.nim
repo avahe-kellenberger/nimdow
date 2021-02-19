@@ -5,6 +5,8 @@ import
   osproc,
   times
 
+import ../ipc/ipc
+
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 
 var
@@ -74,6 +76,11 @@ proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
   while XNextEvent(display, addr(this.event)) == 0:
     this.dispatchEvent(this.event)
     this.checkForProcessesToClose()
+
+    let command = ipc.channel.tryRecv()
+    if command.dataAvailable:
+      # TODO: Handle received commands
+      echo $command.msg
 
   # Cleanup
   this.closeFinishedProcesses()

@@ -17,7 +17,7 @@ import
 var configLoc*: string
 
 proc findConfigPath*(): string =
-  let configHome = os.getConfigDir()
+  let configHome = getConfigDir()
   result = configHome & "nimdow/config.toml"
   if not fileExists(result):
     result = "/usr/share/nimdow/config.default.toml"
@@ -265,7 +265,8 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
     raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
-    this.populateControlAction(display, action, controlsTable[action].tableVal[])
+    # TODO: Can use parseEnum instead of toLower
+    this.populateControlAction(display, action.toLower(), controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
