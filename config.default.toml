@@ -143,12 +143,12 @@ exec = [
   modifiers = [ "super", "shift", "control" ]
 
 [monitors]
-  [monitors.default]
+  [monitors.default.tags]
   # TODO: have `all` for the tags table.
-  tags.all.numMasterWindows = 2
+  all.numMasterWindows = 2
 
-  tags.1.displayString = "one"
-  tags.2.displayString = "foobar"
+  1.displayString = "one"
+  2.displayString = "foobar"
 
   [monitors.1.tags]
   2.displayString = "two"
