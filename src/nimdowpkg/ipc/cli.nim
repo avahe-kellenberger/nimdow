@@ -3,8 +3,7 @@ import
   net,
   strutils,
   strformat,
-  parseopt,
-  sequtils
+  parseopt
 
 import
   ipc,
@@ -21,7 +20,7 @@ proc handleWMCommand(command: WMCommand, option: string = ""): bool =
     socket = newSocket(AF_UNIX, SOCK_STREAM, IPPROTO_IP)
     let socketLoc = findSocketPath()
     socket.connectUnix(socketLoc)
-  except Exception as e:
+  except Exception:
     log "Failed to connect to live socket", lvlError
     return false
 
@@ -65,5 +64,6 @@ proc handleCommandLineParams*(): bool =
       try:
         let command = parseEnum[WMCommand](option)
         discard handleWMCommand(command, p.val)
-      except Exception as e:
+      except Exception:
         return handleSpecialCommand(option, p.val)
+

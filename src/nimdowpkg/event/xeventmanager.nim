@@ -8,7 +8,6 @@ import
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 
 var
-  eventChannel*: Channel[XEvent]
   timeLastCheckedProcesses: float
   currentTime: float
 
