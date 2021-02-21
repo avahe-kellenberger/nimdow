@@ -5,18 +5,17 @@ import
   osproc,
   times
 
-import ../ipc/ipc
-
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 
 var
-  timeLastCheckedProcesses, currentTime: float
+  eventChannel*: Channel[XEvent]
+  timeLastCheckedProcesses: float
+  currentTime: float
 
 type
   XEventListener* = proc(e: XEvent)
   XEventManager* = ref object
     listenerMap: Table[cint, HashSet[XEventListener]]
-    event: XEvent
     processes: seq[Process]
 
 proc newXEventManager*(): XEventManager =
@@ -48,7 +47,7 @@ proc dispatchEvent*(this: XEventManager, e: XEvent) =
 proc submitProcess*(this: XEventManager, process: Process) =
   this.processes.add(process)
 
-proc closeFinishedProcesses(this: XEventManager) =
+proc closeFinishedProcesses*(this: XEventManager) =
   ## Closes any finished processes
   ## and removes them from the processes seqeunce.
   var i = 0
@@ -60,29 +59,20 @@ proc closeFinishedProcesses(this: XEventManager) =
     else:
       i.inc
 
-proc checkForProcessesToClose(this: XEventManager) =
+proc checkForProcessesToClose*(this: XEventManager) =
   ## Check for closed processes periodically.
   currentTime = epochTime()
   if timeLastCheckedProcesses - currentTime >= CLOSE_PROCESS_CHECK_INTERVAL:
     this.closeFinishedProcesses()
     timeLastCheckedProcesses = currentTime
 
-proc startEventListenerLoop*(this: XEventManager, display: PDisplay) =
-  ## Infinitely listens for and dispatches libx.TXEvents.
-  ## This proc will not return unless there is an error.
+# proc startEventListenerLoop*(display: PDisplay) {.thread.} =
+#   ## Infinitely listens for and dispatches libx.XEvents.
+#   ## This proc will not return unless there is an error.
+#   eventChannel.open()
 
-  discard XSync(display, false.XBool)
-  # XNextEvent returns 0 unless there is an error.
-  while XNextEvent(display, addr(this.event)) == 0:
-    this.dispatchEvent(this.event)
-    this.checkForProcessesToClose()
-
-    let command = ipc.channel.tryRecv()
-    if command.dataAvailable:
-      # TODO: Handle received commands
-      echo $command.msg
-
-  # Cleanup
-  this.closeFinishedProcesses()
-  discard XCloseDisplay(display)
+#   var event: XEvent
+#   # XNextEvent returns 0 unless there is an error.
+#   while XNextEvent(display, event.addr) == 0:
+#     eventChannel.send(event)
 

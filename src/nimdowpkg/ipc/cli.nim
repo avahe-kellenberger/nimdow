@@ -19,7 +19,7 @@ proc handleWMCommand(command: WMCommand, option: string = ""): bool =
   var socket: Socket
   try:
     socket = newSocket(AF_UNIX, SOCK_STREAM, IPPROTO_IP)
-    let socketLoc = findSocket()
+    let socketLoc = findSocketPath()
     socket.connectUnix(socketLoc)
   except Exception as e:
     log "Failed to connect to live socket", lvlError
