@@ -12,7 +12,8 @@ import
   ../event/xeventmanager,
   ../logger,
   ../tag,
-  ../windowtitleposition
+  ../windowtitleposition,
+  ../wmcommands
 
 var configLoc*: string
 
@@ -265,8 +266,8 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
     raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
-    # TODO: Can use parseEnum instead of toLower
-    this.populateControlAction(display, action.toLower(), controlsTable[action].tableVal[])
+    let command = parseEnum[WMCommand](action)
+    this.populateControlAction(display, $command, controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):

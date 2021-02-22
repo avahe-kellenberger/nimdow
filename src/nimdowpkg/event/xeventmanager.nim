@@ -65,13 +65,3 @@ proc checkForProcessesToClose*(this: XEventManager) =
     this.closeFinishedProcesses()
     timeLastCheckedProcesses = currentTime
 
-# proc startEventListenerLoop*(display: PDisplay) {.thread.} =
-#   ## Infinitely listens for and dispatches libx.XEvents.
-#   ## This proc will not return unless there is an error.
-#   eventChannel.open()
-
-#   var event: XEvent
-#   # XNextEvent returns 0 unless there is an error.
-#   while XNextEvent(display, event.addr) == 0:
-#     eventChannel.send(event)
-
