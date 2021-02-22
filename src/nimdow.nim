@@ -71,7 +71,7 @@ when isMainModule:
     ipcSocket = ipc.initIPCSocket()
     ipcSocketFd = ipcSocket.getFd().int
 
-  selector.registerHandle(displayFd, {Read}, nil)
+  selector.registerHandle(displayFd, {Read, Write}, nil)
   selector.registerHandle(ipcSocketFd, {Read}, nil)
 
   # Sync the display before listening for events.
