@@ -267,7 +267,7 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
 
   for action in controlsTable.tableVal.keys():
     let command = parseEnum[WMCommand](action)
-    this.populateControlAction(display, $command, controlsTable[action].tableVal[])
+    this.populateControlAction(display, ($command).toLower(), controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):

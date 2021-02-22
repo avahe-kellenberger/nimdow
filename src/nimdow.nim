@@ -31,7 +31,7 @@ proc handleCommand(
     log fmt"Commands must be prefixed with {ipcPrefix}", lvlWarn
     return
 
-  let command = split[1]
+  let command = split[1].toLower()
   let commandOpt = parseCommand(command)
   if commandOpt.isSome:
     if actionIdentifierTable.hasKey($command):
