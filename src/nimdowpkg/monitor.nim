@@ -211,13 +211,13 @@ proc updateCurrentDesktopProperty(this: Monitor) =
       1
     )
 
-proc keycodeToTagID*(this: Monitor, keycode: int): TagID =
+proc keycodeToTagID*(this: Monitor, keycode: int): Option[TagID] =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 1 or tagNumber > this.tags.len:
       raise newException(Exception, "Invalid tag number: " & tagNumber)
 
-    return this.tags[tagNumber - 1].id
+    return this.tags[tagNumber - 1].id.option
   except:
     log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 

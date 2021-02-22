@@ -564,8 +564,9 @@ proc mapConfigActions*(this: WindowManager) =
     this.focusNextMonitor()
 
   createControl(keyCombo, $wmcGoToTag):
-    var tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
-    this.goToTag(tagID)
+    var tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    if tagIDOpt.isSome:
+      this.goToTag(tagIDOpt.get)
 
   createControl(keyCombo, $wmcGoToPreviousTag):
     var previousTag = this.selectedMonitor.previousTagID
@@ -578,13 +579,15 @@ proc mapConfigActions*(this: WindowManager) =
       this.selectedMonitor.moveSelectedWindowToTag(previousTagID)
 
   createControl(keyCombo, $wmcToggleTagView):
-    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
-    this.selectedMonitor.toggleTags(tagID)
+    let tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    if tagIDOpt.isSome:
+      this.selectedMonitor.toggleTags(tagIDOpt.get)
 
   createControl(keyCombo, $wmcToggleWindowTag):
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
-      this.selectedMonitor.toggleTagsForClient(client, tagID)
+      let tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+      if tagIDOpt.isSome:
+        this.selectedMonitor.toggleTagsForClient(client, tagIDOpt.get)
 
   createControl(keyCombo, $wmcFocusNext):
     this.selectedMonitor.focusNextClient(true)
@@ -599,8 +602,9 @@ proc mapConfigActions*(this: WindowManager) =
     this.selectedMonitor.moveClientNext()
 
   createControl(keyCombo, $wmcMoveWindowToTag):
-    let tagID = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
-    this.selectedMonitor.moveSelectedWindowToTag(tagID)
+    let tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
+    if tagIDOpt.isSome:
+      this.selectedMonitor.moveSelectedWindowToTag(tagIDOpt.get)
 
   createControl(keyCombo, $wmcToggleFullscreen):
     this.selectedMonitor.toggleFullscreenForSelectedClient()

@@ -3,6 +3,8 @@ import
   os,
   net,
   selectors,
+  strutils,
+  strformat,
   parsetoml
 
 import
@@ -11,7 +13,32 @@ import
   nimdowpkg/config/configloader,
   nimdowpkg/ipc/cli,
   nimdowpkg/ipc/ipc,
+  nimdowpkg/wmcommands,
+  nimdowpkg/keys/keyutils,
   nimdowpkg/logger
+
+proc handleCommand(
+  str: string,
+  windowmanager: WindowManager,
+  actionIdentifierTable: Table[string, Action]
+) =
+  let split = str.split()
+  if split.len < 2:
+    log "Not enough arguments.", lvlWarn
+    return
+
+  if split[0] != ipcPrefix:
+    log fmt"Commands must be prefixed with {ipcPrefix}", lvlWarn
+    return
+
+  let command = split[1]
+  let commandOpt = parseCommand(command)
+  if commandOpt.isSome:
+    if actionIdentifierTable.hasKey($command):
+      var keycode = 0
+      if split.len > 2:
+        keycode = split[2].toKeycode(windowmanager.display)
+      actionIdentifierTable[$command]((keycode, 0))
 
 when isMainModule:
   if not cli.handleCommandLineParams():
@@ -53,19 +80,22 @@ when isMainModule:
 
   while true:
     for event in selector.select(-1):
+
+      # X11 Event(s) Received
       if event.fd == displayFd:
         while XPending(nimdow.display) > 0:
           discard XNextEvent(nimdow.display, xEvent.addr)
           eventManager.dispatchEvent(xEvent)
         eventManager.checkForProcessesToClose()
 
+      # IPC Socket
       elif event.fd == ipcSocketFd:
         var client: Socket
         try:
           ipcSocket.accept(client, flags = {})
           let received = client.recv(MaxLineLength)
-          log "Received " & received
           client.close()
+          handleCommand(received, nimdow, loadedConfig.actionIdentifierTable)
         except:
           # Client disconnected when we tried to accept.
           discard

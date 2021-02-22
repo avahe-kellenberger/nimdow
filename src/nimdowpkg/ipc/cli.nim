@@ -13,7 +13,7 @@ import
 
 const version* = "v0.7.17"
 
-proc handleWMCommand(command: WMCommand, option: string = ""): bool =
+proc handleWMCommand(commandStr: string): bool =
   ## Returns if the command was sent.
   var socket: Socket
   try:
@@ -24,25 +24,24 @@ proc handleWMCommand(command: WMCommand, option: string = ""): bool =
     log "Failed to connect to live socket", lvlError
     return false
 
-  let message =
-    if option.len > 0:
-      fmt"{ipcPrefix} {command} {option}"
-    else:
-      fmt"{ipcPrefix} {command}"
-
-  if not socket.trySend(message):
+  let message = fmt"{ipcPrefix} {commandStr}"
+  let success = socket.trySend(message)
+  if not success:
     log "Failed to send message to socket", lvlError
-    return false
 
-  return true
+  socket.close()
+  return success
 
-proc handleSpecialCommand(key, value: string): bool =
+proc handleSpecialCommand(strArr: seq[string]): bool =
   ## Returns if Nimdow execution should continue.
-  case key:
+  if strArr.len < 1:
+    return true
+
+  case strArr[0]:
     of "v", "version":
       echo "Nimdow ", version
     of "c", "config":
-      configloader.configLoc = value
+      configloader.configLoc = strArr[1]
       return true
     else:
       log "Unknown command", lvlError
@@ -55,15 +54,25 @@ proc handleCommandLineParams*(): bool =
     return true
 
   var p = initOptParser()
-  p.next()
+  var strArr: seq[string]
 
-  case p.kind:
-    of cmdEnd: return true
-    of cmdShortOption, cmdLongOption, cmdArgument:
-      let option = p.key.replace("-")
-      try:
-        let command = parseEnum[WMCommand](option)
-        discard handleWMCommand(command, p.val)
-      except Exception:
-        return handleSpecialCommand(option, p.val)
+  while true:
+    p.next()
+
+    case p.kind:
+      of cmdEnd: break
+      of cmdShortOption, cmdLongOption, cmdArgument:
+        let option = p.key.replace("-")
+        strArr.add option
+        if p.val.len > 0:
+          strArr.add p.val
+
+  let commandStr = strArr.join(" ")
+  try:
+    # Ensure the first param is a valid command.
+    discard parseEnum[WMCommand](strArr[0])
+    discard handleWMCommand(commandStr)
+    return false
+  except Exception:
+    return handleSpecialCommand(strArr)
 

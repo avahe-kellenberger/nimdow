@@ -28,10 +28,8 @@ type
     wmcToggleFloating = "togglefloating",
     wmcJumpToUrgentWindow = "jumptourgentwindow"
 
-proc parseCommand*(str: string): Option[WMCommand] =
+proc parseCommand*(command: string): Option[WMCommand] =
   try:
-    let split = str.split()
-    let command = split[1]
     return some(parseEnum[WMCommand](command))
   except:
     return none[WMCommand]()
