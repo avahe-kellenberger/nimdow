@@ -12,7 +12,7 @@ Xephyr -br -ac -reset -screen 1920x1080 :1 &
 sleep 1s
 export DISPLAY=:1
 xrdb $HOME/.Xresources &
-./bin/nimdow "./config.default.toml" &
+./bin/nimdow --config "./config.default.toml" &
 
 # nm-applet &
 ~/.fehbg &
