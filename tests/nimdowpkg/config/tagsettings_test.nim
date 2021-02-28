@@ -26,16 +26,21 @@ test "valid all tags table":
   [all]
   displayString = "[]"
   numMasterWindows = 2
+
+  [7]
+  displayString = "Seven"
+  numMasterWindows = 3
   """
 
   var settings = createDefaultTagSettings()
   let toml = parseString(testToml)
   populateTagSettings(settings, toml.tableVal)
 
-
   for i in 1 .. tagCount:
-    assert settings[i].displayString == "[]"
-    assert settings[i].numMasterWindows == 2
-
-
+    if i == 7:
+      assert settings[i].displayString == "Seven"
+      assert settings[i].numMasterWindows == 3
+    else:
+      assert settings[i].displayString == "[]"
+      assert settings[i].numMasterWindows == 2
 

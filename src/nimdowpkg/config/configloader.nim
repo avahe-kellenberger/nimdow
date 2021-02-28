@@ -12,7 +12,6 @@ import
   ../keys/keyutils,
   ../event/xeventmanager,
   ../logger,
-  ../tag,
   ../windowtitleposition
 
 var configLoc*: string
@@ -179,7 +178,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       urgentColor: 0xef2f27
   )
 
-  this.defaultMonitorSettings.tagSettings = createDefaultTagSettings(tagCount)
+  this.defaultMonitorSettings.tagSettings = createDefaultTagSettings()
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   this.populateDefaultMonitorSettings(display)
@@ -201,7 +200,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
       let tagsTable = changedDefaults["tags"]
       if tagsTable.kind == TomlValueKind.Table:
         # this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
-        this.defaultMonitorSettings.tagSettings = populateTagSettings(tagsTable.tableVal)
+        this.defaultMonitorSettings.tagSettings.populateTagSettings(tagsTable.tableVal)
 
   # Populate settings per-monitor
   for monitorIDStr, settingsToml in monitorsTable.tableVal.pairs():
@@ -225,7 +224,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
     if settingsToml.hasKey("tags"):
       let tagsTable = settingsToml["tags"]
       if tagsTable.kind == TomlValueKind.Table:
-        monitorSettings.tagSettings = populateTagSettings(tagsTable.tableVal)
+        monitorSettings.tagSettings.populateTagSettings(tagsTable.tableVal)
 
     this.monitorSettings[monitorID] = monitorSettings
 
