@@ -144,8 +144,7 @@ exec = [
 
 [monitors]
   [monitors.default.tags]
-  # TODO: have `all` for the tags table.
-  all.numMasterWindows = 2
+  all.numMasterWindows = 3
 
   1.displayString = "one"
   2.displayString = "foobar"

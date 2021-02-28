@@ -32,17 +32,18 @@ proc parseTagSetting(tagSetting: var TagSetting, settingsTable: TomlTableRef) =
     tagSetting.numMasterWindows = numMasterWindows.intVal.int
 
 proc populateTagSettings*(settings: var TagSettings, tagSettingsTable: TomlTableRef) =
-  var allTagSettings: TagSetting = nil
-
   if tagSettingsTable.hasKey("all"):
     let allTagSettingsTable = tagSettingsTable["all"]
     if allTagSettingsTable.kind != TomlValueKind.Table:
       raise newException(Exception, "Settings table incorrect type for tag ID: all")
-    allTagSettings = newTagSetting("", 9999)
+    var allTagSettings = newTagSetting("", int.high)
     allTagSettings.parseTagSetting(allTagSettingsTable.tableVal)
 
     for setting in settings.mvalues:
-      setting = deepCopy allTagSettings
+      if allTagSettings.displayString.len > 0:
+        setting.displayString = allTagSettings.displayString
+      if allTagSettings.numMasterWindows != int.high:
+        setting.numMasterWindows = allTagSettings.numMasterWindows
 
   for tagIDstr, settingsToml in tagSettingsTable.pairs():
     if settingsToml.kind != TomlValueKind.Table:
