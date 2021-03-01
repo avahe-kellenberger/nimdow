@@ -12,7 +12,6 @@ converter intToCUint(x: int): cuint = x.cuint
 const layoutName: string = "masterstack"
 
 type MasterStackLayout* = ref object of Layout
-  masterSlots*: uint
 
 proc layoutSingleClient(
   this: MasterStackLayout,

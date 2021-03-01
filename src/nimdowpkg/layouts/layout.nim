@@ -9,6 +9,7 @@ type
     monitorArea*: Area
     gapSize*: uint
     borderWidth*: uint
+    masterSlots*: uint
   LayoutOffset* = tuple[top, left, bottom, right: uint]
 
 proc newLayout*(name: string, monitorArea: Area, gapSize: uint, borderWidth: uint): Layout =

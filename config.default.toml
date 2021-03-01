@@ -142,16 +142,21 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
-[monitors]
-  [monitors.default.tags]
-  all.numMasterWindows = 3
+# Example monitor settings:
+# [monitors]
+  # [monitors.default.tags]
+  # 1.displayString = "one"
+  # 2.displayString = "foobar"
+  # Set the number of master windows for ALL monitors.
+  # all.numMasterWindows = 2
 
-  1.displayString = "one"
-  2.displayString = "foobar"
+  # [monitors.1.tags]
+  # 2.displayString = "two"
+  # Set the number of master windows per-monitor.
+  # all.numMasterWindows = 3
+  # Set the number of master windows per-tag.
+  # 2.numMasterWindows = 1
 
-  [monitors.1.tags]
-  2.displayString = "two"
-
-  [monitors.2.tags]
-  2.displayString = "too"
+  # [monitors.2.tags]
+  # 2.displayString = "too"
 
