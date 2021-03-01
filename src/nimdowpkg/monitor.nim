@@ -71,13 +71,14 @@ proc newMonitor*(
 
   result.taggedClients = newTaggedClients(tagCount)
   for i in 1..tagCount:
+    let tagSetting = result.monitorSettings.tagSettings[i]
     let tag: Tag = newTag(
       id = i,
       layout = newMasterStackLayout(
         monitorArea = area,
         gapSize = currentConfig.windowSettings.gapSize,
         borderWidth = currentConfig.windowSettings.borderWidth,
-        masterSlots = masterSlots
+        masterSlots = tagSetting.numMasterWindows.uint
       )
     )
     result.taggedClients.tags.add(tag)
@@ -140,9 +141,11 @@ proc setConfig*(this: Monitor, config: Config) =
   else:
     this.monitorSettings = config.defaultMonitorSettings
 
-  for tag in this.tags:
+  for i, tag in this.tags:
+    let tagSetting = this.monitorSettings.tagSettings[i + 1]
     tag.layout.gapSize = this.windowSettings.gapSize
     tag.layout.borderWidth = this.windowSettings.borderWidth
+    tag.layout.masterSlots = tagSetting.numMasterWindows.uint
 
   this.layoutOffset = (this.monitorSettings.barSettings.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.setConfig(this.monitorSettings.barSettings, this.monitorSettings.tagSettings)

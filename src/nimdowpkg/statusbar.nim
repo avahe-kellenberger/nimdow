@@ -13,7 +13,8 @@ import
   strut,
   logger,
   windowtitleposition,
-  config/configloader
+  config/configloader,
+  config/tagsettings
 
 converter XBoolToBool(x: XBool): bool = bool(x)
 converter boolToXBool(x: bool): XBool = x.XBool
