@@ -24,8 +24,6 @@ converter intToCUchar(x: int): cuchar = x.cuchar
 converter clongToCUlong(x: clong): culong = x.culong
 converter toXBool(x: bool): XBool = x.XBool
 
-const masterSlots = 1
-
 type
   Monitor* = ref object of RootObj
     id*: MonitorID
