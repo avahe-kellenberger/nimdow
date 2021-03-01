@@ -12,12 +12,13 @@ import
   ../keys/keyutils,
   ../event/xeventmanager,
   ../logger,
-  ../windowtitleposition
+  ../windowtitleposition,
+  ../wmcommands
 
 var configLoc*: string
 
 proc findConfigPath*(): string =
-  let configHome = os.getConfigDir()
+  let configHome = getConfigDir()
   result = configHome & "nimdow/config.toml"
   if not fileExists(result):
     result = "/usr/share/nimdow/config.default.toml"
@@ -237,7 +238,8 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
     raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
-    this.populateControlAction(display, action, controlsTable[action].tableVal[])
+    let command = parseEnum[WMCommand](action)
+    this.populateControlAction(display, ($command).toLower(), controlsTable[action].tableVal[])
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):

@@ -8,6 +8,8 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 **Join #nimdow on freenode for questions/discussion**
 
+[See the progress of development in the local Kanban Board](https://github.com/avahe-kellenberger/nimdow/projects/1?fullscreen=true)
+
 # Table of Contents
 
 1. [Screenshots](#screenshots)
@@ -16,10 +18,11 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
     2. [Arch Linux (AUR)](#aur)
 3. [Config File](#config)
 4. [Command Line Arguments](#cli)
-5. [Status Bar](#statusbar)
-6. [Issues with Java Applications](#issues-with-java-applications)
-7. [Roadmap](#roadmap)
-8. [Testing Locally](#testing)
+5. [Command Line Client](#cli-client)
+6. [Status Bar](#statusbar)
+7. [Issues with Java Applications](#issues-with-java-applications)
+8. [Roadmap](#roadmap)
+9. [Testing Locally](#testing)
 
 
 ## Screenshots
@@ -55,10 +58,17 @@ If no config file is found, Nimdow will not launch.
 
 **See [the wiki](https://github.com/avahe-kellenberger/nimdow/wiki/User-Configuration-File) for information about the specifics of the config file.**
 
-## Command line arguments <a name="cli"></a>
+## Command Line Arguments <a name="cli"></a>
 
-- Providing an alternative config file, e.g. `nimdow ./some-config.toml`
+- Providing an alternative config file, e.g. `nimdow --config ./some-config.toml`
 - Version information: `nimdow -v` or `nimdow --version`
+
+## Command Line Client <a name="cli-client"></a>
+
+Nimdow controls can be executed via the cli client.
+
+See [the wiki page](https://github.com/avahe-kellenberger/nimdow/wiki/CLI-Client) for a list of commands,
+or read the **man page**.
 
 ## Status Bar <a name="statusbar"></a>
 

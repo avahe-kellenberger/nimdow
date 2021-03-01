@@ -1,0 +1,130 @@
+.TH NIMDOW 1
+.SH NAME
+nimdow \- an X dynamic tiling window manager
+.
+.SH SYNOPSIS
+.B nimdow
+.RB [ -v ]
+.br
+.B nimdow
+[\fB\-\-go-to-tag\fR \fITAG\fR]
+.br
+.B nimdow
+.RB [ --toggle-fullscreen ]
+.
+.SH DESCRIPTION
+.B nimdow
+is a dynamic tiling window manager for the X display server protocol.
+Windows are automatically laid out in a tiled fashion,
+to prevent overlap.
+Window position and layout can be controlled with keybindings configured in Nimdow's configuration file,
+or via IPC.
+.
+.PP
+.B nimdow
+also acts as a cli client,
+which talks to a running nimdow process via a UNIX socket.
+All window manager controls are available via the IPC and cli client.
+The UNIX socket is created at
+.B $XDG_RUNTIME_DIR/nimdow/ipc-socket.%p
+where %p is the PID of nimdow.
+.
+.PP
+Floating windows are supported,
+and can be moved/resized with the mouse while holding a modifier key.
+.
+.SH OPTIONS
+.
+.SS "Generic Commands"
+.TP
+.BR \-v ", " \-\-version \fR
+Prints the version information.
+.TP
+.BI \-c " FILE, " \-\-config=\fIFILE\fR
+Starts nimdow with the given config file.
+.
+.SS "IPC Commands"
+.
+.TP
+.BR --reload-config
+Reloads all settings from your config file.
+.
+.TP
+.BR --increase-master-count
+Increases the number of master windows in the layout.
+.
+.TP
+.BR --decrease-master-count
+Decreases the number of master windows in the layout.
+.
+.TP
+.BR --move-window-to-previous-monitor
+Moves the selected window to the previous monitor.
+.
+.TP
+.BR --move-window-to-next-monitor
+Moves the selected window to the next monitor.
+.TP
+.BR --focus-previous-monitor
+Focuses the previous monitor (wraps around to the last monitor).
+.
+.TP
+.BR --focus-next-monitor
+Focuses the next monitor (wraps around to the first monitor).
+.
+.TP
+\fB--go-to-tag\fR \fITAG\fR
+Views the selected tag.
+.
+.TP
+.BR --go-to-previous-tag
+Views the previously viewed tag.
+.
+.TP
+.BR --move-window-to-previous-tag
+Moves the selected window to the previously viewed tag.
+.
+.TP
+\fB--toggle-tag-view\fR \fITAG\fR
+Toggles the visibility of a tag.
+.
+.TP
+\fB--toggle-window-tag\fR \fITAG\fR
+Toggles the assignment of a window to a tag.
+.
+.TP
+.BR --focus-previous
+Focuses the previous window.
+.
+.TP
+.BR --focus-next
+Focuses the next window.
+.
+.TP
+.BR --move-window-previous
+Moves the window to the previous position in the window stack.
+.
+.TP
+.BR --move-window-next
+Moves the window to the next position in the window stack.
+.
+.TP
+\fB--move-window-to-tag\fR \fITAG\fR
+Moves the selected window to the tag associated with the given number.
+.
+.TP
+.BR --toggle-fullscreen
+Toggles the fullscreen state of the selected window.
+.
+.TP
+.BR --destroy-selected-window
+Destroys the selected window.
+.
+.TP
+.BR --toggle-floating
+Toggles the floating state of the selected window.
+.
+.TP
+.BR --jump-to-urgent-window
+Finds and selects the first urgent window.
+
