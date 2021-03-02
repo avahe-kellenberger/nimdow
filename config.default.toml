@@ -6,6 +6,7 @@
 # title = ""
 # monitor = 1
 # tags = [ 1, 4, 7 ]
+# state = "floating" # normal, floating, and fullscreen are all valid.
 
 # Start external programs
 [[startProcess]]

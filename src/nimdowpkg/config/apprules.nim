@@ -7,12 +7,18 @@ import ../taginfo
 const tableName = "appRule"
 const globChar = '*'
 
-type AppRule* = ref object
-  title*: string
-  class*: string
-  instance*: string
-  monitorID*: Positive
-  tagIDs*: seq[TagID]
+type
+  WindowState* = enum
+    wsNormal = "normal",
+    wsFloating = "floating",
+    wsFullscreen = "fullscreen"
+  AppRule* = ref object
+    title*: string
+    class*: string
+    instance*: string
+    monitorID*: Positive
+    tagIDs*: seq[TagID]
+    state*: WindowState
 
 proc newAppRule*(): AppRule =
   AppRule(
@@ -20,7 +26,8 @@ proc newAppRule*(): AppRule =
     class: "",
     instance: "",
     monitorID: 1,
-    tagIDs: @[]
+    tagIDs: @[],
+    state: wsNormal
   )
 
 proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
@@ -92,6 +99,7 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.instance= appRuleTable.getStringProperty("instance")
     appRule.monitorID = appRuleTable.getMonitorID()
     appRule.tagIDs = appRuleTable.getTagIDs()
+    appRule.state = parseEnum[WindowState](appRuleTable.getStringProperty("state").toLower(), wsNormal)
     result.add(appRule)
 
 proc globMatches*(str, sub: string): bool =

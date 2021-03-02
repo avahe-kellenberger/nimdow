@@ -962,6 +962,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   var
     client: Client
     monitor = this.selectedMonitor
+    appRule: AppRule
 
   var (c, m) = this.windowToClient(window)
   if c != nil:
@@ -971,7 +972,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client = newClient(window)
 
     # Assign to monitor & tags based on this.config.appRules
-    let appRule = this.getAppRule(client)
+    appRule = this.getAppRule(client)
     if appRule != nil:
       # Use appRule tags
       client.tagIDs.clear()
@@ -980,6 +981,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       # Assign to appRule monitor
       if this.monitors.hasKey(appRule.monitorID):
         monitor = this.monitors[appRule.monitorID]
+
+      # Set state based on app rule
+      if appRule.state == wsFloating:
+        client.isFloating = true
 
     let appRuleDoesNotHaveValidTags = appRule == nil or appRule.tagIDs.len == 0
     monitor.addClient(client, appRuleDoesNotHaveValidTags)
@@ -1017,7 +1022,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.windowSettings.borderColorUnfocused
   )
 
-  client.configure(this.display)
+  if not client.isFullscreen:
+    client.configure(this.display)
 
   discard XSelectInput(
     this.display,
@@ -1046,11 +1052,13 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   this.setClientState(client, NormalState)
 
-  if not client.isFixed:
-    monitor.doLayout(false)
 
-  if monitor == this.selectedMonitor and
-     monitor.taggedClients.currClientsContains(window):
+  if monitor == this.selectedMonitor:
+    if appRule != nil and appRule.state == wsFullscreen:
+      monitor.setFullscreen(client, true)
+    elif not client.isFixed:
+      monitor.doLayout(false)
+    if monitor.taggedClients.currClientsContains(window):
       monitor.focusClient(client, not client.isFloating)
 
   discard XMapWindow(this.display, window)
