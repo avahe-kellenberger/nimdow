@@ -16,7 +16,7 @@ type
     title*: string
     class*: string
     instance*: string
-    monitorID*: Positive
+    monitorID*: int
     tagIDs*: seq[TagID]
     state*: WindowState
 
@@ -38,11 +38,10 @@ proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
       raise newException(Exception, property & " must be a string!")
     return prop.stringVal
 
-proc getMonitorID(appRuleTable: TomlTableRef): Positive =
-  result = 1
+proc getMonitorID(appRuleTable: TomlTableRef): int =
   const propertyName = "monitor"
   if not appRuleTable.hasKey(propertyName):
-    raise newException(Exception, propertyName & " must be provided!")
+    return -1
 
   let monitorIDToml = appRuleTable[propertyName]
   if monitorIDToml.kind != TomlValueKind.Int:
@@ -52,12 +51,12 @@ proc getMonitorID(appRuleTable: TomlTableRef): Positive =
   if monitorID < 1:
     raise newException(Exception, propertyName & " must be a positive integer!")
 
-  return monitorID
+  return monitorID.int
 
 proc getTagIDs(appRuleTable: TomlTableRef): seq[TagID] =
   const propertyName = "tags"
   if not appRuleTable.hasKey(propertyName):
-    raise newException(Exception, propertyName & " must be provided!")
+    return @[]
 
   let tagIDsToml = appRuleTable[propertyName]
   if tagIDsToml.kind != TomlValueKind.Array:

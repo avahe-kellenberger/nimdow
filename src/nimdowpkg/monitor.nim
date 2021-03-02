@@ -385,6 +385,8 @@ proc addClient*(this: Monitor, client: var Client, assignToSelectedTags: bool = 
     client.tagIDs.clear()
     this.toggleSelectedTagsForClient(client)
 
+  this.statusBar.redraw()
+
 proc moveClientToTag*(this: Monitor, client: Client, destinationTagID: TagID) =
   if client.tagIDs.len == 1 and destinationTagID in client.tagIDs:
     return

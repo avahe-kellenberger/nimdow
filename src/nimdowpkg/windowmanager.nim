@@ -1052,17 +1052,20 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   this.setClientState(client, NormalState)
 
-
-  if monitor == this.selectedMonitor:
-    if appRule != nil and appRule.state == wsFullscreen:
-      monitor.setFullscreen(client, true)
-    elif not client.isFixed:
-      monitor.doLayout(false)
+  if appRule != nil and appRule.state == wsFullscreen:
     if monitor.taggedClients.currClientsContains(window):
-      monitor.focusClient(client, not client.isFloating)
+      monitor.setFullscreen(client, true)
+    else:
+      client.isFullscreen = true
+  elif not client.isFixed and monitor.taggedClients.currClientsContains(window):
+    monitor.doLayout(false)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true
+
+  if monitor == this.selectedMonitor and
+    monitor.taggedClients.currClientsContains(window):
+      monitor.focusClient(client, not client.isFloating or client.isFullscreen)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
