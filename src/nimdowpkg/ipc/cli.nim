@@ -11,7 +11,7 @@ import
   ../wmcommands,
   ../logger
 
-const version* = "v0.7.19"
+const version* = "v0.7.20"
 
 proc handleWMCommand(commandStr: string): bool =
   ## Returns if the command was sent.
