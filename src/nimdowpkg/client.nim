@@ -186,6 +186,7 @@ proc warpTo*(display: PDisplay, client: Client) =
     client.width.int div 2,
     client.height.int div 2
   )
+  discard XSetInputFocus(display, client.window, RevertToNone, CurrentTime)
 
 proc isNormal*(this: Client): bool =
   ## If the client is "normal".

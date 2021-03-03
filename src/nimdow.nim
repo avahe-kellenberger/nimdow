@@ -71,7 +71,7 @@ when isMainModule:
     ipcSocket = ipc.initIPCSocket()
     ipcSocketFd = ipcSocket.getFd().int
 
-  selector.registerHandle(displayFd, {Read, Write}, nil)
+  selector.registerHandle(displayFd, {Read}, nil)
   selector.registerHandle(ipcSocketFd, {Read}, nil)
 
   # Sync the display before listening for events.
@@ -96,6 +96,7 @@ when isMainModule:
           let received = client.recv(MaxLineLength)
           client.close()
           handleCommand(received, nimdow, loadedConfig.actionIdentifierTable)
+          discard XSync(nimdow.display, false.XBool)
         except:
           # Client disconnected when we tried to accept.
           discard
