@@ -12,7 +12,7 @@ let
   runtimeDir = if existsEnv("XDG_RUNTIME_DIR"): getEnv("XDG_RUNTIME_DIR") else: "/tmp"
   socketDir = fmt"{runtimeDir}/nimdow"
   pid = getCurrentProcessId()
-  socketLoc = fmt"{socketDir}/ipc-socket.{pid}"
+  socketLoc* = fmt"{socketDir}/ipc-socket.{pid}"
 
 proc findSocketPath*(): string =
   for kind, filePath in walkDir(socketDir):
@@ -22,7 +22,7 @@ proc findSocketPath*(): string =
 proc deleteOldIPCSockets() =
   for kind, filePath in walkDir(socketDir):
     if kind == pcFile:
-      removeFile(filePath)
+      discard tryRemoveFile(filePath)
 
 proc initIPCSocket*(): Socket =
   ## Creates and initializes a socket at socketLoc.

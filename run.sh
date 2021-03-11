@@ -11,7 +11,7 @@ nimble debug || exit 1
 Xephyr -br -ac -reset -screen 1920x1080 :1 &
 sleep 1s
 export DISPLAY=:1
-xrdb $HOME/.Xresources &
+xrdb "$HOME/.Xresources" &
 ./bin/nimdow --config "./config.default.toml" &
 
 # nm-applet &
