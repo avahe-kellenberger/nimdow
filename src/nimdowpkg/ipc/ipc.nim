@@ -9,7 +9,7 @@ import ../logger
 const ipcPrefix* = "nimdow-ipc"
 
 let
-  runtimeDir = getEnv("XDG_RUNTIME_DIR")
+  runtimeDir = if existsEnv("XDG_RUNTIME_DIR"): getEnv("XDG_RUNTIME_DIR") else: "/tmp"
   socketDir = fmt"{runtimeDir}/nimdow"
   pid = getCurrentProcessId()
   socketLoc = fmt"{socketDir}/ipc-socket.{pid}"
