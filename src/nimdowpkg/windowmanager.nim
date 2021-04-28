@@ -908,6 +908,7 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.isFloating = true
     client.width = max(client.width, sizeHints.min_width.uint)
     client.height = max(client.height, sizeHints.min_height.uint)
+    client.needsResize = true
 
     this.centerClientIfNeeded(client, monitor)
 
@@ -1043,6 +1044,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.width.cuint,
     client.height.cuint
   )
+
+  client.needsResize = false
 
   this.setClientState(client, NormalState)
 
@@ -1449,12 +1452,13 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
     case e.atom:
       of XA_WM_TRANSIENT_FOR:
         var transientWin: Window
-        if not client.isFloating and XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
+        if not client.isFloating and
+          XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
           let c = this.windowToClient(transientWin)
           client.isFloating = c.client != nil
           if client.isFloating:
             monitor.doLayout()
-      of XA_WM_NORMAL_HINTS:
+      of XA_WM_NORMAL_HINTS, XA_WM_SIZE_HINTS:
         this.updateSizeHints(client, monitor)
       of XA_WM_HINTS:
         this.updateWMHints(client)
@@ -1472,6 +1476,12 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
 
     if e.atom == $NetWMWindowType:
       this.updateWindowType(client)
+
+    if client.needsResize and
+       monitor == this.selectedMonitor and
+       monitor.taggedClients.currClientsContains(client):
+      client.show(this.display)
+      monitor.doLayout(false)
 
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   if e.count == 0:
