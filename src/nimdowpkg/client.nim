@@ -74,11 +74,11 @@ proc configure*(this: Client, display: PDisplay) =
   event.height = this.height
   event.border_width = this.borderWidth
   event.above = None
-  event.override_redirect = 0
+  event.override_redirect = false
   discard XSendEvent(
     display,
     this.window,
-    0,
+    false,
     StructureNotifyMask,
     cast[PXEvent](event.addr)
   )

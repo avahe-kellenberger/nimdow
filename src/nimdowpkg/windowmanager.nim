@@ -757,8 +757,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       client.configure(this.display)
   else:
     var changes: XWindowChanges
-    changes.x = e.x - this.selectedMonitor.area.x
-    changes.y = e.y - this.selectedMonitor.area.y
+    changes.x = e.x
+    changes.y = e.y
     changes.width = e.width
     changes.height = e.height
     changes.border_width = e.border_width
