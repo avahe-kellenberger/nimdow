@@ -891,7 +891,9 @@ proc updateWindowType(this: WindowManager, client: var Client) =
     if monitor != nil:
       monitor.setFullscreen(client, true)
 
-  if windowType == $NetWMWindowTypeDialog or windowType == $NetWMWindowTypeSplash:
+  if windowType == $NetWMWindowTypeDialog or
+     windowType == $NetWMWindowTypeSplash or
+     windowType == $NetWMWindowTypeUtility:
     client.isFloating = true
     if monitor != nil:
       this.centerClientIfNeeded(client, monitor)
