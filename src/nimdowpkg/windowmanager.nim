@@ -1425,7 +1425,7 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
   this.unfocus(previousSelectedClient)
   this.selectedMonitor.setActiveWindowProperty(client.window)
   this.selectedMonitor.setSelectedClient(client)
-  this.grabButtons(previousSelectedClient, true)
+  this.grabButtons(client, true)
   # Don't raise the newly selected floating window if the last was also floating.
   if not previousSelectedClientWasFloating and client.isFloating:
     discard XRaiseWindow(this.display, client.window)
@@ -1563,8 +1563,7 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
     # Clicked systray window, don't do anything.
     return
 
-  # Button release not happening.
-  # Need to not change mouse state if e has no modifiers
+  # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
       if e.state == Mod4Mask:
