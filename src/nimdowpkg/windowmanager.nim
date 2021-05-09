@@ -640,6 +640,11 @@ proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
 
 proc unfocus*(this: WindowManager, client: Client) =
   this.grabButtons(client, false)
+  discard XSetWindowBorder(
+      this.display,
+      client.window,
+      this.windowSettings.borderColorUnfocused
+    )
 
 proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
   ## Grabs key combos defined in the user's config
