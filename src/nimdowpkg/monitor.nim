@@ -216,7 +216,7 @@ proc keycodeToTagID*(this: Monitor, keycode: int): Option[TagID] =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 1 or tagNumber > this.tags.len:
-      raise newException(Exception, "Invalid tag number: " & tagNumber)
+      raise newException(Exception, "Invalid tag number: " & $tagNumber)
 
     return this.tags[tagNumber - 1].id.option
   except:
@@ -598,4 +598,3 @@ proc find*(monitors: OrderedTable[MonitorID, Monitor], x, y: int): tuple[index: 
     if dist < shortestDist:
       shortestDist = dist
       result = (i, monitor)
-

@@ -72,8 +72,11 @@ proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
 proc mapConfigActions*(this: WindowManager)
 proc configureRootWindow(this: WindowManager): Window
-proc hookConfigKeys*(this: WindowManager)
+proc grabKeys*(this: WindowManager)
+proc grabButtons*(this: WindowManager, client: Client, focused: bool)
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.}
+proc focus*(this: WindowManager, client: Client, warpToClient: bool)
+proc unfocus*(this: WindowManager, client: Client)
 proc destroySelectedWindow*(this: WindowManager)
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
@@ -122,7 +125,7 @@ proc newWindowManager*(
     result.config.populateKeyComboTable(configTable, result.display)
     result.config.populateGeneralSettings(configTable)
     result.config.hookConfig()
-    result.hookConfigKeys()
+    result.grabKeys()
   except:
     log getCurrentExceptionMsg(), lvlError
 
@@ -299,7 +302,8 @@ proc reloadConfig*(this: WindowManager) =
     log getCurrentExceptionMsg(), lvlError
 
   this.config.hookConfig()
-  this.hookConfigKeys()
+  this.grabKeys()
+  # TODO: Probably need to grabButtons for each client on reload.
 
   this.windowSettings = this.config.windowSettings
   for monitor in this.monitors.mvalues():
@@ -436,7 +440,7 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
   else:
     this.selectedMonitor.doLayout(false)
 
-  this.selectedMonitor.focusClient(client, true)
+  this.focus(client, true)
 
 proc moveClientToPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.valuesToSeq().findPrevious(this.selectedMonitor)
@@ -591,9 +595,13 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcFocusNext):
     this.selectedMonitor.focusNextClient(true)
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      this.focus(client, false)
 
   createControl(keyCombo, $wmcFocusPrevious):
     this.selectedMonitor.focusPreviousClient(true)
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      this.focus(client, false)
 
   createControl(keyCombo, $wmcMoveWindowPrevious):
     this.selectedMonitor.moveClientPrevious()
@@ -618,11 +626,66 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
-proc hookConfigKeys*(this: WindowManager) =
+proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
+  for monitor in this.monitors.values():
+    for taggedClient in monitor.taggedClients.clients:
+      if taggedClient != client:
+        this.unfocus(taggedClient)
+
+  this.selectedMonitor.setSelectedClient(client)
+  this.selectedMonitor.focusClient(client, warpToClient)
+  this.grabButtons(client, true)
+  if client.isFloating:
+    discard XRaiseWindow(this.display, client.window)
+
+proc unfocus*(this: WindowManager, client: Client) =
+  this.grabButtons(client, false)
+  discard XSetWindowBorder(
+      this.display,
+      client.window,
+      this.windowSettings.borderColorUnfocused
+    )
+
+proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
   ## Grabs key combos defined in the user's config
   updateNumlockMask(this.display)
   let modifiers = [0.cuint, LockMask.cuint, numlockMask, numlockMask or LockMask.cuint]
 
+  discard XUngrabButton(this.display, AnyButton, AnyModifier, this.rootWindow)
+
+  if not focused:
+    discard XGrabButton(
+      this.display,
+      AnyButton,
+      AnyModifier,
+      client.window,
+      false,
+      ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+      GrabModeSync,
+      GrabModeSync,
+      x.None,
+      x.None
+    )
+
+  # We only care about left and right clicks
+  for button in @[Button1, Button3]:
+    for modifier in modifiers:
+      discard XGrabButton(
+        this.display,
+        button,
+        Mod4Mask or modifier.int,
+        this.rootWindow,
+        false,
+        ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+        GrabModeAsync,
+        GrabModeAsync,
+        x.None,
+        x.None
+      )
+
+proc grabKeys*(this: WindowManager) =
+  updateNumlockMask(this.display)
+  let modifiers = [0.cuint, LockMask.cuint, numlockMask, numlockMask or LockMask.cuint]
   discard XUngrabKey(this.display, AnyKey, AnyModifier, this.rootWindow)
   for keyCombo in this.config.keyComboTable.keys:
     for modifier in modifiers:
@@ -634,23 +697,6 @@ proc hookConfigKeys*(this: WindowManager) =
         true,
         GrabModeAsync,
         GrabModeAsync
-      )
-
-  # We only care about left and right clicks
-  discard XUngrabButton(this.display, AnyButton, AnyModifier, this.rootWindow)
-  for button in @[Button1, Button3]:
-    for modifier in modifiers:
-      discard XGrabButton(
-        this.display,
-        button,
-        Mod4Mask or modifier.int,
-        this.rootWindow,
-        false,
-        ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
-        GrabModeASync,
-        GrabModeASync,
-        x.None,
-        x.None
       )
 
 proc errorHandler(display: PDisplay, error: PXErrorEvent): cint{.cdecl.} =
@@ -757,8 +803,8 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
       client.configure(this.display)
   else:
     var changes: XWindowChanges
-    changes.x = e.x - this.selectedMonitor.area.x
-    changes.y = e.y - this.selectedMonitor.area.y
+    changes.x = e.x
+    changes.y = e.y
     changes.width = e.width
     changes.height = e.height
     changes.border_width = e.border_width
@@ -891,7 +937,9 @@ proc updateWindowType(this: WindowManager, client: var Client) =
     if monitor != nil:
       monitor.setFullscreen(client, true)
 
-  if windowType == $NetWMWindowTypeDialog:
+  if windowType == $NetWMWindowTypeDialog or
+     windowType == $NetWMWindowTypeSplash or
+     windowType == $NetWMWindowTypeUtility:
     client.isFloating = true
     if monitor != nil:
       this.centerClientIfNeeded(client, monitor)
@@ -908,6 +956,7 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
     client.isFloating = true
     client.width = max(client.width, sizeHints.min_width.uint)
     client.height = max(client.height, sizeHints.min_height.uint)
+    client.needsResize = true
 
     this.centerClientIfNeeded(client, monitor)
 
@@ -1035,6 +1084,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     FocusChangeMask
   )
 
+  this.grabButtons(client, false)
+
   this.updateWindowType(client)
   this.updateSizeHints(client, monitor)
   this.updateWMHints(client)
@@ -1050,6 +1101,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.height.cuint
   )
 
+  client.needsResize = false
+
   this.setClientState(client, NormalState)
 
   if appRule != nil and appRule.state == wsFullscreen:
@@ -1059,6 +1112,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       client.isFullscreen = true
   elif not client.isFixed and monitor.taggedClients.currClientsContains(window):
     monitor.doLayout(false)
+
+  if monitor == this.selectedMonitor and
+     monitor.taggedClients.currClientsContains(window):
+      this.focus(client, not client.isFloating)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true
@@ -1119,7 +1176,7 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
 
     if monitor == this.selectedMonitor:
       this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
-        this.selectedMonitor.focusClient(currClient, false)
+        this.focus(currClient, false)
 
 proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent) =
   let (client, _) = this.windowToClient(e.window)
@@ -1167,7 +1224,7 @@ proc selectCorrectMonitor(this: WindowManager, x, y: int) =
     # Focus the new monitor's current client
     let currClient = this.selectedMonitor.taggedClients.currClient
     if currClient != nil:
-      this.selectedMonitor.focusClient(currClient, false)
+      this.focus(currClient, false)
     else:
       discard XSetInputFocus(this.display, this.rootWindow, RevertToPointerRoot, CurrentTime)
     break
@@ -1378,11 +1435,17 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
   let client = this.selectedMonitor.taggedClients.findByWindowInCurrentTags(e.window)
   if client == nil:
     # A window is another tag or monitor took focus.
+    # TODO: Re-focus the correct window?
     return
 
-  this.selectedMonitor.setActiveWindowProperty(e.window)
+  let previousSelectedClient = this.selectedMonitor.taggedClients.currClient
+  let previousSelectedClientWasFloating = previousSelectedClient.isFloating
+  this.unfocus(previousSelectedClient)
+  this.selectedMonitor.setActiveWindowProperty(client.window)
   this.selectedMonitor.setSelectedClient(client)
-  if client.isFloating:
+  this.grabButtons(client, true)
+  # Don't raise the newly selected floating window if the last was also floating.
+  if not previousSelectedClientWasFloating and client.isFloating:
     discard XRaiseWindow(this.display, client.window)
 
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
@@ -1460,12 +1523,13 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
     case e.atom:
       of XA_WM_TRANSIENT_FOR:
         var transientWin: Window
-        if not client.isFloating and XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
+        if not client.isFloating and
+          XGetTransientForHint(this.display, client.window, transientWin.addr) != 0:
           let c = this.windowToClient(transientWin)
           client.isFloating = c.client != nil
           if client.isFloating:
             monitor.doLayout()
-      of XA_WM_NORMAL_HINTS:
+      of XA_WM_NORMAL_HINTS, XA_WM_SIZE_HINTS:
         this.updateSizeHints(client, monitor)
       of XA_WM_HINTS:
         this.updateWMHints(client)
@@ -1484,6 +1548,12 @@ proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
     if e.atom == $NetWMWindowType:
       this.updateWindowType(client)
 
+    if client.needsResize and
+       monitor == this.selectedMonitor and
+       monitor.taggedClients.currClientsContains(client):
+      client.show(this.display)
+      monitor.doLayout(false)
+
 proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
   if e.count == 0:
     let monitor = this.windowToMonitor(e.window)
@@ -1500,20 +1570,34 @@ proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   this.lastMousePress = (e.x.int, e.y.int)
   this.lastMoveResizeClientState = client.area
 
+proc findClient(this: WindowManager, e: XButtonEvent): Client =
+ for monitor in this.monitors.values():
+   let client = monitor.taggedClients.findByWindow(e.window)
+   if client != nil:
+     return client
+
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   if e.window == this.systray.window:
     # Clicked systray window, don't do anything.
     return
 
+  # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
-      this.mouseState = MouseState.Moving
-      this.selectClientForMoveResize(e)
+      if e.state == Mod4Mask:
+        this.mouseState = MouseState.Moving
+        this.selectClientForMoveResize(e)
     of Button3:
-      this.mouseState = MouseState.Resizing
-      this.selectClientForMoveResize(e)
+      if e.state == Mod4Mask:
+        this.mouseState = MouseState.Resizing
+        this.selectClientForMoveResize(e)
     else:
       this.mouseState = MouseState.Normal
+
+  let client = this.findClient(e)
+  if client != nil:
+    this.focus(client, false)
+    discard XAllowEvents(this.display, ReplayPointer, CurrentTime)
 
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   this.mouseState = MouseState.Normal

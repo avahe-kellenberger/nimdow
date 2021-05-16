@@ -74,11 +74,11 @@ proc configure*(this: Client, display: PDisplay) =
   event.height = this.height
   event.border_width = this.borderWidth
   event.above = None
-  event.override_redirect = 0
+  event.override_redirect = false
   discard XSendEvent(
     display,
     this.window,
-    0,
+    false,
     StructureNotifyMask,
     cast[PXEvent](event.addr)
   )
@@ -186,6 +186,7 @@ proc warpTo*(display: PDisplay, client: Client) =
     client.width.int div 2,
     client.height.int div 2
   )
+  discard XSetInputFocus(display, client.window, RevertToNone, CurrentTime)
 
 proc isNormal*(this: Client): bool =
   ## If the client is "normal".

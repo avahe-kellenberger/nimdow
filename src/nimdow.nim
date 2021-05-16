@@ -1,5 +1,6 @@
 import
   x11/xlib,
+  std/exitprocs,
   os,
   net,
   selectors,
@@ -56,7 +57,14 @@ when isMainModule:
 
   let nimdow = newWindowManager(eventManager, loadedConfig, configTable)
 
+  addExitProc(proc() =
+    eventManager.closeFinishedProcesses()
+    discard XCloseDisplay(nimdow.display)
+    discard tryRemoveFile(ipc.socketLoc)
+  )
+
   logger.enabled = loadedConfig.loggingEnabled
+
   log "Starting Nimdow " & version
 
   try:
@@ -71,7 +79,7 @@ when isMainModule:
     ipcSocket = ipc.initIPCSocket()
     ipcSocketFd = ipcSocket.getFd().int
 
-  selector.registerHandle(displayFd, {Read, Write}, nil)
+  selector.registerHandle(displayFd, {Read}, nil)
   selector.registerHandle(ipcSocketFd, {Read}, nil)
 
   # Sync the display before listening for events.
@@ -81,26 +89,22 @@ when isMainModule:
   while true:
     for event in selector.select(-1):
 
-      # X11 Event(s) Received
-      if event.fd == displayFd:
-        while XPending(nimdow.display) > 0:
-          discard XNextEvent(nimdow.display, xEvent.addr)
-          eventManager.dispatchEvent(xEvent)
-        eventManager.checkForProcessesToClose()
-
       # IPC Socket
-      elif event.fd == ipcSocketFd:
+      if event.fd == ipcSocketFd:
         var client: Socket
         try:
           ipcSocket.accept(client, flags = {})
           let received = client.recv(MaxLineLength)
           client.close()
           handleCommand(received, nimdow, loadedConfig.actionIdentifierTable)
+          discard XSync(nimdow.display, false.XBool)
         except:
           # Client disconnected when we tried to accept.
           discard
 
-  # TODO: A way to invoke these when the program is terminating?
-  # eventManager.closeFinishedProcesses()
-  # discard XCloseDisplay(nimdow.display)
+      # X11 Event(s) Received
+      while XPending(nimdow.display) > 0:
+        discard XNextEvent(nimdow.display, xEvent.addr)
+        eventManager.dispatchEvent(xEvent)
+      eventManager.checkForProcessesToClose()
 
