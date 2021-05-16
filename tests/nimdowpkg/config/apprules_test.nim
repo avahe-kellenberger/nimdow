@@ -6,6 +6,7 @@ import
 test "valid single app rule":
   let testToml: string = """
   [[appRule]]
+  title = "Element | Billybob"
   class = "Element"
   instance = "element"
   monitor = 2
@@ -16,6 +17,7 @@ test "valid single app rule":
   let rules: seq[AppRule] = parseAppRules(toml.tableVal[])
 
   let firstRule = rules[0]
+  doAssert firstRule.title == "Element | Billybob"
   doAssert firstRule.class == "Element"
   doAssert firstRule.instance == "element"
   doAssert firstRule.monitorID == 2.Positive
@@ -24,6 +26,7 @@ test "valid single app rule":
 test "valid multiple app rules":
   let testToml: string = """
   [[appRule]]
+  title = "Element | Foobar"
   class = "Element"
   instance = "element"
   monitor = 2
@@ -64,6 +67,7 @@ test "valid multiple app rules":
   assert rules.len == 5
 
   let firstRule = rules[0]
+  doAssert firstRule.title == "Element | Foobar"
   doAssert firstRule.class == "Element"
   doAssert firstRule.instance == "element"
   doAssert firstRule.monitorID == 2.Positive
@@ -104,6 +108,21 @@ test "no app rules does not raise an exception":
   let toml = parseString(testToml)
   let rules: seq[AppRule] = parseAppRules(toml.tableVal[])
   assert rules.len == 0
+
+test "has an invalid title":
+  let testToml: string = """
+  [[appRule]]
+  title = 9009
+  class = "123"
+  instance = "element"
+  monitor = 2
+  tags = [ 1, 9 ]
+  """
+
+  let toml = parseString(testToml)
+  assertRaises(Exception, "title must be a string!"):
+    discard parseAppRules(toml.tableVal[])
+
 
 test "has an invalid class":
   let testToml: string = """

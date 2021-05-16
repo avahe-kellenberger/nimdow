@@ -1,12 +1,12 @@
 # App Rules
 # Example:
-# [[appRule]]
-# class = "Element"
-# instance = ""
-# title = ""
-# monitor = 1
-# tags = [ 1, 4, 7 ]
-# state = "floating" # normal, floating, and fullscreen are all valid.
+[[appRule]]
+class = "st"
+instance = "st"
+title = "st"
+monitor = 1
+tags = [ 1, 4, 7 ]
+state = "normal" # normal, floating, and fullscreen are all valid.
 
 # Start external programs
 [[startProcess]]
