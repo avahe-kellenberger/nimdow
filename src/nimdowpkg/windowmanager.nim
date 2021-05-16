@@ -1102,13 +1102,9 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   if not client.isFixed:
     monitor.doLayout(false)
 
-  this.unfocus(client)
-
   if monitor == this.selectedMonitor and
      monitor.taggedClients.currClientsContains(window):
-      this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
-        this.unfocus(currClient)
-        this.focus(client, not client.isFloating)
+      this.focus(client, not client.isFloating)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true
