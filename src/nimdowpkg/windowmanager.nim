@@ -1106,6 +1106,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.needsResize = false
 
   this.setClientState(client, NormalState)
+  client.adjustToState(this.display)
 
   if appRule != nil and appRule.state == wsFullscreen:
     if monitor.taggedClients.currClientsContains(window):
@@ -1113,18 +1114,15 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     else:
       client.isFullscreen = true
   elif not client.isFixed and not client.isFloating and monitor.taggedClients.currClientsContains(window):
-    monitor.doLayout(false, monitor == this.selectedMonitor)
+    monitor.doLayout(false, not client.isFloating)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true
 
   if monitor == this.selectedMonitor and monitor.taggedClients.currClientsContains(window):
-    log "focusing " & $window
     let shouldWarp = not client.isFloating or monitor.taggedClients.currClientsLen == 1
     this.focus(client, shouldWarp)
     monitor.focusClient(client, not client.isFloating or client.isFullscreen)
-
-  client.adjustToState(this.display)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
