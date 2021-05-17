@@ -114,20 +114,21 @@ template clientSelection*(this: Monitor): seq[Client] =
   this.taggedClients.clientSelection
 
 proc updateWindowBorders(this: Monitor) =
+  let currClient: Client = this.taggedClients.currClient
   for n in this.taggedClients.currClientsIter:
     let client = n.value
-    if not client.isUrgent:
+    if not client.isUrgent and client != currClient:
       discard XSetWindowBorder(
         this.display,
         n.value.window,
         this.windowSettings.borderColorUnfocused
       )
 
-  this.taggedClients.withSomeCurrClient(c):
-    if not c.isFixed and not c.isFullscreen:
+  if currClient != nil:
+    if not currClient.isFixed and not currClient.isFullscreen:
       discard XSetWindowBorder(
         this.display,
-        c.window,
+        currClient.window,
         this.windowSettings.borderColorFocused
       )
 

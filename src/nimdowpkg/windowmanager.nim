@@ -19,6 +19,7 @@ import
   keys/keyutils,
   logger,
   utils,
+  listutils,
   wmcommands
 
 converter intToCint(x: int): cint = x.cint
@@ -1045,6 +1046,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.oldWidth = client.width
     client.height = windowAttr.height
     client.oldHeight = client.height
+    client.borderWidth = this.config.windowSettings.borderWidth
     client.oldBorderWidth = windowAttr.border_width
 
   if client.x - monitor.area.x <= 0 or
@@ -1071,8 +1073,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.windowSettings.borderColorUnfocused
   )
 
-  if not client.isFullscreen:
-    client.configure(this.display)
+  # if not client.isFullscreen:
+  #   client.configure(this.display)
 
   discard XSelectInput(
     this.display,
@@ -1110,19 +1112,19 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       monitor.setFullscreen(client, true)
     else:
       client.isFullscreen = true
-  elif not client.isFixed and monitor.taggedClients.currClientsContains(window):
-    monitor.doLayout(false)
-
-  if monitor == this.selectedMonitor and
-     monitor.taggedClients.currClientsContains(window):
-      this.focus(client, not client.isFloating)
+  elif not client.isFixed and not client.isFloating and monitor.taggedClients.currClientsContains(window):
+    monitor.doLayout(false, monitor == this.selectedMonitor)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true
 
-  if monitor == this.selectedMonitor and
-    monitor.taggedClients.currClientsContains(window):
-      monitor.focusClient(client, not client.isFloating or client.isFullscreen)
+  if monitor == this.selectedMonitor and monitor.taggedClients.currClientsContains(window):
+    log "focusing " & $window
+    let shouldWarp = not client.isFloating or monitor.taggedClients.currClientsLen == 1
+    this.focus(client, shouldWarp)
+    monitor.focusClient(client, not client.isFloating or client.isFullscreen)
+
+  client.adjustToState(this.display)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
@@ -1439,8 +1441,10 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     return
 
   let previousSelectedClient = this.selectedMonitor.taggedClients.currClient
-  let previousSelectedClientWasFloating = previousSelectedClient.isFloating
-  this.unfocus(previousSelectedClient)
+  let previousSelectedClientWasFloating = previousSelectedClient != nil and previousSelectedClient.isFloating
+  if previousSelectedClient != nil:
+    this.unfocus(previousSelectedClient)
+
   this.selectedMonitor.setActiveWindowProperty(client.window)
   this.selectedMonitor.setSelectedClient(client)
   this.grabButtons(client, true)

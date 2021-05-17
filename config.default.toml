@@ -6,7 +6,7 @@ instance = "st"
 title = "st"
 monitor = 1
 tags = [ 1, 4, 7 ]
-state = "normal" # normal, floating, and fullscreen are all valid.
+state = "floating" # normal, floating, and fullscreen are all valid.
 
 # Start external programs
 [[startProcess]]

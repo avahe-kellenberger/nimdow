@@ -38,6 +38,10 @@ iterator currClientsIter*(this: TaggedClients): ClientNode {.inline, closure.} =
     if node.value.tagIDs.anyIt(this.selectedTags.contains(it)):
       yield node
 
+func currClientsLen*(this: TaggedClients): int =
+  for c in this.currClientsIter:
+    inc result
+
 iterator currClientsReverseIter*(this: TaggedClients): ClientNode {.inline, closure.} =
   ## Iterates over clients in reverse stack order.
   for node in this.clients.reverseNodes:
