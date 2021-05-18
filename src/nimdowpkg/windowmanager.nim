@@ -1106,7 +1106,8 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.needsResize = false
 
   this.setClientState(client, NormalState)
-  client.adjustToState(this.display)
+  if monitor.taggedClients.currClientsContains(window):
+    client.adjustToState(this.display)
 
   if appRule != nil and appRule.state == wsFullscreen:
     if monitor.taggedClients.currClientsContains(window):
