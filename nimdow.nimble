@@ -8,7 +8,7 @@ installExt    = @["nim"]
 bin           = @["nimdow"]
 
 # Deps
-requires "nim >= 1.2.0"
+requires "nim >= 1.4.0"
 requires "x11"
 requires "parsetoml"
 
