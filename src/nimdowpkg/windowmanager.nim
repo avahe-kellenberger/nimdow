@@ -940,7 +940,8 @@ proc updateWindowType(this: WindowManager, client: var Client) =
 
   if windowType == $NetWMWindowTypeDialog or
      windowType == $NetWMWindowTypeSplash or
-     windowType == $NetWMWindowTypeUtility:
+     windowType == $NetWMWindowTypeUtility or
+     windowType == $NetWMStateModal:
     client.isFloating = true
     if monitor != nil:
       this.centerClientIfNeeded(client, monitor)
