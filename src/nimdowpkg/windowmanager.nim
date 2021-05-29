@@ -20,6 +20,7 @@ import
   logger,
   utils,
   listutils,
+  deques,
   wmcommands
 
 converter intToCint(x: int): cint = x.cint
@@ -542,6 +543,24 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
+proc moveWindowToScratchpad(this: WindowManager) =
+  var client = this.selectedMonitor.taggedClients.currClient
+  this.selectedMonitor.scratchpad.addLast client
+  client.tagIDs.clear()
+  this.selectedMonitor.doLayout()
+
+proc popScratchpadLast(this: WindowManager) =
+  var client: Client
+  try:
+    client = this.selectedMonitor.scratchpad.popLast
+  except IndexDefect:
+    return
+  client.tagIDs.incl(this.selectedMonitor.taggedClients.tags[0].id)
+  client.isFloating = true
+  this.focus client, false
+  this.selectedMonitor.doLayout()
+
+
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
@@ -626,6 +645,12 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
+
+  createControl(keyCombo, $wmcMoveWindowToScratchpad):
+    this.moveWindowToScratchpad()
+
+  createControl(keyCombo, $wmcPopScratchpadLast):
+    this.popScratchpadLast()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():

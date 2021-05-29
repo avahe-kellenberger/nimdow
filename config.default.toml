@@ -143,6 +143,14 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
+  [controls.moveWindowToScratchpad]
+  keys = [ "s" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.popScratchpadLast]
+  keys = [ "s" ]
+  modifiers = [ "super" ]
+
 # Example monitor settings:
 # [monitors]
   # [monitors.default.tags]
