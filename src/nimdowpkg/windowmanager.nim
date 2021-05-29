@@ -555,7 +555,9 @@ proc popScratchpadLast(this: WindowManager) =
     client = this.selectedMonitor.scratchpad.popLast
   except IndexDefect:
     return
-  client.tagIDs.incl(this.selectedMonitor.taggedClients.tags[0].id)
+  for tag in this.selectedMonitor.taggedClients.selectedTags:
+    client.tagIDs.incl(tag)
+    break
   client.isFloating = true
   this.focus client, false
   this.selectedMonitor.doLayout()
