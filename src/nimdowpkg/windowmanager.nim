@@ -542,6 +542,18 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
+proc incWidthDiff(this: WindowManager) =
+  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
+  if layout of MasterStackLayout:
+    cast[MasterStackLayout](layout).widthDiff += 10
+    this.selectedMonitor.doLayout()
+
+proc decWidthDiff(this: WindowManager) =
+  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
+  if layout of MasterStackLayout:
+    cast[MasterStackLayout](layout).widthDiff -= 10
+    this.selectedMonitor.doLayout()
+
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
@@ -626,6 +638,12 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
+
+  createControl(keyCombo, $wmcIncWidthDiff):
+    this.incWidthDiff()
+
+  createControl(keyCombo, $wmcDecWidthDiff):
+    this.decWidthDiff()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():

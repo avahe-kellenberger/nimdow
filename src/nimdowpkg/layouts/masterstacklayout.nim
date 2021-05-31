@@ -12,6 +12,7 @@ converter intToCUint(x: int): cuint = x.cuint
 const layoutName: string = "masterstack"
 
 type MasterStackLayout* = ref object of Layout
+  widthDiff*: int
 
 proc layoutSingleClient(
   this: MasterStackLayout,
@@ -112,7 +113,7 @@ proc layoutMultipleClients(
   let stackClientCount = max(0, clientCount.int - this.masterSlots.int).uint
 
   # If there are only master clients, take up all horizontal space.
-  let clientWidth = if masterClientCount == clientCount or masterClientCount == 0:
+  let normalClientWidth = if masterClientCount == clientCount or masterClientCount == 0:
     this.calcClientWidth(screenWidth) * 2 else:
       this.calcClientWidth(screenWidth)
 
@@ -125,21 +126,23 @@ proc layoutMultipleClients(
   let stackXPos: uint =
     if masterClientCount == 0:
       this.gapSize else:
-        math.round(screenWidth.float / 2).uint + math.round(this.gapSize.float / 2).uint
+        uint(math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff)
 
   for (i, client) in clients.pairs():
-    var xPos, yPos, clientHeight: uint
+    var xPos, yPos, clientWidth, clientHeight: uint
     if i.uint < masterClientCount:
       # Master layout
       xPos = this.gapSize
       yPos = this.calcYPosition(i.uint, masterClientCount, masterClientHeight, masterRoundingErr)
       clientHeight = masterClientHeight
+      clientWidth = uint(normalClientWidth.int + this.widthDiff)
     else:
       # Stack layout
       xPos = stackXPos
       let stackIndex = i.uint - masterClientCount
       yPos = this.calcYPosition(stackIndex, stackClientCount, stackClientHeight, stackRoundingErr)
       clientHeight = stackClientHeight
+      clientWidth = uint(normalClientWidth.int - this.widthDiff)
 
     client.oldBorderWidth = client.borderWidth
     client.borderWidth = this.borderWidth
