@@ -20,6 +20,7 @@ import
   logger,
   utils,
   listutils,
+  deques,
   wmcommands
 
 converter intToCint(x: int): cint = x.cint
@@ -554,6 +555,25 @@ proc decWidthDiff(this: WindowManager) =
     cast[MasterStackLayout](layout).widthDiff -= 10
     this.selectedMonitor.doLayout()
 
+proc moveWindowToScratchpad(this: WindowManager) =
+  var client = this.selectedMonitor.taggedClients.currClient
+  this.selectedMonitor.scratchpad.addLast client
+  client.tagIDs.clear()
+  this.selectedMonitor.doLayout()
+
+proc popScratchpadLast(this: WindowManager) =
+  var client: Client
+  try:
+    client = this.selectedMonitor.scratchpad.popLast
+  except IndexDefect:
+    return
+  for tag in this.selectedMonitor.taggedClients.selectedTags:
+    client.tagIDs.incl(tag)
+    break
+  client.isFloating = true
+  this.focus client, false
+  this.selectedMonitor.doLayout()
+
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
@@ -644,6 +664,12 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcDecWidthDiff):
     this.decWidthDiff()
+
+  createControl(keyCombo, $wmcMoveWindowToScratchpad):
+    this.moveWindowToScratchpad()
+
+  createControl(keyCombo, $wmcPopScratchpadLast):
+    this.popScratchpadLast()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():

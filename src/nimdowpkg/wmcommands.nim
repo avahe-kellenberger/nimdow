@@ -29,6 +29,8 @@ type
     wmcJumpToUrgentWindow = "jumptourgentwindow"
     wmcIncWidthDiff = "incwidthdiff"
     wmcDecWidthDiff = "decwidthdiff"
+    wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
+    wmcPopScratchpadLast = "popscratchpadlast"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

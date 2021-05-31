@@ -15,6 +15,7 @@ import
   config/configloader,
   keys/keyutils,
   statusbar,
+  deques,
   logger
 
 converter intToCint(x: int): cint = x.cint
@@ -38,6 +39,7 @@ type
     previousTagID*: TagID
     layoutOffset: LayoutOffset
     taggedClients*: TaggedClients
+    scratchpad*: Deque[Client]
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
 proc restack*(this: Monitor)
