@@ -554,10 +554,10 @@ template modWidthDiff(this: WindowManager, diff: int) =
       this.selectedMonitor.doLayout()
 
 proc incWidthDiff(this: WindowManager) =
-  this.modWidthDiff(10)
+  this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
 proc decWidthDiff(this: WindowManager) =
-  this.modWidthDiff(-10)
+  this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
