@@ -545,14 +545,22 @@ proc jumpToUrgentWindow(this: WindowManager) =
 proc incWidthDiff(this: WindowManager) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
-    cast[MasterStackLayout](layout).widthDiff += 10
-    this.selectedMonitor.doLayout()
+    var masterStackLayout = cast[MasterStackLayout](layout)
+    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
+    if masterStackLayout.widthDiff < 0 or
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - 10 > 0:
+      masterStackLayout.widthDiff += 10
+      this.selectedMonitor.doLayout()
 
 proc decWidthDiff(this: WindowManager) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
-    cast[MasterStackLayout](layout).widthDiff -= 10
-    this.selectedMonitor.doLayout()
+    var masterStackLayout = cast[MasterStackLayout](layout)
+    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
+    if masterStackLayout.widthDiff > 0 or
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - 10 > 0:
+      masterStackLayout.widthDiff -= 10
+      this.selectedMonitor.doLayout()
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)

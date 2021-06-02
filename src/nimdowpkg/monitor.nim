@@ -36,7 +36,7 @@ type
     windowSettings: WindowSettings
     # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
-    layoutOffset: LayoutOffset
+    layoutOffset*: LayoutOffset
     taggedClients*: TaggedClients
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
