@@ -542,25 +542,22 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-proc incWidthDiff(this: WindowManager) =
+proc modWidthDiff(this: WindowManager, diff: int) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
     var masterStackLayout = cast[MasterStackLayout](layout)
     let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-    if masterStackLayout.widthDiff < 0 or
+    if (diff > 0 and masterStackLayout.widthDiff < 0) or
+      (diff < 0 and masterStackLayout.widthDiff > 0) or
       masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - 10 > 0:
-      masterStackLayout.widthDiff += 10
+      masterStackLayout.widthDiff += diff
       this.selectedMonitor.doLayout()
 
+proc incWidthDiff(this: WindowManager) =
+  this.modWidthDiff(10)
+
 proc decWidthDiff(this: WindowManager) =
-  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
-  if layout of MasterStackLayout:
-    var masterStackLayout = cast[MasterStackLayout](layout)
-    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-    if masterStackLayout.widthDiff > 0 or
-      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - 10 > 0:
-      masterStackLayout.widthDiff -= 10
-      this.selectedMonitor.doLayout()
+  this.modWidthDiff(-10)
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
