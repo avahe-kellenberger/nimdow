@@ -542,7 +542,7 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-proc modWidthDiff(this: WindowManager, diff: int) =
+template modWidthDiff(this: WindowManager, diff: int) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
     var masterStackLayout = cast[MasterStackLayout](layout)
