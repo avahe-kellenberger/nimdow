@@ -549,7 +549,7 @@ template modWidthDiff(this: WindowManager, diff: int) =
     let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
     if (diff > 0 and masterStackLayout.widthDiff < 0) or
       (diff < 0 and masterStackLayout.widthDiff > 0) or
-      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - 10 > 0:
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
       masterStackLayout.widthDiff += diff
       this.selectedMonitor.doLayout()
 
