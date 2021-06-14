@@ -553,10 +553,10 @@ template modWidthDiff(this: WindowManager, diff: int) =
       masterStackLayout.widthDiff += diff
       this.selectedMonitor.doLayout()
 
-proc incWidthDiff(this: WindowManager) =
+proc increaseMasterWidth(this: WindowManager) =
   this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
-proc decWidthDiff(this: WindowManager) =
+proc decreaseMasterWidth(this: WindowManager) =
   this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
@@ -644,11 +644,11 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
-  createControl(keyCombo, $wmcIncWidthDiff):
-    this.incWidthDiff()
+  createControl(keyCombo, $wmcIncreaseMasterWidth):
+    this.increaseMasterWidth()
 
-  createControl(keyCombo, $wmcDecWidthDiff):
-    this.decWidthDiff()
+  createControl(keyCombo, $wmcDecreaseMasterWidth):
+    this.decreaseMasterWidth()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():
