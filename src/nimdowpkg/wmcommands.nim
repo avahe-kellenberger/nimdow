@@ -27,6 +27,8 @@ type
     wmcDestroySelectedWindow = "destroyselectedwindow",
     wmcToggleFloating = "togglefloating",
     wmcJumpToUrgentWindow = "jumptourgentwindow"
+    wmcIncreaseMasterWidth = "increasemasterwidth"
+    wmcDecreaseMasterWidth = "decreasemasterwidth"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

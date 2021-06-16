@@ -542,6 +542,23 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
+template modWidthDiff(this: WindowManager, diff: int) =
+  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
+  if layout of MasterStackLayout:
+    var masterStackLayout = cast[MasterStackLayout](layout)
+    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
+    if (diff > 0 and masterStackLayout.widthDiff < 0) or
+      (diff < 0 and masterStackLayout.widthDiff > 0) or
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
+      masterStackLayout.widthDiff += diff
+      this.selectedMonitor.doLayout()
+
+proc increaseMasterWidth(this: WindowManager) =
+  this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+
+proc decreaseMasterWidth(this: WindowManager) =
+  this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
@@ -626,6 +643,12 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
+
+  createControl(keyCombo, $wmcIncreaseMasterWidth):
+    this.increaseMasterWidth()
+
+  createControl(keyCombo, $wmcDecreaseMasterWidth):
+    this.decreaseMasterWidth()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():

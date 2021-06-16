@@ -32,11 +32,11 @@ type
     statusBar*: StatusBar
     area*: Area
     config: Config
-    monitorSettings: MonitorSettings
+    monitorSettings*: MonitorSettings
     windowSettings: WindowSettings
     # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
-    layoutOffset: LayoutOffset
+    layoutOffset*: LayoutOffset
     taggedClients*: TaggedClients
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
@@ -74,7 +74,7 @@ proc newMonitor*(
       id = i,
       layout = newMasterStackLayout(
         monitorArea = area,
-        gapSize = currentConfig.windowSettings.gapSize,
+        gapSize = result.monitorSettings.layoutSettings.gapSize,
         borderWidth = currentConfig.windowSettings.borderWidth,
         masterSlots = tagSetting.numMasterWindows.uint
       )
@@ -142,7 +142,7 @@ proc setConfig*(this: Monitor, config: Config) =
 
   for i, tag in this.tags:
     let tagSetting = this.monitorSettings.tagSettings[i + 1]
-    tag.layout.gapSize = this.windowSettings.gapSize
+    tag.layout.gapSize = this.monitorSettings.layoutSettings.gapSize
     tag.layout.borderWidth = this.windowSettings.borderWidth
     tag.layout.masterSlots = tagSetting.numMasterWindows.uint
 
