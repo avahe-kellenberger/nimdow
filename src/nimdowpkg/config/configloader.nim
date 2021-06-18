@@ -181,7 +181,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       selectionColor: 0x519f50,
       urgentColor: 0xef2f27
   )
-  
+
   this.defaultMonitorSettings.layoutSettings = LayoutSettings(
       gapSize: 12,
       resizeStep: 10
@@ -247,8 +247,11 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
     raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
-    let command = parseEnum[WMCommand](action)
-    this.populateControlAction(display, ($command).toLower(), controlsTable[action].tableVal[])
+    let commandOpt = parseCommand(action)
+    if commandOpt.isSome:
+      this.populateControlAction(display, ($(commandOpt.get)).toLower(), controlsTable[action].tableVal[])
+    else:
+      log "Invalid control: " & action, lvlError
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
