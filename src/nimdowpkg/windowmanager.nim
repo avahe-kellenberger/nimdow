@@ -562,9 +562,10 @@ proc decreaseMasterWidth(this: WindowManager) =
 
 proc moveWindowToScratchpad(this: WindowManager) =
   var client = this.selectedMonitor.taggedClients.currClient
-  this.selectedMonitor.scratchpad.addLast client
-  client.tagIDs.clear()
-  this.selectedMonitor.doLayout()
+  if client != nil:
+    this.selectedMonitor.scratchpad.addLast client
+    client.tagIDs.clear()
+    this.selectedMonitor.doLayout()
 
 proc popScratchpadLast(this: WindowManager) =
   var client: Client
