@@ -31,7 +31,6 @@ type
   Action* = proc(keyCombo: KeyCombo): void
 
   WindowSettings* = object
-    gapSize*: uint
     tagCount*: uint
     borderColorUnfocused*: int
     borderColorFocused*: int
@@ -43,9 +42,13 @@ type
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
+  LayoutSettings* = object
+    gapSize*: uint
+    resizeStep*: uint
   MonitorSettings* = object
     tagSettings*: TagSettings
     barSettings*: BarSettings
+    layoutSettings*: LayoutSettings
   MonitorSettingsRef* = ref MonitorSettings
 
   MonitorID* = int
@@ -68,7 +71,6 @@ proc newConfig*(eventManager: XEventManager): Config =
     actionIdentifierTable: initTable[string, Action](),
     keyComboTable: initTable[KeyCombo, Action](),
     windowSettings: WindowSettings(
-      gapSize: 12,
       tagCount: 9,
       borderColorUnfocused: 0x1c1b19,
       borderColorFocused: 0x519f50,
@@ -81,6 +83,7 @@ proc newConfig*(eventManager: XEventManager): Config =
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef)
+proc populateLayoutSettings*(this: Config, layoutSettings: var LayoutSettings, settingsTable: TomlTableRef)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc getKeyCombos(
@@ -179,6 +182,11 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       urgentColor: 0xef2f27
   )
 
+  this.defaultMonitorSettings.layoutSettings = LayoutSettings(
+      gapSize: 12,
+      resizeStep: 10
+  )
+
   this.defaultMonitorSettings.tagSettings = createDefaultTagSettings()
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
@@ -195,6 +203,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
   if monitorsTable.hasKey("default"):
     let settingsTable = configTable["settings"].tableVal
     this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
+    this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
 
     let changedDefaults = monitorsTable["default"]
     if changedDefaults.hasKey("tags"):
@@ -238,8 +247,11 @@ proc populateControlsTable(this: Config, configTable: TomlTable, display: PDispl
     raise newException(Exception, "Invalid controls config table")
 
   for action in controlsTable.tableVal.keys():
-    let command = parseEnum[WMCommand](action)
-    this.populateControlAction(display, ($command).toLower(), controlsTable[action].tableVal[])
+    let commandOpt = parseCommand(action)
+    if commandOpt.isSome:
+      this.populateControlAction(display, ($(commandOpt.get)).toLower(), controlsTable[action].tableVal[])
+    else:
+      log "Invalid control: " & action, lvlError
 
 proc populateExternalProcessSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   if not configTable.hasKey("startProcess"):
@@ -273,6 +285,24 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
     else:
       raise newException(Exception, valueName & " is not a proper hex value! Ensure it is wrapped in double quotes")
   return -1
+
+proc populateLayoutSettings*(this: Config, layoutSettings: var LayoutSettings, settingsTable: TomlTableRef) =
+  if settingsTable.hasKey("gapSize"):
+    let gapSizeSetting = settingsTable["gapSize"]
+    if gapSizeSetting.kind == TomlValueKind.Int:
+      layoutSettings.gapSize = max(0, gapSizeSetting.intVal).uint
+    else:
+      log "gapSize is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("resizeStep"):
+    let resizeStepSetting = settingsTable["resizeStep"]
+    if resizeStepSetting.kind == TomlValueKind.Int:
+      if resizeStepSetting.intVal > 0:
+        layoutSettings.resizeStep = resizeStepSetting.intVal.uint
+      else:
+        log "resizeStep is not a positive integer!", lvlWarn
+    else:
+      log "resizeStep is not an integer value!", lvlWarn
 
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef) =
   if settingsTable.hasKey("windowTitlePosition"):
@@ -328,15 +358,9 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 
   let settingsTable = configTable["settings"].tableVal
   this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
+  this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
 
   # Window settings
-  if settingsTable.hasKey("gapSize"):
-    let gapSizeSetting = settingsTable["gapSize"]
-    if gapSizeSetting.kind == TomlValueKind.Int:
-      this.windowSettings.gapSize = max(0, gapSizeSetting.intVal).uint
-    else:
-      log "gapSize is not an integer value!", lvlWarn
-
   if settingsTable.hasKey("borderWidth"):
     let borderWidthSetting = settingsTable["borderWidth"]
     if borderWidthSetting.kind == TomlValueKind.Int:
@@ -356,9 +380,10 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   if urgentBorderVal != -1:
     this.windowSettings.borderColorUrgent = urgentBorderVal
 
-  # Bar settings
+  # Bar & layout settings
   for monitorSettings in this.monitorSettings.mvalues():
     this.populateBarSettings(monitorSettings.barSettings, settingsTable)
+    this.populateLayoutSettings(monitorSettings.layoutSettings, settingsTable)
 
   # General settings
   if settingsTable.hasKey("loggingEnabled"):

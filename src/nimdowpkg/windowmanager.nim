@@ -543,17 +543,22 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-proc incWidthDiff(this: WindowManager) =
+template modWidthDiff(this: WindowManager, diff: int) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
-    cast[MasterStackLayout](layout).widthDiff += 10
-    this.selectedMonitor.doLayout()
+    var masterStackLayout = cast[MasterStackLayout](layout)
+    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
+    if (diff > 0 and masterStackLayout.widthDiff < 0) or
+      (diff < 0 and masterStackLayout.widthDiff > 0) or
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
+      masterStackLayout.widthDiff += diff
+      this.selectedMonitor.doLayout()
 
-proc decWidthDiff(this: WindowManager) =
-  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
-  if layout of MasterStackLayout:
-    cast[MasterStackLayout](layout).widthDiff -= 10
-    this.selectedMonitor.doLayout()
+proc increaseMasterWidth(this: WindowManager) =
+  this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+
+proc decreaseMasterWidth(this: WindowManager) =
+  this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
 proc moveWindowToScratchpad(this: WindowManager) =
   var client = this.selectedMonitor.taggedClients.currClient
@@ -659,11 +664,11 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
-  createControl(keyCombo, $wmcIncWidthDiff):
-    this.incWidthDiff()
+  createControl(keyCombo, $wmcIncreaseMasterWidth):
+    this.increaseMasterWidth()
 
-  createControl(keyCombo, $wmcDecWidthDiff):
-    this.decWidthDiff()
+  createControl(keyCombo, $wmcDecreaseMasterWidth):
+    this.decreaseMasterWidth()
 
   createControl(keyCombo, $wmcMoveWindowToScratchpad):
     this.moveWindowToScratchpad()
@@ -985,7 +990,8 @@ proc updateWindowType(this: WindowManager, client: var Client) =
   if windowType == $NetWMWindowTypeDialog or
      windowType == $NetWMWindowTypeSplash or
      windowType == $NetWMWindowTypeUtility or
-     windowType == $NetWMStateModal:
+     windowType == $NetWMStateModal or
+     state == $NetWMStateModal:
     client.isFloating = true
     if monitor != nil:
       this.centerClientIfNeeded(client, monitor)

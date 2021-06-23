@@ -1,12 +1,12 @@
 # App Rules
 # Example:
-[[appRule]]
-class = "st"
-instance = "st"
-title = "st"
-monitor = 1
-tags = [ 1, 4, 7 ]
-state = "floating" # normal, floating, and fullscreen are all valid.
+# [[appRule]]
+# class = "st"
+# instance = "st"
+# title = "st"
+# monitor = 1
+# tags = [ 1, 4, 7 ]
+# state = "floating" # normal, floating, and fullscreen are all valid.
 
 # Start external programs
 [[startProcess]]
@@ -38,7 +38,6 @@ exec = [
 
 [settings]
   # Window settings
-  gapSize = 12
   borderWidth = 1
   borderColorUnfocused = "#282a36"
   borderColorFocused = "#50fa7b"
@@ -54,6 +53,9 @@ exec = [
     "monospace:size=10:antialias=true",
     "NotoColorEmoji:size=10:antialias=true"
   ]
+	# Layout settings
+  gapSize = 12
+	resizeStep = 10
   # General settings
   loggingEnabled = false
 
@@ -143,11 +145,11 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
-	[controls.incWidthDiff]
+	[controls.increaseMasterWidth]
 	keys = [ "l" ]
 	modifiers = [ "super" ]
 
-	[controls.decWidthDiff]
+	[controls.decreaseMasterWidth]
 	keys = [ "h" ]
 	modifiers = [ "super" ]
 
