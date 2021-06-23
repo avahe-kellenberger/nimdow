@@ -573,10 +573,22 @@ proc popScratchpadLast(this: WindowManager) =
     client = this.selectedMonitor.scratchpad.popLast
   except IndexDefect:
     return
-  for tag in this.selectedMonitor.taggedClients.selectedTags:
-    client.tagIDs.incl(tag)
-    break
-  client.isFloating = true
+
+  var tag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
+  client.tagIDs.incl(tag.id)
+
+  if not client.isFullscreen and not client.isFloating and not client.isFixed:
+    let
+      height = 300 # TODO: Make this a setting
+      width = 500
+    client.resize(
+      this.display,
+      (this.selectedMonitor.area.width.int - width) div 2,
+      (this.selectedMonitor.area.height.int - height) div 2,
+      width,
+      height
+    )
+    this.selectedMonitor.setFloating(client, true)
   this.focus client, false
   this.selectedMonitor.doLayout()
 
