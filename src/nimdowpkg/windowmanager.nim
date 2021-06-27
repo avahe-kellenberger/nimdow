@@ -567,7 +567,7 @@ proc moveWindowToScratchpad(this: WindowManager) =
     client.tagIDs.clear()
     this.selectedMonitor.doLayout()
 
-proc popScratchpadLast(this: WindowManager) =
+proc popScratchpad(this: WindowManager) =
   var client: Client
   try:
     client = this.selectedMonitor.scratchpad.popLast
@@ -686,8 +686,8 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcMoveWindowToScratchpad):
     this.moveWindowToScratchpad()
 
-  createControl(keyCombo, $wmcPopScratchpadLast):
-    this.popScratchpadLast()
+  createControl(keyCombo, $wmcPopScratchpad):
+    this.popScratchpad()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():

@@ -30,7 +30,7 @@ type
     wmcIncreaseMasterWidth = "increasemasterwidth"
     wmcDecreaseMasterWidth = "decreasemasterwidth"
     wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
-    wmcPopScratchpadLast = "popscratchpadlast"
+    wmcPopScratchpad = "popscratchpad"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

@@ -157,7 +157,7 @@ exec = [
   keys = [ "s" ]
   modifiers = [ "super", "shift" ]
 
-  [controls.popScratchpadLast]
+  [controls.popScratchpad]
   keys = [ "s" ]
   modifiers = [ "super" ]
 
