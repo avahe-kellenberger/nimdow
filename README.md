@@ -119,40 +119,7 @@ Nimdow is not (yet) included in this list.
 
 ## Roadmap
 
-### Version 0.5
-
-- [x] Multiple tags (single tag viewed at one time)
-- [x] Fullscreen windows
-- [x] Multihead support
-- [x] User configuration file loaded from $XDG_CONFIG_HOME (or $HOME/.config)
-- [x] Status bar integration
-- [x] Floating window support
-  - [x] Move windows with super + left click
-  - [x] Resize windows with super + right click drag
-- [x] Layouts:
-  - [x] Master/stack
-- [x] Keybindings:
-  - [x] Close window
-  - [x] Toggle fullscreen
-  - [x] Navigate windows
-  - [x] Navigate tags
-  - [x] Move windows in stack
-  - [x] Move windows between tags
-
-### Version 1.0
-
-- TBA (partial list, still in discussion)
-- [ ] Layouts
-  - [ ] Monocle
-- [ ] Keybindings:
-  - [x] Move window between monitors
-  - [x] Add/remove window per tag
-  - [x] View multiple tags
-  - [x] Assign single window to multiple tags
-  - [ ] Swap tags between monitors
-  - [x] Reload Nimdow (to apply configuration changes)
-  - [ ] Switch layout to master/stack
-  - [ ] Switch layout to monocle
+See the [1.0 release project board](https://github.com/avahe-kellenberger/nimdow/projects/1)
 
 ## Testing locally (for development) <a name="testing"></a>
 
