@@ -29,6 +29,8 @@ type
     wmcJumpToUrgentWindow = "jumptourgentwindow"
     wmcIncreaseMasterWidth = "increasemasterwidth"
     wmcDecreaseMasterWidth = "decreasemasterwidth"
+    wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
+    wmcPopScratchpadLast = "popscratchpadlast"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

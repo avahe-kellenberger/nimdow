@@ -20,6 +20,7 @@ import
   logger,
   utils,
   listutils,
+  deques,
   wmcommands
 
 converter intToCint(x: int): cint = x.cint
@@ -559,6 +560,38 @@ proc increaseMasterWidth(this: WindowManager) =
 proc decreaseMasterWidth(this: WindowManager) =
   this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
+proc moveWindowToScratchpad(this: WindowManager) =
+  var client = this.selectedMonitor.taggedClients.currClient
+  if client != nil:
+    this.selectedMonitor.scratchpad.addLast client
+    client.tagIDs.clear()
+    this.selectedMonitor.doLayout()
+
+proc popScratchpadLast(this: WindowManager) =
+  var client: Client
+  try:
+    client = this.selectedMonitor.scratchpad.popLast
+  except IndexDefect:
+    return
+
+  var tag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
+  client.tagIDs.incl(tag.id)
+
+  if not client.isFullscreen and not client.isFloating and not client.isFixed:
+    let
+      height = 300 # TODO: Make this a setting
+      width = 500
+    client.resize(
+      this.display,
+      (this.selectedMonitor.area.width.int - width) div 2,
+      (this.selectedMonitor.area.height.int - height) div 2,
+      width,
+      height
+    )
+    this.selectedMonitor.setFloating(client, true)
+  this.focus client, false
+  this.selectedMonitor.doLayout()
+
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)
 
@@ -649,6 +682,12 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcDecreaseMasterWidth):
     this.decreaseMasterWidth()
+
+  createControl(keyCombo, $wmcMoveWindowToScratchpad):
+    this.moveWindowToScratchpad()
+
+  createControl(keyCombo, $wmcPopScratchpadLast):
+    this.popScratchpadLast()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():
