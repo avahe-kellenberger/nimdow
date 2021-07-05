@@ -46,6 +46,7 @@ proc restack*(this: Monitor)
 proc setSelectedClient*(this: Monitor, client: Client)
 proc updateCurrentDesktopProperty(this: Monitor)
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true)
+proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool)
 
 proc newMonitor*(
   id: MonitorID,
@@ -284,9 +285,14 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
-  for client in this.clients.items:
+  for client in this.clients.mitems:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      client.show(this.display)
+      if client.needsFullscreen:
+        client.isFullscreen = false
+        client.needsFullscreen = false
+        this.setFullscreen(client, true)
+      else:
+        client.show(this.display)
     else:
       client.hide(this.display)
 

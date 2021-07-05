@@ -26,6 +26,7 @@ type
     # Non-resizable
     isFixed*: bool
     needsResize*: bool
+    needsFullscreen*: bool
     isUrgent*: bool
     # Clients start as unmapped; this property signifies if it was ever mapped.
     hasBeenMapped*: bool

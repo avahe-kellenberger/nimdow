@@ -1177,7 +1177,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     if monitor.taggedClients.currClientsContains(window):
       monitor.setFullscreen(client, true)
     else:
-      client.isFullscreen = true
+      client.needsFullscreen = true
   elif not client.isFixed and not client.isFloating and monitor.taggedClients.currClientsContains(window):
     monitor.doLayout(false, not client.isFloating)
 
