@@ -382,6 +382,8 @@ proc toggleTagsForClient*(
   if wasOnCurrTags and not client.tagIDs.anyIt(this.selectedTags.contains(it)):
     this.doLayout()
 
+  this.statusBar.redraw()
+
 proc toggleSelectedTagsForClient*(this: Monitor, client: var Client) =
   let selectedTags: OrderedSet[TagID] = this.selectedTags
   let tagIDs = toSeq(selectedTags.items)
