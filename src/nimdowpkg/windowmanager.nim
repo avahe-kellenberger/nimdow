@@ -69,6 +69,7 @@ type
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
     moveResizingClient: Client
+    scratchpad: Deque[Client]
 
 proc initListeners(this: WindowManager)
 proc openDisplay(): PDisplay
@@ -402,16 +403,12 @@ proc setSelectedMonitor(this: WindowManager, monitor: Monitor) =
   this.selectedMonitor = monitor
   this.selectedMonitor.statusBar.setIsMonitorSelected(true)
 
-proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
+proc moveClientToMonitor(this: WindowManager, client: var Client, monitorIndex: int) =
   let monitorID = monitorIndex + 1
   if not this.monitors.hasKey(monitorID):
     return
 
   let startMonitor = this.selectedMonitor
-
-  var client = startMonitor.taggedClients.currClient
-  if client == nil:
-    return
 
   this.setSelectedMonitor(this.monitors[monitorID])
 
@@ -444,13 +441,19 @@ proc moveClientToMonitor(this: WindowManager, monitorIndex: int) =
 
   this.focus(client, true)
 
+proc moveSelectedClientToMonitor(this: WindowManager, monitorIndex: int) =
+  var client = this.selectedMonitor.taggedClients.currClient
+  if client == nil:
+    return
+  this.moveClientToMonitor(client, monitorIndex)
+
 proc moveClientToPreviousMonitor(this: WindowManager) =
   let previousMonitorIndex = this.monitors.valuesToSeq().findPrevious(this.selectedMonitor)
-  this.moveClientToMonitor(previousMonitorIndex)
+  this.moveSelectedClientToMonitor(previousMonitorIndex)
 
 proc moveClientToNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.valuesToSeq().findNext(this.selectedMonitor)
-  this.moveClientToMonitor(nextMonitorIndex)
+  this.moveSelectedClientToMonitor(nextMonitorIndex)
 
 proc increaseMasterCount(this: WindowManager) =
   let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
@@ -563,34 +566,51 @@ proc decreaseMasterWidth(this: WindowManager) =
 proc moveWindowToScratchpad(this: WindowManager) =
   var client = this.selectedMonitor.taggedClients.currClient
   if client != nil:
-    this.selectedMonitor.scratchpad.addLast client
     client.tagIDs.clear()
-    this.selectedMonitor.doLayout()
+    this.selectedMonitor.doLayout(false)
+    discard this.selectedMonitor.removeWindow(client.window)
+    this.scratchpad.addLast(client)
 
 proc popScratchpad(this: WindowManager) =
   var client: Client
   try:
-    client = this.selectedMonitor.scratchpad.popLast()
+    client = this.scratchpad.popLast()
   except IndexDefect:
     return
 
-  var tag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
-  client.tagIDs.incl(tag.id)
+  # After popping, only have it on the selectedMonitor and selected tags
+  var selectedMonitorIndex: MonitorID = -1
+  for id, monitor in this.monitors.pairs():
+    if monitor == this.selectedMonitor:
+      selectedMonitorIndex = id - 1
+      break
+  if selectedMonitorIndex < 0:
+    return
 
+  # Normal window
   if not client.isFullscreen and not client.isFloating and not client.isFixed:
     let
       height = 300 # TODO: Make this a setting
       width = 500
     client.resize(
       this.display,
-      (this.selectedMonitor.area.width.int - width) div 2,
-      (this.selectedMonitor.area.height.int - height) div 2,
+      this.selectedMonitor.area.x + (this.selectedMonitor.area.width.int - width) div 2,
+      this.selectedMonitor.area.y + (this.selectedMonitor.area.height.int - height) div 2,
       width,
       height
     )
-    this.selectedMonitor.setFloating(client, true)
-  this.focus(client, false)
-  this.selectedMonitor.doLayout()
+    client.isFloating = true
+    this.moveClientToMonitor(client, selectedMonitorIndex)
+    # this.selectedMonitor.setFloating(client, true)
+  else:
+    # Floating/fullscreen/etc
+    client.x = this.selectedMonitor.area.x +
+               (this.selectedMonitor.area.width.int - client.width.int) div 2
+    client.y = this.selectedMonitor.area.y +
+               (this.selectedMonitor.area.height.int - client.height.int) div 2
+    this.moveClientToMonitor(client, selectedMonitorIndex)
+
+  this.selectedMonitor.doLayout(true)
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
   this.config.configureAction(id, proc(keyCombo: KeyCombo) = action)

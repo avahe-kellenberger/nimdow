@@ -15,7 +15,6 @@ import
   config/configloader,
   keys/keyutils,
   statusbar,
-  deques,
   logger
 
 converter intToCint(x: int): cint = x.cint
@@ -35,11 +34,9 @@ type
     config: Config
     monitorSettings*: MonitorSettings
     windowSettings: WindowSettings
-    # 0 indicates there's no previous tag ID.
     previousTagID*: TagID
     layoutOffset*: LayoutOffset
     taggedClients*: TaggedClients
-    scratchpad*: Deque[Client]
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
 proc restack*(this: Monitor)
