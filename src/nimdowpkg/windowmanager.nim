@@ -601,7 +601,6 @@ proc popScratchpad(this: WindowManager) =
     )
     client.isFloating = true
     this.moveClientToMonitor(client, selectedMonitorIndex)
-    # this.selectedMonitor.setFloating(client, true)
   else:
     # Floating/fullscreen/etc
     client.x = this.selectedMonitor.area.x +
