@@ -570,7 +570,7 @@ proc moveWindowToScratchpad(this: WindowManager) =
 proc popScratchpad(this: WindowManager) =
   var client: Client
   try:
-    client = this.selectedMonitor.scratchpad.popLast
+    client = this.selectedMonitor.scratchpad.popLast()
   except IndexDefect:
     return
 
@@ -589,7 +589,7 @@ proc popScratchpad(this: WindowManager) =
       height
     )
     this.selectedMonitor.setFloating(client, true)
-  this.focus client, false
+  this.focus(client, false)
   this.selectedMonitor.doLayout()
 
 template createControl(keyCombo: untyped, id: string, action: untyped) =
