@@ -6,7 +6,9 @@ A window manager written in [Nim](https://nim-lang.org/)
 
 I am using this project to learn Nim, x11, and to replace my build of **dwm** (written in C).
 
-**Join #nimdow on freenode for questions/discussion**
+**Join #nimdow on freenode or libera IRC for questions/discussion**
+
+**Discord community:** https://discord.gg/vPCumzeqqa
 
 [See the progress of development in the local Kanban Board](https://github.com/avahe-kellenberger/nimdow/projects/1?fullscreen=true)
 
