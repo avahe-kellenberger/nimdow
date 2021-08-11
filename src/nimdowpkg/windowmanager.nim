@@ -1667,6 +1667,11 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
     # Clicked systray window, don't do anything.
     return
 
+  for monitor in this.monitors.values:
+    if e.window == monitor.statusBar.barWindow:
+      handleButtonPressed(monitor.statusBar, e)
+      break
+
   # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
