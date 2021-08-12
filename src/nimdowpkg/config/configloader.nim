@@ -29,6 +29,7 @@ proc findConfigPath*(): string =
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
   Action* = proc(keyCombo: KeyCombo): void
+  RegionClickAction* = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]): void
 
   WindowSettings* = object
     tagCount*: uint
@@ -56,6 +57,7 @@ type
     eventManager: XEventManager
     actionIdentifierTable*: Table[string, Action]
     keyComboTable*: Table[KeyCombo, Action]
+    regionClickActionTable*: Table[int, RegionClickAction]
     windowSettings*: WindowSettings
     xEventListener*: XEventListener
     loggingEnabled*: bool
@@ -131,6 +133,16 @@ proc runCommands(this: Config, commands: varargs[string]) =
       this.eventManager.submitProcess(process)
     except:
       log "Failed to start command: " & cmd, lvlWarn
+
+proc runCommandWithArgs(this: Config, command: string, arguments: varargs[string]) =
+  var cmd = command.replace("%0", arguments.join " ")
+  for i, argument in arguments:
+    cmd = cmd.replace("%" & $(i + 1), argument)
+  try:
+    let process = startProcess(command = cmd, options = { poEvalCommand })
+    this.eventManager.submitProcess(process)
+  except:
+    log "Failed to start command: " & cmd, lvlWarn
 
 proc populateAppRules*(this: Config, configTable: TomlTable) =
   this.appRules = configTable.parseAppRules()
@@ -270,12 +282,19 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
       raise newException(Exception, "Invalid \"startProcess\" configuration: Missing \"command\" string!")
 
     let command = commandDeclaration.tableVal["command"].stringVal
-    this.configureExternalProcess(command)
-    this.populateControlAction(
-      display,
-      command,
-      commandDeclaration.tableVal[]
-    )
+    if commandDeclaration.tableVal[].hasKey("clickRegion"):
+      if commandDeclaration.tableVal["clickRegion"].kind != TomlValueKind.Int:
+        raise newException(Exception, "Invalid \"startProcess\" configuration: \"clickRegion\" not a number!")
+      let clickRegion = commandDeclaration.tableVal["clickRegion"].intVal.int
+      this.regionClickActionTable[clickRegion] = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]) =
+        this.runCommandWithArgs(command, $idx, $regionCord.x, $regionCord.y, $clickCord.x, $clickCord.y, $width)
+    else:
+      this.configureExternalProcess(command)
+      this.populateControlAction(
+        display,
+        command,
+        commandDeclaration.tableVal[]
+      )
 
 proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string): int =
   if settingsTable.hasKey(valueName):

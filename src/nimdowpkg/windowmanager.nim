@@ -1669,8 +1669,15 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
 
   for monitor in this.monitors.values:
     if e.window == monitor.statusBar.barWindow:
-      handleButtonPressed(monitor.statusBar, e)
-      break
+      let clickedInfo = getClickedRegion(monitor.statusBar, e)
+      if clickedInfo.region == -1: return # Nothing was clicked
+      if clickedInfo.region in 0..<monitor.statusBar.tagSettings.len:
+        this.goToTag(clickedInfo.region + 1)
+        return
+      let regionId = if clickedInfo.region == monitor.statusBar.tagSettings.len: 0 else: clickedInfo.region - monitor.statusBar.tagSettings.len
+      if this.config.regionClickActionTable.hasKey(regionId):
+        this.config.regionClickActionTable[regionId](clickedInfo.index, clickedInfo.width, clickedInfo.regionCord, clickedInfo.clickCord)
+      return
 
   # Need to not change mouse state if e.state is not the mod key.
   case e.button:
