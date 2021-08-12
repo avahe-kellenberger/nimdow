@@ -341,6 +341,7 @@ const
                  0xa8a8a8, 0xb2b2b2, 0xbcbcbc, 0xc6c6c6,
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
 
+
 proc renderStringRightAligned(
   this: StatusBar,
   s: string,
@@ -357,10 +358,11 @@ proc renderStringRightAligned(
       s
 
   var
-    runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
+    runeInfo: seq[(Rune, PFcChar8, PXftFont, int, int, XGlyphInfo)]
     stringWidth, xLoc, pos: int
-    color = defaultColor
-    bgColor = this.bgColor
+    color = -1
+    bgColor = -1
+    selectedFont = -1
     parsingCsi = false
     parsingSgr = false
     invalidSgr = false
@@ -380,29 +382,6 @@ proc renderStringRightAligned(
   for rune in str.runes:
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
-    var foundFont = false
-    for font in this.fonts:
-      if rune.int32 == 27:
-        parsingCsi = true
-      if not parsingCsi and  XftCharExists(this.display, font, rune.FcChar32) == 1:
-        var glyph: XGlyphInfo
-        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
-        runeInfo.add((rune, font, glyph))
-        stringWidth += glyph.xOff
-        foundFont = true
-        break
-    if rune.int32 != ord('[') and rune.int32 in 0x40..0x7E:
-      parsingCsi = false
-    if not foundFont:
-      var glyph: XGlyphInfo
-      runeInfo.add((rune, nil, glyph))
-
-  parsingCsi = false
-  xLoc = x - stringWidth
-  pos = 0
-  for (rune, font, glyph) in runeInfo:
-    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
-    pos += rune.size
     if rune.int32 == 27:
       parsingCsi = true
       parsingSgr = false
@@ -418,20 +397,23 @@ proc renderStringRightAligned(
         parsingSgr = true
         reset sgr
         continue
-    if not parsingCsi and font != nil:
-      let centerY = font.ascent + (this.area.height.int - font.height) div 2
-      XftDrawRect(this.draw, bgColor.addr, xLoc, 0, glyph.xOff.int, this.area.height.int)
-      XftDrawStringUtf8(
-        this.draw,
-        color.addr,
-        font,
-        xLoc,
-        centerY,
-        runeAddr,
-        rune.size
-      )
-      xLoc += glyph.xOff
-
+    var foundFont = false
+    proc tryFont(font: PXftFont): bool =
+      if (not parsingCsi) and  XftCharExists(this.display, font, rune.FcChar32) == 1:
+        var glyph: XGlyphInfo
+        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
+        runeInfo.add((rune, runeAddr, font, color, bgColor, glyph))
+        stringWidth += glyph.xOff
+        foundFont = true
+        return true
+    if selectedFont == -1:
+      for font in this.fonts:
+        if tryFont(font): break
+    else:
+      if selectedFont > this.fonts.high:
+        log "Unable to select font " & $selectedFont & ", too few colors defined in config", lvlError
+      else:
+        discard tryFont(this.fonts[selectedFont])
     if parsingCsi:
       if rune.int32 in 0x40..0x7E:
         parsingCsi = false
@@ -439,41 +421,67 @@ proc renderStringRightAligned(
           if not invalidSgr:
             var i = 0
             while i < sgr.len:
-              var
-                oldColor = color
-                oldBgColor = bgColor
               if sgr[i] == 0:
-                color = defaultColor
+                color = -1
+                selectedFont = -1
+              elif sgr[i] >= 10 and sgr[i] <= 19:
+                selectedFont = sgr[i] - 11
               elif sgr[i] >= 30 and sgr[i] <= 37:
-                this.configureColor(basicColors[sgr[i] - 30], color)
+                color = basicColors[sgr[i] - 30]
               elif sgr[i] >= 40 and sgr[i] <= 47:
-                this.configureColor(basicColors[sgr[i] - 40], bgColor)
+                bgColor = basicColors[sgr[i] - 40]
               elif sgr[i] >= 90 and sgr[i] <= 97:
-                this.configureColor(brightColors[sgr[i] - 90], color)
+                color = brightColors[sgr[i] - 90]
               elif sgr[i] >= 100 and sgr[i] <= 107:
-                this.configureColor(brightColors[sgr[i] - 100], bgColor)
+                bgColor = brightColors[sgr[i] - 100]
               elif sgr.len > i + 2 and sgr[i] in {38, 48} and sgr[i + 1] == 5:
                 if sgr[i] == 38:
-                  this.configureColor(extraColors[sgr[i + 2]], color)
+                  color = extraColors[sgr[i + 2]]
                 else:
-                  this.configureColor(extraColors[sgr[i + 2]], bgColor)
+                  bgColor = extraColors[sgr[i + 2]]
                 i += 2
               elif sgr.len > i + 4 and sgr[i] in {38, 48} and sgr[i + 1] == 2:
                 if sgr[i] == 38:
-                  this.configureColor((sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4], color)
+                  color = (sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4]
                 else:
-                  this.configureColor((sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4], bgColor)
+                  bgColor = (sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4]
                 i += 4
-              if oldColor != color and oldColor != defaultColor:
-                this.freeColor(oldColor.addr)
-              if oldBgColor != bgColor and oldBgColor != this.bgColor:
-                this.freeColor(oldBgColor.addr)
               inc i
 
-  if color != defaultColor:
-    this.freeColor(color.addr)
-  if bgColor != this.bgColor:
-    this.freeColor(bgColor.addr)
+  var
+    colorXft = defaultColor
+    bgColorXft = this.bgColor
+    oldColor = -1
+    oldBgColor = -1
+  xLoc = x - stringWidth
+  for (rune, runeAddr, font, fg, bg, glyph) in runeInfo:
+    if font != nil:
+      if fg != oldColor and fg != -1:
+        this.configureColor(fg, colorXft)
+      if bg != oldBgColor and bg != -1:
+        this.configureColor(bg, bgColorXft)
+      if fg == -1:
+        colorXft = defaultColor
+      if bg == -1:
+        bgColorXft = this.bgColor
+      let centerY = font.ascent + (this.area.height.int - font.height) div 2
+      XftDrawRect(this.draw, bgColorXft.addr, xLoc, 0, glyph.xOff.int, this.area.height.int)
+      XftDrawStringUtf8(
+        this.draw,
+        colorXft.addr,
+        font,
+        xLoc,
+        centerY,
+        runeAddr,
+        rune.size
+      )
+      if fg != oldColor and fg != -1:
+        this.freeColor(colorXft.addr)
+      if bg != oldBgColor and bg != -1:
+        this.freeColor(bgColorXft.addr)
+      oldColor = fg
+      oldBgColor = bg
+      xLoc += glyph.xOff
 
   return stringWidth
 
