@@ -712,7 +712,6 @@ proc redraw*(this: var StatusBar) =
   let tagLengthPixels = this.renderTags()
   this.renderActiveWindowTitle(tagLengthPixels, this.windowTitlePosition)
   discard this.renderStatus()
-  echo this.clickables
   discard XSync(this.display, false)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
