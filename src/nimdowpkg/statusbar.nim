@@ -389,10 +389,6 @@ proc renderStringRightAligned(
         invalidSgr = true
     reset currentSgr
 
-  var
-    last = 0
-    current = 0
-    characters: seq[int]
   for rune in str.runes:
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
@@ -400,11 +396,6 @@ proc renderStringRightAligned(
       parsingCsi = true
       parsingSgr = false
       invalidSgr = false
-      continue
-    if rune.int32 == 31:
-      this.clickables.add (start: last, stop: current, characters: characters)
-      last = current
-      reset characters
       continue
     if parsingCsi:
       if parsingSgr:
@@ -416,14 +407,16 @@ proc renderStringRightAligned(
         parsingSgr = true
         reset sgr
         continue
-    var foundFont = false
+    let display = this.display
     proc tryFont(font: PXftFont): bool =
-      if (not parsingCsi) and  XftCharExists(this.display, font, rune.FcChar32) == 1:
+      if (not parsingCsi) and XftCharExists(display, font, rune.FcChar32) == 1:
         var glyph: XGlyphInfo
-        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
+        XftTextExtentsUtf8(display, font, runeAddr, rune.size, glyph.addr)
         runeInfo.add((rune, runeAddr, font, color, bgColor, glyph))
         stringWidth += glyph.xOff
-        foundFont = true
+        return true
+      if (not parsingCSI) and rune.int32 == 31:
+        runeInfo.add((rune, runeAddr, font, color, bgColor, default(XGlyphInfo))) # This is never rendered, but must be passed to parse clickables
         return true
     if selectedFont == -1:
       for font in this.fonts:
@@ -472,8 +465,17 @@ proc renderStringRightAligned(
     bgColorXft = this.bgColor
     oldColor = -1
     oldBgColor = -1
+    characters: seq[int]
   xLoc = x - stringWidth
-  for (rune, runeAddr, font, fg, bg, glyph) in runeInfo:
+  var
+    last = xLoc
+    current = xLoc
+  for pos, (rune, runeAddr, font, fg, bg, glyph) in runeInfo:
+    if rune.int32 == 31:
+      this.clickables.add (start: last, stop: current, characters: characters)
+      last = current
+      reset characters
+      continue
     if font != nil:
       if fg != oldColor and fg != -1:
         this.configureColor(fg, colorXft)
@@ -500,10 +502,10 @@ proc renderStringRightAligned(
         this.freeColor(bgColorXft.addr)
       oldColor = fg
       oldBgColor = bg
-      if pos > leftPadding:
+      if pos >= leftPadding:
         characters.add(xLoc - last)
       xLoc += glyph.xOff
-      if leftPadding >= pos:
+      if leftPadding > pos:
         last = xLoc
       current += glyph.xOff
   this.clickables.add (start: last, stop: current, characters: characters)
@@ -710,6 +712,7 @@ proc redraw*(this: var StatusBar) =
   let tagLengthPixels = this.renderTags()
   this.renderActiveWindowTitle(tagLengthPixels, this.windowTitlePosition)
   discard this.renderStatus()
+  echo this.clickables
   discard XSync(this.display, false)
 
 proc setIsMonitorSelected*(this: var StatusBar, isMonitorSelected: bool, redraw: bool = true) =
