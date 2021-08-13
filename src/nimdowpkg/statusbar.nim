@@ -46,6 +46,7 @@ type
     fgColor*, bgColor*, selectionColor*, urgentColor*: XftColor
     area*: Area
     systrayWidth: int
+    clickables: seq[tuple[start: int, stop: int, characters: seq[int]]]
 
     # Client and tag info.
     taggedClients: TaggedClients
@@ -55,7 +56,7 @@ proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
 proc configureFonts(this: var StatusBar)
 proc freeAllColors(this: StatusBar)
-proc redraw*(this: StatusBar)
+proc redraw*(this: var StatusBar)
 
 proc newStatusBar*(
     display: PDisplay,
@@ -84,7 +85,7 @@ proc newStatusBar*(
   discard XSelectInput(
     display,
     result.barWindow,
-    ExposureMask
+    ExposureMask or ButtonPressMask
   )
   discard XMapWindow(display, result.barWindow)
   discard XFlush(display)
@@ -107,7 +108,7 @@ template currentWidth(this: StatusBar): int =
 proc createBar(this: StatusBar): Window =
   var windowAttr: XSetWindowAttributes
   windowAttr.background_pixmap = ParentRelative
-  windowAttr.event_mask = ExposureMask
+  windowAttr.event_mask = ExposureMask or ButtonPressMask
 
   return XCreateWindow(
     this.display,
@@ -266,6 +267,15 @@ proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettin
   # Tell bar to resize and redraw
   this.resizeForSystray(this.systrayWidth, redraw)
 
+proc getClickedRegion*(this: StatusBar, e: XButtonEvent): tuple[region: int, width: int, index: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]] =
+  for i, segment in this.clickables:
+    if segment.start <= e.x and segment.stop > e.x:
+      for c, character in segment.characters:
+        if e.x < segment.start + character:
+          return (region: i, width: segment.stop - segment.start, index: c - 1, regionCord: (x: segment.start, y: 0), clickCord: (x: e.x.int, y: e.y.int))
+      return (region: i, width: segment.stop - segment.start, index: segment.characters.high, regionCord: (x: segment.start, y: 0), clickCord: (x: e.x.int, y: e.y.int))
+  return (region: -1, width: -1, index: -1, regionCord: (x: -1, y: -1), clickCord: (x: -1, y: -1))
+
 ######################
 ### Rendering procs ##
 ######################
@@ -343,7 +353,7 @@ const
 
 
 proc renderStringRightAligned(
-  this: StatusBar,
+  this: var StatusBar,
   s: string,
   defaultColor: XftColor,
   x: int,
@@ -379,6 +389,10 @@ proc renderStringRightAligned(
         invalidSgr = true
     reset currentSgr
 
+  var
+    last = 0
+    current = 0
+    characters: seq[int]
   for rune in str.runes:
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
@@ -386,6 +400,11 @@ proc renderStringRightAligned(
       parsingCsi = true
       parsingSgr = false
       invalidSgr = false
+      continue
+    if rune.int32 == 31:
+      this.clickables.add (start: last, stop: current, characters: characters)
+      last = current
+      reset characters
       continue
     if parsingCsi:
       if parsingSgr:
@@ -481,49 +500,15 @@ proc renderStringRightAligned(
         this.freeColor(bgColorXft.addr)
       oldColor = fg
       oldBgColor = bg
+      if pos > leftPadding:
+        characters.add(xLoc - last)
       xLoc += glyph.xOff
+      if leftPadding >= pos:
+        last = xLoc
+      current += glyph.xOff
+  this.clickables.add (start: last, stop: current, characters: characters)
 
   return stringWidth
-
-proc renderStringCentered*(
-  this: StatusBar,
-  str: string,
-  x: int,
-  color: XftColor,
-  minRenderX: int = 0
-) =
-  ## Renders a string centered at position x.
-  var
-    runeInfo: seq[(Rune, PXftFont, XGlyphInfo)]
-    stringWidth, xLoc, pos: int
-
-  for rune in str.runes:
-    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
-    pos += rune.size
-    for font in this.fonts:
-      if XftCharExists(this.display, font, rune.FcChar32) == 1:
-        var glyph: XGlyphInfo
-        XftTextExtentsUtf8(this.display, font, runeAddr, rune.size, glyph.addr)
-        runeInfo.add((rune, font, glyph))
-        stringWidth += glyph.xOff
-        break
-
-  xLoc = max(minRenderX, x - (stringWidth div 2))
-  pos = 0
-  for (rune, font, glyph) in runeInfo:
-    let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
-    pos += rune.size
-    let centerY = font.ascent + (this.area.height.int - font.height) div 2
-    XftDrawStringUtf8(
-      this.draw,
-      color.unsafeAddr,
-      font,
-      xLoc,
-      centerY,
-      runeAddr,
-      rune.size
-    )
-    xLoc += glyph.xOff
 
 type CharRenderCallback = proc(
   font: PXftFont,
@@ -563,10 +548,47 @@ proc forEachCharacter*(
 
   return stringWidth
 
-proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int): int =
+proc renderStringCentered*(
+  this: StatusBar,
+  str: string,
+  x: int,
+  color: XftColor,
+  minRenderX: int = 0
+): tuple[width: int, characters: seq[int]] =
+  ## Renders a string centered at position x.
+
+  var
+    stringWidth = this.forEachCharacter(str, 0, color,
+      proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) = discard)
+    startX = max(minRenderX, x - (stringWidth div 2))
+    xLoc = startX
+    pos = 0
+    characters: seq[int]
+
+  let callback: CharRenderCallback =
+    proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
+      let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
+      pos += rune.size
+      let centerY = font.ascent + (this.area.height.int - font.height) div 2
+      XftDrawStringUtf8(
+        this.draw,
+        color.unsafeAddr,
+        font,
+        xLoc,
+        centerY,
+        runeAddr,
+        rune.size
+      )
+      characters.add xLoc - startX
+      xLoc += glyph.xOff
+  return (width: this.forEachCharacter(str, xLoc, color, callback), characters: characters)
+
+proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int): tuple[width: int, characters: seq[int]] =
   ## Renders a string at position x.
   ## Returns the length of the rendered string in pixels.
-  var xLoc = startX
+  var
+    xLoc = startX
+    characters: seq[int]
   let callback: CharRenderCallback =
     proc(font: PXftFont, glyph: XGlyphInfo, rune: Rune, runeAddr: PFcChar8) =
       let centerY = font.ascent + (this.area.height.int - font.height) div 2
@@ -579,10 +601,11 @@ proc renderString*(this: StatusBar, str: string, color: XftColor, startX: int): 
         runeAddr,
         rune.size
       )
+      characters.add xLoc - startX
       xLoc += glyph.xOff
-  return this.forEachCharacter(str, startX, color, callback)
+  return (width: this.forEachCharacter(str, startX, color, callback), characters: characters)
 
-proc renderTags(this: StatusBar): int =
+proc renderTags(this: var StatusBar): int =
   # Tag rendering layout is as follows:
   # <space><box><tag text><space><space>
   # Each <space> is the same width as the <box>
@@ -628,12 +651,13 @@ proc renderTags(this: StatusBar): int =
         var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
         XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
-    discard this.renderString(text, fgColor, textXPos)
+    let stringInfo = this.renderString(text, fgColor, textXPos)
+    this.clickables.add (start: textXPos - boxWidth*2, stop: textXPos + stringLength + boxWidth*2, characters: stringInfo.characters)
     textXPos += stringLength + boxWidth * 4
 
   return textXPos
 
-proc renderStatus(this: StatusBar): int =
+proc renderStatus(this: var StatusBar): int =
   if this.status.len > 0:
     result = this.renderStringRightAligned(
       this.status,
@@ -643,11 +667,13 @@ proc renderStatus(this: StatusBar): int =
     )
 
 proc renderActiveWindowTitle(
-  this: StatusBar,
+  this: var StatusBar,
   minRenderX: int,
   position: WindowTitlePosition
 ) =
   if this.activeWindowTitle.len <= 0:
+    # Add dummy clickable region so indexes stay consistent
+    this.clickables.add (start: minRenderX, stop: minRenderX, characters: @[])
     return
 
   let textColor =
@@ -658,23 +684,28 @@ proc renderActiveWindowTitle(
 
   case position:
     of wtpLeft:
-      discard this.renderString(
+      let stringInfo = this.renderString(
         this.activeWindowTitle,
         textColor,
         minRenderX
       )
+      this.clickables.add (start: minRenderX, stop: minRenderX + stringInfo.width, characters: stringInfo.characters)
     of wtpCenter:
-      this.renderStringCentered(
-        this.activeWindowTitle,
-        this.area.width.int div 2,
-        textColor,
-        minRenderX
-      )
+      let
+        stringInfo = this.renderStringCentered(
+          this.activeWindowTitle,
+          this.area.width.int div 2,
+          textColor,
+          minRenderX
+        )
+        pos = max(minRenderX, this.area.width.int div 2 - (stringInfo.width div 2))
+      this.clickables.add (start: pos, stop: pos + stringInfo.width, characters: stringInfo.characters)
 
-proc clearBar(this: StatusBar) =
+proc clearBar(this: var StatusBar) =
   XftDrawRect(this.draw, this.bgColor.unsafeAddr, 0, 0, this.currentWidth, this.area.height)
+  reset this.clickables
 
-proc redraw*(this: StatusBar) =
+proc redraw*(this: var StatusBar) =
   this.clearBar()
   let tagLengthPixels = this.renderTags()
   this.renderActiveWindowTitle(tagLengthPixels, this.windowTitlePosition)

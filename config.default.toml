@@ -29,6 +29,19 @@ command = "st"
 keys = [ "Return" ]
 modifiers = [ "super" ]
 
+# Start process when region is clicked, see documentation for what constitutes a region
+[[startProcess]]
+command = "notify-send \"Id: %1, rx: %2, cx: %4, w: %6\""
+clickRegion = 0
+
+[[startProcess]]
+command = "notify-send \"Id: %1, rx: %2, cx: %4, w: %6\""
+clickRegion = 1
+
+[[startProcess]]
+command = "notify-send \"Id: %1, rx: %2, cx: %4, w: %6\""
+clickRegion = 2
+
 [autostart]
 exec = [
   "xsetroot -cursor_name left_ptr",
