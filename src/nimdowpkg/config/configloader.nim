@@ -286,8 +286,10 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
       if commandDeclaration.tableVal["clickRegion"].kind != TomlValueKind.Int:
         raise newException(Exception, "Invalid \"startProcess\" configuration: \"clickRegion\" not a number!")
       let clickRegion = commandDeclaration.tableVal["clickRegion"].intVal.int
-      this.regionClickActionTable[clickRegion] = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]) =
-        this.runCommandWithArgs(command, $idx, $regionCord.x, $regionCord.y, $clickCord.x, $clickCord.y, $width)
+      closureScope:
+        let command = command
+        this.regionClickActionTable[clickRegion] = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]) =
+          this.runCommandWithArgs(command, $idx, $regionCord.x, $regionCord.y, $clickCord.x, $clickCord.y, $width)
     else:
       this.configureExternalProcess(command)
       this.populateControlAction(
