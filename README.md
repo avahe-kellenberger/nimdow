@@ -91,18 +91,6 @@ In short, there's a bug in the xft library most distros use.
 
 If using an Arch Linux based distro, there is [libxft-bgra-git](https://aur.archlinux.org/packages/libxft-bgra-git/) in the AUR.
 
-### Clicking the status bar
-
-The status bar can be clicked. Clicking on any of the tags moves to that tag, similar to using the keyboard shortcut to go to that tag.
-
-Clicking the window title or the status can start a process in the same way keyboard shortcuts can. Simply create a `startProcess` entry with a `clickRegion` key enumerating the region you want the process to be run for. The first region with index 0 is the window title, and the following regions are regions in the user set status. To split the status into regions simly insert the ASCII unit separator special character (`0x1F`). If no regions are added this way the entire status will be region 1. Processes that are started in this way can also take arguments. There are six available arguments that will replace any percentage sign followed by a number in the command. `%0` can be used to get all arguments separated by spaces. The six arguments are:
-`%1` - the index of the printable character in the string, starting from 0
-`%2` - the x coordinate of the region that was clicked
-`%3` - the y coordinate of the region that was clicked
-`%4` - the x coordinate the click occured on
-`%5` - the y coordinate the click occured on
-`%6` - the width of the region that was clicked
-
 ## Issues with Java Applications
 
 ### The fix
