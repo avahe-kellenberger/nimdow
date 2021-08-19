@@ -395,6 +395,7 @@ proc renderStringRightAligned(
     parsingCsi = false
     parsingSgr = false
     invalidSgr = false
+    fontErrorLogged = false
     sgr: seq[int]
     currentSgr: seq[Rune]
 
@@ -442,7 +443,9 @@ proc renderStringRightAligned(
         if tryFont(font): break
     else:
       if selectedFont > this.fonts.high:
-        log "Unable to select font " & $selectedFont & ", too few colors defined in config", lvlError
+        if not fontErrorLogged:
+          log "Unable to select font " & $selectedFont & ", too few fonts defined in config.", lvlError
+          fontErrorLogged = true
       else:
         discard tryFont(this.fonts[selectedFont])
     if parsingCsi:
@@ -455,8 +458,10 @@ proc renderStringRightAligned(
               if sgr[i] == resetCode:
                 color = -1
                 selectedFont = -1
+                fontErrorLogged = false
               elif sgr[i] >= fontStart and sgr[i] <= fontStop:
                 selectedFont = sgr[i] - fontStart - 1
+                fontErrorLogged = false
               elif sgr[i] >= fgColorStart and sgr[i] <= fgColorStop:
                 color = basicColors[sgr[i] - fgColorStart]
               elif sgr[i] >= bgColorStart and sgr[i] <= bgColorStop:
