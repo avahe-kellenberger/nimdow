@@ -479,7 +479,7 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-proc goToTag(this: WindowManager, tagID: TagID) =
+proc goToTag(this: WindowManager, tagID: TagID, warpToClient: bool = true) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
 
@@ -499,9 +499,11 @@ proc goToTag(this: WindowManager, tagID: TagID) =
     # Swap the previous tag.
     this.selectedMonitor.previousTagID = selectedTag
 
-  this.selectedMonitor.setSelectedTags(destTag)
-  this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-    this.display.warpTo(client)
+  this.selectedMonitor.setSelectedTags(destTag, warpToClient)
+
+  if warpToClient:
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      this.display.warpTo(client)
 
 proc jumpToUrgentWindow(this: WindowManager) =
   var
@@ -1523,7 +1525,9 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     return
 
   let previousSelectedClient = this.selectedMonitor.taggedClients.currClient
-  let previousSelectedClientWasFloating = previousSelectedClient != nil and previousSelectedClient.isFloating
+  let previousSelectedClientWasFloating =
+    (previousSelectedClient != nil and previousSelectedClient.isFloating)
+
   if previousSelectedClient != nil:
     this.unfocus(previousSelectedClient)
 
@@ -1557,7 +1561,7 @@ proc renderStatus(this: WindowManager) =
     try:
       for rawStatus in statuses[1 .. statuses.high]:
         var
-          monitorIndexAsStr = rawStatus[0..skipUntil(rawStatus, Whitespace)-1]
+          monitorIndexAsStr = rawStatus[0..skipUntil(rawStatus, Whitespace) - 1]
           monitorIndex = parseInt(monitorIndexAsStr)
 
         var status = rawStatus
@@ -1670,13 +1674,28 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   for monitor in this.monitors.values:
     if e.window == monitor.statusBar.barWindow:
       let clickedInfo = getClickedRegion(monitor.statusBar, e)
-      if clickedInfo.region == -1: return # Nothing was clicked
-      if clickedInfo.region in 0..<monitor.statusBar.tagSettings.len:
-        this.goToTag(clickedInfo.region + 1)
+
+      if clickedInfo.regionID == -1:
+        # Nothing was clicked
         return
-      let regionId = if clickedInfo.region == monitor.statusBar.tagSettings.len: 0 else: clickedInfo.region - monitor.statusBar.tagSettings.len
-      if this.config.regionClickActionTable.hasKey(regionId):
-        this.config.regionClickActionTable[regionId](clickedInfo.index, clickedInfo.width, clickedInfo.regionCord, clickedInfo.clickCord)
+
+      if clickedInfo.regionID in 0..<monitor.statusBar.tagSettings.len:
+        this.goToTag(clickedInfo.regionID + 1, false)
+        return
+
+      let regionID =
+        if clickedInfo.regionID == monitor.statusBar.tagSettings.len:
+          0
+        else:
+          clickedInfo.regionID - monitor.statusBar.tagSettings.len
+
+      if this.config.regionClickActionTable.hasKey(regionID):
+        this.config.regionClickActionTable[regionID](
+          clickedInfo.index,
+          clickedInfo.width,
+          clickedInfo.regionCord,
+          clickedInfo.clickCord
+        )
       return
 
   # Need to not change mouse state if e.state is not the mod key.

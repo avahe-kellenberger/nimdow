@@ -51,6 +51,14 @@ type
     # Client and tag info.
     taggedClients: TaggedClients
 
+  ClickedRegion* = tuple[
+    regionID: int,
+    width: int,
+    index: int,
+    regionCord: tuple[x, y: int],
+    clickCord: tuple[x, y: int]
+  ]
+
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
 proc configureColors(this: StatusBar)
@@ -267,14 +275,33 @@ proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettin
   # Tell bar to resize and redraw
   this.resizeForSystray(this.systrayWidth, redraw)
 
-proc getClickedRegion*(this: StatusBar, e: XButtonEvent): tuple[region: int, width: int, index: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]] =
+# TODO: Change tuples to types.
+proc getClickedRegion*(this: StatusBar, e: XButtonEvent): ClickedRegion =
   for i, segment in this.clickables:
     if segment.start <= e.x and segment.stop > e.x:
       for c, character in segment.characters:
         if e.x < segment.start + character:
-          return (region: i, width: segment.stop - segment.start, index: c - 1, regionCord: (x: segment.start, y: 0), clickCord: (x: e.x.int, y: e.y.int))
-      return (region: i, width: segment.stop - segment.start, index: segment.characters.high, regionCord: (x: segment.start, y: 0), clickCord: (x: e.x.int, y: e.y.int))
-  return (region: -1, width: -1, index: -1, regionCord: (x: -1, y: -1), clickCord: (x: -1, y: -1))
+          return (
+            regionID: i,
+            width: segment.stop - segment.start,
+            index: c - 1,
+            regionCord: (x: segment.start, y: 0),
+            clickCord: (x: e.x.int, y: e.y.int)
+          )
+      return (
+        regionID: i,
+        width: segment.stop - segment.start,
+        index: segment.characters.high,
+        regionCord: (x: segment.start, y: 0),
+        clickCord: (x: e.x.int, y: e.y.int)
+      )
+  return (
+    regionID: -1,
+    width: -1,
+    index: -1,
+    regionCord: (x: -1, y: -1),
+    clickCord: (x: -1, y: -1)
+  )
 
 ######################
 ### Rendering procs ##
@@ -369,8 +396,6 @@ const
   finalByteRange = 0x40..0x7E
   unitSeparator = 0x1F
 
-
-
 proc renderStringRightAligned(
   this: var StatusBar,
   s: string,
@@ -436,7 +461,8 @@ proc renderStringRightAligned(
         stringWidth += glyph.xOff
         return true
       if (not parsingCSI) and rune.int32 == unitSeparator:
-        runeInfo.add((rune, runeAddr, font, color, bgColor, default(XGlyphInfo))) # This is never rendered, but must be passed to parse clickables
+        # This is never rendered, but must be passed to parse clickables
+        runeInfo.add((rune, runeAddr, font, color, bgColor, default(XGlyphInfo)))
         return true
     if selectedFont == -1:
       for font in this.fonts:

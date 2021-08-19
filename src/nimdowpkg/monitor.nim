@@ -430,14 +430,14 @@ proc toggleTags*(this: Monitor, tagIDs: varargs[TagID]) =
 
   this.doLayout()
 
-proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID]) =
+proc setSelectedTags*(this: Monitor, tagIDs: varargs[TagID], warpToClient: bool = true) =
   ## Views the given tags.
 
   # Select only the given tags
   this.selectedTags.clear()
   for id in tagIDs:
     this.selectedTags.incl(id)
-  this.doLayout()
+  this.doLayout(warpToClient)
 
 proc focusNextClient*(
   this: Monitor,
