@@ -350,6 +350,25 @@ const
                  0x808080, 0x8a8a8a, 0x949494, 0x9e9e9e,
                  0xa8a8a8, 0xb2b2b2, 0xbcbcbc, 0xc6c6c6,
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
+  resetCode = 0
+  fontStart = 10
+  fontStop = 19
+  fgColorStart = 30
+  fgColorStop = 37
+  bgColorStart = 40
+  bgColorStop = 47
+  fgBrightColorStart = 90
+  fgBrightColorStop = 97
+  bgBrightColorStart = 100
+  bgBrightColorStop = 107
+  fgColorTable = 38
+  bgColorTable = 48
+  eightBitColor = 5
+  twentyfourBitColor = 2
+  escape = 0x1B
+  finalByteRange = 0x40..0x7E
+  unitSeparator = 0x1F
+
 
 
 proc renderStringRightAligned(
@@ -392,14 +411,14 @@ proc renderStringRightAligned(
   for rune in str.runes:
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
-    if rune.int32 == 27:
+    if rune.int32 == escape:
       parsingCsi = true
       parsingSgr = false
       invalidSgr = false
       continue
     if parsingCsi:
       if parsingSgr:
-        if rune.int32 != ord(';') and rune.int32 notin 0x40..0x7E:
+        if rune.int32 != ord(';') and rune.int32 notin finalByteRange:
           currentSgr.add rune
         else:
           addSgr()
@@ -415,7 +434,7 @@ proc renderStringRightAligned(
         runeInfo.add((rune, runeAddr, font, color, bgColor, glyph))
         stringWidth += glyph.xOff
         return true
-      if (not parsingCSI) and rune.int32 == 31:
+      if (not parsingCSI) and rune.int32 == unitSeparator:
         runeInfo.add((rune, runeAddr, font, color, bgColor, default(XGlyphInfo))) # This is never rendered, but must be passed to parse clickables
         return true
     if selectedFont == -1:
@@ -427,33 +446,33 @@ proc renderStringRightAligned(
       else:
         discard tryFont(this.fonts[selectedFont])
     if parsingCsi:
-      if rune.int32 in 0x40..0x7E:
+      if rune.int32 in finalByteRange:
         parsingCsi = false
         if parsingSgr:
           if not invalidSgr:
             var i = 0
             while i < sgr.len:
-              if sgr[i] == 0:
+              if sgr[i] == resetCode:
                 color = -1
                 selectedFont = -1
-              elif sgr[i] >= 10 and sgr[i] <= 19:
-                selectedFont = sgr[i] - 11
-              elif sgr[i] >= 30 and sgr[i] <= 37:
-                color = basicColors[sgr[i] - 30]
-              elif sgr[i] >= 40 and sgr[i] <= 47:
-                bgColor = basicColors[sgr[i] - 40]
-              elif sgr[i] >= 90 and sgr[i] <= 97:
-                color = brightColors[sgr[i] - 90]
-              elif sgr[i] >= 100 and sgr[i] <= 107:
-                bgColor = brightColors[sgr[i] - 100]
-              elif sgr.len > i + 2 and sgr[i] in {38, 48} and sgr[i + 1] == 5:
-                if sgr[i] == 38:
+              elif sgr[i] >= fontStart and sgr[i] <= fontStop:
+                selectedFont = sgr[i] - fontStart - 1
+              elif sgr[i] >= fgColorStart and sgr[i] <= fgColorStop:
+                color = basicColors[sgr[i] - fgColorStart]
+              elif sgr[i] >= bgColorStart and sgr[i] <= bgColorStop:
+                bgColor = basicColors[sgr[i] - bgColorStart]
+              elif sgr[i] >= fgBrightColorStart and sgr[i] <= fgBrightColorStop:
+                color = brightColors[sgr[i] - fgBrightColorStart]
+              elif sgr[i] >= bgBrightColorStart and sgr[i] <= bgBrightColorStop:
+                bgColor = brightColors[sgr[i] - bgBrightColorStart]
+              elif sgr.len > i + 2 and sgr[i] in {fgColorTable, bgColorTable} and sgr[i + 1] == eightBitColor:
+                if sgr[i] == fgColorTable:
                   color = extraColors[sgr[i + 2]]
                 else:
                   bgColor = extraColors[sgr[i + 2]]
                 i += 2
-              elif sgr.len > i + 4 and sgr[i] in {38, 48} and sgr[i + 1] == 2:
-                if sgr[i] == 38:
+              elif sgr.len > i + 4 and sgr[i] in {fgColorTable, bgColorTable} and sgr[i + 1] == twentyfourBitColor:
+                if sgr[i] == fgColorTable:
                   color = (sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4]
                 else:
                   bgColor = (sgr[i + 2] shl 16) or (sgr[i + 3] shl 8) or sgr[i + 4]
@@ -471,7 +490,7 @@ proc renderStringRightAligned(
     last = xLoc
     current = xLoc
   for pos, (rune, runeAddr, font, fg, bg, glyph) in runeInfo:
-    if rune.int32 == 31:
+    if rune.int32 == unitSeparator:
       this.clickables.add (start: last, stop: current, characters: characters)
       last = current
       reset characters
