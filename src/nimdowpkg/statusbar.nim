@@ -51,13 +51,12 @@ type
     # Client and tag info.
     taggedClients: TaggedClients
 
-  ClickedRegion* = tuple[
-    regionID: int,
-    width: int,
-    index: int,
-    regionCord: tuple[x, y: int],
-    clickCord: tuple[x, y: int]
-  ]
+  ClickedRegion* = object
+    regionID*: int
+    width*: int
+    index*: int
+    regionCord*: tuple[x, y: int]
+    clickCord*: tuple[x, y: int]
 
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
@@ -275,27 +274,26 @@ proc setConfig*(this: var StatusBar, config: BarSettings, tagSettings: TagSettin
   # Tell bar to resize and redraw
   this.resizeForSystray(this.systrayWidth, redraw)
 
-# TODO: Change tuples to types.
 proc getClickedRegion*(this: StatusBar, e: XButtonEvent): ClickedRegion =
   for i, segment in this.clickables:
     if segment.start <= e.x and segment.stop > e.x:
       for c, character in segment.characters:
         if e.x < segment.start + character:
-          return (
+          return ClickedRegion(
             regionID: i,
             width: segment.stop - segment.start,
             index: c - 1,
             regionCord: (x: segment.start, y: 0),
             clickCord: (x: e.x.int, y: e.y.int)
           )
-      return (
+      return ClickedRegion(
         regionID: i,
         width: segment.stop - segment.start,
         index: segment.characters.high,
         regionCord: (x: segment.start, y: 0),
         clickCord: (x: e.x.int, y: e.y.int)
       )
-  return (
+  return ClickedRegion(
     regionID: -1,
     width: -1,
     index: -1,
