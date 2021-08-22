@@ -54,8 +54,6 @@ const
 type
   MouseAction* {.pure.} = enum
     Normal, Moving, Resizing
-  MouseState* {.pure.} = enum
-    Released, Pressed
   WindowManager* = ref object
     display*: PDisplay
     rootWindow*: Window
@@ -67,7 +65,6 @@ type
     monitors: OrderedTable[MonitorID, Monitor]
     selectedMonitor: Monitor
     mouseAction: MouseAction
-    mouseState: MouseState
     lastMousePress: tuple[x, y: int]
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
@@ -273,7 +270,6 @@ proc newWindowManager*(
     )
 
   result.mouseAction = MouseAction.Normal
-  result.mouseState = MouseState.Released
 
   result.setSelectedMonitor(result.monitors[1])
   result.updateSystray()
@@ -1164,9 +1160,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.windowSettings.borderColorUnfocused
   )
 
-  # if not client.isFullscreen:
-  #   client.configure(this.display)
-
   discard XSelectInput(
     this.display,
     window,
@@ -1217,8 +1210,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
         not client.isFloating or
         client.isFullscreen or
         monitor.taggedClients.currClientsLen == 1
-      ) and
-      this.mouseState != MouseState.Pressed
+      )
 
     this.focus(client, shouldWarp)
     monitor.focusClient(client, shouldWarp)
@@ -1680,8 +1672,6 @@ proc findClient(this: WindowManager, e: XButtonEvent): Client =
      return client
 
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
-  this.mouseState = MouseState.Pressed
-
   if e.window == this.systray.window:
     # Clicked systray window, don't do anything.
     return
@@ -1732,7 +1722,6 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
     discard XAllowEvents(this.display, ReplayPointer, CurrentTime)
 
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
-  this.mouseState = MouseState.Released
   this.mouseAction = MouseAction.Normal
 
   if this.moveResizingClient == nil:
