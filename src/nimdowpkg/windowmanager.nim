@@ -52,7 +52,7 @@ const
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
 type
-  MouseState* = enum
+  MouseAction* {.pure.} = enum
     Normal, Moving, Resizing
   WindowManager* = ref object
     display*: PDisplay
@@ -64,7 +64,7 @@ type
     windowSettings: WindowSettings
     monitors: OrderedTable[MonitorID, Monitor]
     selectedMonitor: Monitor
-    mouseState: MouseState
+    mouseAction: MouseAction
     lastMousePress: tuple[x, y: int]
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
@@ -268,6 +268,8 @@ proc newWindowManager*(
       cast[Pcuchar](data.unsafeAddr),
       data.len
     )
+
+  result.mouseAction = MouseAction.Normal
 
   result.setSelectedMonitor(result.monitors[1])
   result.updateSystray()
@@ -479,7 +481,7 @@ proc decreaseMasterCount(this: WindowManager) =
       masterStackLayout.masterSlots.dec
       this.selectedMonitor.doLayout()
 
-proc goToTag(this: WindowManager, tagID: TagID) =
+proc goToTag(this: WindowManager, tagID: TagID, warpToClient: bool = true) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
 
@@ -499,9 +501,11 @@ proc goToTag(this: WindowManager, tagID: TagID) =
     # Swap the previous tag.
     this.selectedMonitor.previousTagID = selectedTag
 
-  this.selectedMonitor.setSelectedTags(destTag)
-  this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-    this.display.warpTo(client)
+  this.selectedMonitor.setSelectedTags(destTag, warpToClient)
+
+  if warpToClient:
+    this.selectedMonitor.taggedClients.withSomeCurrClient(client):
+      this.display.warpTo(client)
 
 proc jumpToUrgentWindow(this: WindowManager) =
   var
@@ -1156,9 +1160,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.windowSettings.borderColorUnfocused
   )
 
-  # if not client.isFullscreen:
-  #   client.configure(this.display)
-
   discard XSelectInput(
     this.display,
     window,
@@ -1204,9 +1205,15 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
   client.hasBeenMapped = true
 
   if monitor == this.selectedMonitor and monitor.taggedClients.currClientsContains(window):
-    let shouldWarp = not client.isFloating or monitor.taggedClients.currClientsLen == 1
+    let shouldWarp =
+      (
+        not client.isFloating or
+        client.isFullscreen or
+        monitor.taggedClients.currClientsLen == 1
+      )
+
     this.focus(client, shouldWarp)
-    monitor.focusClient(client, not client.isFloating or client.isFullscreen)
+    monitor.focusClient(client, shouldWarp)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
@@ -1499,18 +1506,18 @@ proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent) =
 
 proc onMotionNotify(this: WindowManager, e: XMotionEvent) =
   # If moving/resizing a client, we delay selecting the new monitor.
-  if this.mouseState == MouseState.Normal:
+  if this.mouseAction == MouseAction.Normal:
     this.selectCorrectMonitor(e.x_root, e.y_root)
 
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
-  if this.mouseState != MouseState.Normal or e.window == this.rootWindow:
+  if this.mouseAction != MouseAction.Normal or e.window == this.rootWindow:
     return
   this.selectCorrectMonitor(e.x_root, e.y_root)
   if this.selectedMonitor.taggedClients.currClientsContains(e.window):
     discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
 
 proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
-  if this.mouseState != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
+  if this.mouseAction != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
     if this.selectedMonitor.taggedClients.currClient == nil:
       # Clear the window title (no windows are focused)
       this.selectedMonitor.statusBar.setActiveWindowTitle("")
@@ -1523,7 +1530,9 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
     return
 
   let previousSelectedClient = this.selectedMonitor.taggedClients.currClient
-  let previousSelectedClientWasFloating = previousSelectedClient != nil and previousSelectedClient.isFloating
+  let previousSelectedClientWasFloating =
+    (previousSelectedClient != nil and previousSelectedClient.isFloating)
+
   if previousSelectedClient != nil:
     this.unfocus(previousSelectedClient)
 
@@ -1557,7 +1566,7 @@ proc renderStatus(this: WindowManager) =
     try:
       for rawStatus in statuses[1 .. statuses.high]:
         var
-          monitorIndexAsStr = rawStatus[0..skipUntil(rawStatus, Whitespace)-1]
+          monitorIndexAsStr = rawStatus[0..skipUntil(rawStatus, Whitespace) - 1]
           monitorIndex = parseInt(monitorIndexAsStr)
 
         var status = rawStatus
@@ -1670,27 +1679,42 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   for monitor in this.monitors.values:
     if e.window == monitor.statusBar.barWindow:
       let clickedInfo = getClickedRegion(monitor.statusBar, e)
-      if clickedInfo.region == -1: return # Nothing was clicked
-      if clickedInfo.region in 0..<monitor.statusBar.tagSettings.len:
-        this.goToTag(clickedInfo.region + 1)
+
+      if clickedInfo.regionID == -1:
+        # Nothing was clicked
         return
-      let regionId = if clickedInfo.region == monitor.statusBar.tagSettings.len: 0 else: clickedInfo.region - monitor.statusBar.tagSettings.len
-      if this.config.regionClickActionTable.hasKey(regionId):
-        this.config.regionClickActionTable[regionId](clickedInfo.index, clickedInfo.width, clickedInfo.regionCord, clickedInfo.clickCord)
+
+      if clickedInfo.regionID in 0..<monitor.statusBar.tagSettings.len:
+        this.goToTag(clickedInfo.regionID + 1, false)
+        return
+
+      let regionID =
+        if clickedInfo.regionID == monitor.statusBar.tagSettings.len:
+          0
+        else:
+          clickedInfo.regionID - monitor.statusBar.tagSettings.len
+
+      if this.config.regionClickActionTable.hasKey(regionID):
+        this.config.regionClickActionTable[regionID](
+          clickedInfo.index,
+          clickedInfo.width,
+          clickedInfo.regionCord,
+          clickedInfo.clickCord
+        )
       return
 
   # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
       if e.state == Mod4Mask:
-        this.mouseState = MouseState.Moving
+        this.mouseAction = MouseAction.Moving
         this.selectClientForMoveResize(e)
     of Button3:
       if e.state == Mod4Mask:
-        this.mouseState = MouseState.Resizing
+        this.mouseAction = MouseAction.Resizing
         this.selectClientForMoveResize(e)
     else:
-      this.mouseState = MouseState.Normal
+      this.mouseAction = MouseAction.Normal
 
   let client = this.findClient(e)
   if client != nil:
@@ -1698,7 +1722,8 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
     discard XAllowEvents(this.display, ReplayPointer, CurrentTime)
 
 proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
-  this.mouseState = MouseState.Normal
+  this.mouseAction = MouseAction.Normal
+
   if this.moveResizingClient == nil:
     return
 
@@ -1726,7 +1751,7 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent) =
   nextMonitor.addClient(client)
 
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
-  if this.mouseState == Normal or this.moveResizingClient == nil:
+  if this.mouseAction == Normal or this.moveResizingClient == nil:
     return
 
   var client = this.moveResizingClient
@@ -1749,7 +1774,7 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
     deltaX = e.x - this.lastMousePress.x
     deltaY = e.y - this.lastMousePress.y
 
-  if this.mouseState == Moving:
+  if this.mouseAction == Moving:
     client.resize(
       this.display,
       this.lastMoveResizeClientState.x + deltaX,
@@ -1757,7 +1782,7 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
       max(1, this.lastMoveResizeClientState.width.int),
       max(1, this.lastMoveResizeClientState.height.int)
     )
-  elif this.mouseState == Resizing:
+  elif this.mouseAction == Resizing:
     client.resize(
       this.display,
       this.lastMoveResizeClientState.x,
