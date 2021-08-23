@@ -12,6 +12,7 @@ import
   ../logger
 
 const version* = "v0.7.26"
+const commit* = getEnv("LATEST_COMMIT")
 
 proc handleWMCommand(commandStr: string): bool =
   ## Returns if the command was sent.
@@ -39,7 +40,10 @@ proc handleSpecialCommand(strArr: seq[string]): bool =
 
   case strArr[0]:
     of "v", "version":
-      echo "Nimdow ", version
+      if commit.len > 0:
+        echo fmt"Nimdow {version} - Commit {commit}"
+      else:
+        echo fmt"Nimdow {version}"
     of "c", "config":
       configloader.configLoc = strArr[1]
       return true
