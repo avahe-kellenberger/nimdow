@@ -308,7 +308,6 @@ proc reloadConfig*(this: WindowManager) =
 
   this.config.hookConfig()
   this.grabKeys()
-  # TODO: Probably need to grabButtons for each client on reload.
 
   this.windowSettings = this.config.windowSettings
   for monitor in this.monitors.mvalues():
@@ -594,7 +593,8 @@ proc popScratchpad(this: WindowManager) =
   # Normal window
   if not client.isFullscreen and not client.isFloating and not client.isFixed:
     let
-      height = 300 # TODO: Make this a setting
+      # TODO: Make these a setting
+      height = 300
       width = 500
     client.resize(
       this.display,
@@ -1048,6 +1048,8 @@ proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor) 
 
     this.centerClientIfNeeded(client, monitor)
 
+  discard XFree(sizeHints)
+
 proc updateWMHints(this: WindowManager, client: Client) =
   var hints: PXWMHints = XGetWMHints(this.display, client.window)
   if hints == nil:
@@ -1093,7 +1095,10 @@ proc getAppRule(this: WindowManager, client: Client): AppRule =
   let title = this.display.getWindowName(client.window)
   for rule in this.config.appRules:
     if rule.matches(title, $classHint.res_name, $classHint.res_class):
+      discard XFree(classHint)
       return rule
+
+  discard XFree(classHint)
 
 proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) =
   var
