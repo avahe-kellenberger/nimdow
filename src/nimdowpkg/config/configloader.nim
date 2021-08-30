@@ -298,6 +298,9 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
         commandDeclaration.tableVal[]
       )
 
+proc removeTransparencyFromHexColor(color: int): int =
+  return color or (0xff shl 24)
+
 proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string): int =
   if settingsTable.hasKey(valueName):
     let setting = settingsTable[valueName]
@@ -391,15 +394,15 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 
   let unfocusedBorderVal = this.loadHexValue(settingsTable, "borderColorUnfocused")
   if unfocusedBorderVal != -1:
-    this.windowSettings.borderColorUnfocused = unfocusedBorderVal
+    this.windowSettings.borderColorUnfocused = removeTransparencyFromHexColor(unfocusedBorderVal)
 
   let focusedBorderVal = this.loadHexValue(settingsTable, "borderColorFocused")
   if focusedBorderVal != -1:
-    this.windowSettings.borderColorFocused = focusedBorderVal
+    this.windowSettings.borderColorFocused = removeTransparencyFromHexColor(focusedBorderVal)
 
   let urgentBorderVal = this.loadHexValue(settingsTable, "borderColorUrgent")
   if urgentBorderVal != -1:
-    this.windowSettings.borderColorUrgent = urgentBorderVal
+    this.windowSettings.borderColorUrgent = removeTransparencyFromHexColor(urgentBorderVal)
 
   # Bar & layout settings
   for monitorSettings in this.monitorSettings.mvalues():
