@@ -646,6 +646,26 @@ proc mapConfigActions*(this: WindowManager) =
     if tagIDOpt.isSome:
       this.goToTag(tagIDOpt.get)
 
+  proc findRelativeTag(this: WindowManager, offset: int): Tag =
+    let selectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag
+    if selectedTag.isNil:
+      return
+
+    var tagNumber = abs((selectedTag.id + offset) mod this.selectedMonitor.tags.len)
+    if tagNumber == 0:
+      tagNumber = this.selectedMonitor.tags.len
+    return this.selectedMonitor.tags[tagNumber - 1]
+
+  createControl(keyCombo, $wmcGoToLeftTag):
+    let leftTag = this.findRelativeTag(-1)
+    if leftTag != nil:
+      this.goToTag(leftTag.id)
+
+  createControl(keyCombo, $wmcGoToRightTag):
+    let rightTag = this.findRelativeTag(1)
+    if rightTag != nil:
+      this.goToTag(rightTag.id)
+
   createControl(keyCombo, $wmcGoToPreviousTag):
     var previousTag = this.selectedMonitor.previousTagID
     if previousTag != 0:
@@ -687,6 +707,16 @@ proc mapConfigActions*(this: WindowManager) =
     let tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     if tagIDOpt.isSome:
       this.selectedMonitor.moveSelectedWindowToTag(tagIDOpt.get)
+
+  createControl(keyCombo, $wmcMoveWindowToLeftTag):
+    let leftTag = this.findRelativeTag(-1)
+    if leftTag != nil:
+      this.selectedMonitor.moveSelectedWindowToTag(leftTag.id)
+
+  createControl(keyCombo, $wmcMoveWindowToRightTag):
+    let rigthTag = this.findRelativeTag(1)
+    if rigthTag != nil:
+      this.selectedMonitor.moveSelectedWindowToTag(rigthTag.id)
 
   createControl(keyCombo, $wmcToggleFullscreen):
     this.selectedMonitor.toggleFullscreenForSelectedClient()
