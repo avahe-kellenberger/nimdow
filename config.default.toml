@@ -138,8 +138,24 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super" ]
 
+  [controls.goToLeftTag]
+  keys = [ "Left" ]
+  modifiers = [ "super" ]
+
+  [controls.goToRightTag]
+  keys = [ "Right" ]
+  modifiers = [ "super" ]
+
   [controls.moveWindowToTag]
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowToLeftTag]
+  keys = [ "Left" ]
+  modifiers = [ "super", "shift" ]
+
+  [controls.moveWindowToRightTag]
+  keys = [ "Right" ]
   modifiers = [ "super", "shift" ]
 
   [controls.toggleTagView]
