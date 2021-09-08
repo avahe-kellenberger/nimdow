@@ -62,6 +62,7 @@ type
     windowSettings*: WindowSettings
     xEventListener*: XEventListener
     loggingEnabled*: bool
+    reverseTagScrolling*: bool
     tagKeys*: seq[string]
     defaultMonitorSettings*: MonitorSettings
     # Specific monitor settings
@@ -80,7 +81,8 @@ proc newConfig*(eventManager: XEventManager): Config =
       borderColorUrgent: 0xff5555,
       borderWidth: 1
     ),
-    loggingEnabled: false
+    loggingEnabled: false,
+    reverseTagScrolling: false
   )
 
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
@@ -430,6 +432,13 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
       this.loggingEnabled = loggingEnabledSetting.boolVal
     else:
       raise newException(Exception, "loggingEnabled is not true/false!")
+
+  if settingsTable.hasKey("reverseTagScrolling"):
+    let reverseTagScrollingSetting = settingsTable["reverseTagScrolling"]
+    if reverseTagScrollingSetting.kind == TomlValueKind.Bool:
+      this.reverseTagScrolling = reverseTagScrollingSetting.boolVal
+    else:
+      raise newException(Exception, "reverseTagScrolling is not true/false!")
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.

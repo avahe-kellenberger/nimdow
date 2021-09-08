@@ -63,6 +63,7 @@ exec = [
 	resizeStep = 10
   # General settings
   loggingEnabled = false
+  reverseTagScrolling = false
 
 # Window manager controls
 [controls]

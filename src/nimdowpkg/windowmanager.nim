@@ -370,7 +370,7 @@ proc findRelativeTag(this: WindowManager, offset: int): Tag =
     return
 
   var tagNumber = abs((selectedTag.id + offset) mod this.selectedMonitor.tags.len)
-  if tagNumber >= 0:
+  if tagNumber <= 0:
     tagNumber = this.selectedMonitor.tags.len
   return this.selectedMonitor.tags[tagNumber - 1]
 
@@ -1726,17 +1726,27 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
         # Nothing was clicked
         return
 
-      if clickedInfo.regionID in 0..<monitor.statusBar.tagSettings.len:
+      if clickedInfo.regionID in (0 ..< monitor.statusBar.tagSettings.len):
         case e.button:
           of Button4:
-            # TODO: Define config option to reverse scrolling
-            let rightTag = this.findRightTag()
-            if rightTag != nil:
-              this.goToTag(rightTag.id, false)
+            let tag =
+              if this.config.reverseTagScrolling:
+                this.findRightTag()
+              else:
+                this.findLeftTag()
+
+            if tag != nil:
+              this.goToTag(tag.id, false)
+
           of Button5:
-            let leftTag = this.findLeftTag()
-            if leftTag != nil:
-              this.goToTag(leftTag.id, false)
+            let tag =
+              if this.config.reverseTagScrolling:
+                this.findLeftTag()
+              else:
+                this.findRightTag()
+
+            if tag != nil:
+              this.goToTag(tag.id, false)
           else:
             this.goToTag(clickedInfo.regionID + 1, false)
         return
