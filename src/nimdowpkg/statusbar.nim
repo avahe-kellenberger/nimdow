@@ -10,6 +10,7 @@ import
   taggedclients,
   xatoms,
   area,
+  point,
   strut,
   logger,
   windowtitleposition,
@@ -55,8 +56,10 @@ type
     regionID*: int
     width*: int
     index*: int
-    regionCord*: tuple[x, y: int]
-    clickCord*: tuple[x, y: int]
+    regionCord*: Point[int]
+    clickCord*: Point[int]
+
+  RGB* = tuple[r, g, b: int]
 
 proc createBar(this: StatusBar): Window
 proc configureBar(this: StatusBar)
@@ -224,7 +227,7 @@ proc freeAllColors(this: StatusBar) =
   this.freeColor(this.selectionColor.unsafeAddr)
   this.freeColor(this.urgentColor.unsafeAddr)
 
-proc toRGB(hex: int): tuple[r, g, b: int] =
+proc toRGB(hex: int): RGB =
   return (
     (hex shr 16) and 0xff,
     (hex shr 8) and 0xff,

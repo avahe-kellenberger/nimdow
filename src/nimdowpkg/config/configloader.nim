@@ -9,6 +9,7 @@ import
 import
   apprules,
   tagsettings,
+  ../point,
   ../keys/keyutils,
   ../event/xeventmanager,
   ../logger,
@@ -29,7 +30,7 @@ proc findConfigPath*(): string =
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
   Action* = proc(keyCombo: KeyCombo): void
-  RegionClickAction* = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]): void
+  RegionClickAction* = proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int]): void
 
   WindowSettings* = object
     tagCount*: uint
@@ -284,12 +285,25 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
     let command = commandDeclaration.tableVal["command"].stringVal
     if commandDeclaration.tableVal[].hasKey("clickRegion"):
       if commandDeclaration.tableVal["clickRegion"].kind != TomlValueKind.Int:
-        raise newException(Exception, "Invalid \"startProcess\" configuration: \"clickRegion\" not a number!")
+        raise newException(
+          Exception,
+          "Invalid \"startProcess\" configuration: \"clickRegion\" not a number!"
+        )
+
       let clickRegion = commandDeclaration.tableVal["clickRegion"].intVal.int
       closureScope:
         let command = command
-        this.regionClickActionTable[clickRegion] = proc(idx: int, width: int, regionCord: tuple[x, y: int], clickCord: tuple[x, y: int]) =
-          this.runCommandWithArgs(command, $idx, $regionCord.x, $regionCord.y, $clickCord.x, $clickCord.y, $width)
+        this.regionClickActionTable[clickRegion] =
+          proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int]) =
+            this.runCommandWithArgs(
+              command,
+              $idx,
+              $regionCord.x,
+              $regionCord.y,
+              $clickCord.x,
+              $clickCord.y,
+              $width
+            )
     else:
       this.configureExternalProcess(command)
       this.populateControlAction(

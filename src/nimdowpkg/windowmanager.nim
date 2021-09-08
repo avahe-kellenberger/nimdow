@@ -13,6 +13,7 @@ import
   parseutils,
   tag,
   area,
+  point,
   config / [apprules, configloader],
   event/xeventmanager,
   layouts/masterstacklayout,
@@ -65,7 +66,7 @@ type
     monitors: OrderedTable[MonitorID, Monitor]
     selectedMonitor: Monitor
     mouseAction: MouseAction
-    lastMousePress: tuple[x, y: int]
+    lastMousePress: Point[int]
     lastMoveResizeClientState: Area
     lastMoveResizeTime: culong
     moveResizingClient: Client
@@ -369,9 +370,15 @@ proc findRelativeTag(this: WindowManager, offset: int): Tag =
     return
 
   var tagNumber = abs((selectedTag.id + offset) mod this.selectedMonitor.tags.len)
-  if tagNumber == 0:
+  if tagNumber >= 0:
     tagNumber = this.selectedMonitor.tags.len
   return this.selectedMonitor.tags[tagNumber - 1]
+
+template findLeftTag(this: WindowManager): Tag =
+  this.findRelativeTag(-1)
+
+template findRightTag(this: WindowManager): Tag =
+  this.findRelativeTag(1)
 
 proc focusMonitor(this: WindowManager, monitorIndex: int) =
   let monitorID = monitorIndex + 1
@@ -657,12 +664,12 @@ proc mapConfigActions*(this: WindowManager) =
       this.goToTag(tagIDOpt.get)
 
   createControl(keyCombo, $wmcGoToLeftTag):
-    let leftTag = this.findRelativeTag(-1)
+    let leftTag = this.findLeftTag()
     if leftTag != nil:
       this.goToTag(leftTag.id)
 
   createControl(keyCombo, $wmcGoToRightTag):
-    let rightTag = this.findRelativeTag(1)
+    let rightTag = this.findRightTag()
     if rightTag != nil:
       this.goToTag(rightTag.id)
 
@@ -709,12 +716,12 @@ proc mapConfigActions*(this: WindowManager) =
       this.selectedMonitor.moveSelectedWindowToTag(tagIDOpt.get)
 
   createControl(keyCombo, $wmcMoveWindowToLeftTag):
-    let leftTag = this.findRelativeTag(-1)
+    let leftTag = this.findLeftTag()
     if leftTag != nil:
       this.selectedMonitor.moveSelectedWindowToTag(leftTag.id)
 
   createControl(keyCombo, $wmcMoveWindowToRightTag):
-    let rigthTag = this.findRelativeTag(1)
+    let rigthTag = this.findRightTag()
     if rigthTag != nil:
       this.selectedMonitor.moveSelectedWindowToTag(rigthTag.id)
 
@@ -1722,11 +1729,12 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
       if clickedInfo.regionID in 0..<monitor.statusBar.tagSettings.len:
         case e.button:
           of Button4:
-            let rightTag = this.findRelativeTag(1)
+            # TODO: Define config option to reverse scrolling
+            let rightTag = this.findRightTag()
             if rightTag != nil:
               this.goToTag(rightTag.id, false)
           of Button5:
-            let leftTag = this.findRelativeTag(-1)
+            let leftTag = this.findLeftTag()
             if leftTag != nil:
               this.goToTag(leftTag.id, false)
           else:

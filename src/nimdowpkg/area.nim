@@ -1,8 +1,10 @@
 import math
 
+import point
+
 type Area* = tuple[x, y: int, width, height: uint]
 
-proc center*(this: Area): tuple[x, y: float] =
+proc center*(this: Area): Point[float] =
   ## Calculates the center of the area.
   return (
     this.x.float + (this.width.int) / 2,
