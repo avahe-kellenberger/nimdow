@@ -363,6 +363,16 @@ proc configureRootWindow(this: WindowManager): Window =
   )
   discard XSync(this.display, false)
 
+proc findRelativeTag(this: WindowManager, offset: int): Tag =
+  let selectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag
+  if selectedTag.isNil:
+    return
+
+  var tagNumber = abs((selectedTag.id + offset) mod this.selectedMonitor.tags.len)
+  if tagNumber == 0:
+    tagNumber = this.selectedMonitor.tags.len
+  return this.selectedMonitor.tags[tagNumber - 1]
+
 proc focusMonitor(this: WindowManager, monitorIndex: int) =
   let monitorID = monitorIndex + 1
   if not this.monitors.hasKey(monitorID):
@@ -645,16 +655,6 @@ proc mapConfigActions*(this: WindowManager) =
     var tagIDOpt = this.selectedMonitor.keycodeToTagID(keyCombo.keycode)
     if tagIDOpt.isSome:
       this.goToTag(tagIDOpt.get)
-
-  proc findRelativeTag(this: WindowManager, offset: int): Tag =
-    let selectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag
-    if selectedTag.isNil:
-      return
-
-    var tagNumber = abs((selectedTag.id + offset) mod this.selectedMonitor.tags.len)
-    if tagNumber == 0:
-      tagNumber = this.selectedMonitor.tags.len
-    return this.selectedMonitor.tags[tagNumber - 1]
 
   createControl(keyCombo, $wmcGoToLeftTag):
     let leftTag = this.findRelativeTag(-1)
@@ -1720,7 +1720,17 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
         return
 
       if clickedInfo.regionID in 0..<monitor.statusBar.tagSettings.len:
-        this.goToTag(clickedInfo.regionID + 1, false)
+        case e.button:
+          of Button4:
+            let rightTag = this.findRelativeTag(1)
+            if rightTag != nil:
+              this.goToTag(rightTag.id, false)
+          of Button5:
+            let leftTag = this.findRelativeTag(-1)
+            if leftTag != nil:
+              this.goToTag(leftTag.id, false)
+          else:
+            this.goToTag(clickedInfo.regionID + 1, false)
         return
 
       let regionID =
