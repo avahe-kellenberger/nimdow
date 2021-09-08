@@ -1724,11 +1724,11 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
           of Button4:
             let rightTag = this.findRelativeTag(1)
             if rightTag != nil:
-              this.goToTag(rightTag.id)
+              this.goToTag(rightTag.id, false)
           of Button5:
             let leftTag = this.findRelativeTag(-1)
             if leftTag != nil:
-              this.goToTag(leftTag.id)
+              this.goToTag(leftTag.id, false)
           else:
             this.goToTag(clickedInfo.regionID + 1, false)
         return
