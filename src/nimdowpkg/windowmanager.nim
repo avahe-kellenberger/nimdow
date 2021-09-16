@@ -86,6 +86,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent)
+proc onMappingNotify(this: WindowManager, e: XMappingEvent)
 proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent)
 proc onMotionNotify(this: WindowManager, e: XMotionEvent)
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent)
@@ -330,6 +331,7 @@ proc initListeners(this: WindowManager) =
   onEvent(ClientMessage, e): this.onClientMessage(e.xclient)
   onEvent(MapRequest, e): this.onMapRequest(e.xmaprequest)
   onEvent(UnmapNotify, e): this.onUnmapNotify(e.xunmap)
+  onEvent(MappingNotify, e): this.onMappingNotify(e.xmapping)
   onEvent(ResizeRequest, e): this.onResizeRequest(e.xresizerequest)
   onEvent(MotionNotify, e): this.onMotionNotify(e.xmotion)
   onEvent(EnterNotify, e): this.onEnterNotify(e.xcrossing)
@@ -1335,6 +1337,13 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
       this.systray.removeIcon(icon)
       this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
       this.updateSystray()
+
+proc onMappingNotify(this: WindowManager, e: XMappingEvent) =
+  var pevent: PXMappingEvent = e.unsafeaddr
+  discard XRefreshKeyboardMapping(pevent)
+
+  if e.request == MappingKeyboard:
+    this.grabkeys()
 
 proc selectCorrectMonitor(this: WindowManager, x, y: int) =
   for monitor in this.monitors.values():
