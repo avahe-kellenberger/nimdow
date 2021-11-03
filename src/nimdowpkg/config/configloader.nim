@@ -132,7 +132,7 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
 proc runCommands(this: Config, commands: varargs[string]) =
   for cmd in commands:
     try:
-      let process = startProcess(command = cmd, options = { poEvalCommand })
+      let process = startProcess(command = cmd, options = { poEvalCommand, poParentStreams })
       this.eventManager.submitProcess(process)
     except:
       log "Failed to start command: " & cmd, lvlWarn
