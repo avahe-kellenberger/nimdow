@@ -290,30 +290,28 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
       this.layoutOffset
     )
 
-  var hasFullscreenWindow = false
+  var currentTagsFullScreenWindows: seq[Window]
   for client in this.clients.mitems:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       if client.needsFullscreen:
-        hasFullscreenWindow = true
+        currentTagsFullScreenWindows.add(client.window)
         client.isFullscreen = false
         client.needsFullscreen = false
         this.setFullscreen(client, true)
       elif client.isFullscreen:
-        hasFullscreenWindow = true
+        currentTagsFullScreenWindows.add(client.window)
         client.show(this.display)
 
-  if not hasFullscreenWindow:
+  if currentTagsFullScreenWindows.len == 0:
     for client in this.clients.mitems:
       if client.tagIDs.anyIt(this.selectedTags.contains(it)):
         client.show(this.display)
       else:
         client.hide(this.display)
-  # else:
-  #   # Hide all other windows if there is a fullscreen window.
-  #   for client in this.clients.mitems:
-  #     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-  #       if not client.isFullscreen:
-  #         client.hide(this.display)
+  else:
+    for client in this.clients.mitems:
+      if client.window notin currentTagsFullScreenWindows:
+        client.hide(this.display)
 
   this.restack()
 
@@ -459,7 +457,8 @@ proc focusNextClient*(
   reversed: bool
 ) =
   ## Focuses the next client in the stack.
-  if this.taggedClients.currClient.isFullscreen:
+  let currClient = this.taggedClients.currClient
+  if currClient != nil and currClient.isFullscreen:
     # Fullscreen clients should be the ONLY thing you interact with.
     return
 
