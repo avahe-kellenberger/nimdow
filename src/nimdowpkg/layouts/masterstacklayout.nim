@@ -128,7 +128,9 @@ proc layoutMultipleClients(
   let stackXPos: uint =
     if masterClientCount == 0:
       this.gapSize else:
-        uint(math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff)
+        uint(
+          math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff
+        )
 
   for (i, client) in clients.pairs():
     var xPos, yPos, clientWidth, clientHeight: uint

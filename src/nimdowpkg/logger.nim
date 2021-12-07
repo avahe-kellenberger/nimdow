@@ -10,7 +10,7 @@ var
   logger: RollingFileLogger
   enabled*: bool = false
 
-template log*(message: string, level: logging.Level = lvlInfo) =
+template log*(message: string, level: Level = lvlInfo) =
   const module = instantiationInfo().filename[0 .. ^5]
   let line = "[$# $#][$#]: $#" % [getDateStr(), getClockStr(), module, message]
   echo "$# $#" % [LevelNames[level], line]

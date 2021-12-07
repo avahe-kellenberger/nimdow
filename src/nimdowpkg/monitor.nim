@@ -282,17 +282,6 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
-  for client in this.clients.mitems:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      if client.needsFullscreen:
-        client.isFullscreen = false
-        client.needsFullscreen = false
-        this.setFullscreen(client, true)
-      else:
-        client.show(this.display)
-    else:
-      client.hide(this.display)
-
   let tag = this.taggedClients.findFirstSelectedTag()
   if tag != nil:
     tag.layout.arrange(
@@ -300,6 +289,31 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
       this.taggedClients.findCurrentClients(),
       this.layoutOffset
     )
+
+  var hasFullscreenWindow = false
+  for client in this.clients.mitems:
+    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+      if client.needsFullscreen:
+        hasFullscreenWindow = true
+        client.isFullscreen = false
+        client.needsFullscreen = false
+        this.setFullscreen(client, true)
+      elif client.isFullscreen:
+        hasFullscreenWindow = true
+        client.show(this.display)
+
+  if not hasFullscreenWindow:
+    for client in this.clients.mitems:
+      if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+        client.show(this.display)
+      else:
+        client.hide(this.display)
+  # else:
+  #   # Hide all other windows if there is a fullscreen window.
+  #   for client in this.clients.mitems:
+  #     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+  #       if not client.isFullscreen:
+  #         client.hide(this.display)
 
   this.restack()
 
@@ -445,6 +459,10 @@ proc focusNextClient*(
   reversed: bool
 ) =
   ## Focuses the next client in the stack.
+  if this.taggedClients.currClient.isFullscreen:
+    # Fullscreen clients should be the ONLY thing you interact with.
+    return
+
   let node = this.taggedClients.findNextCurrClient(this.taggedClients.currClient, reversed)
   if node != nil:
     this.focusClient(node.value, warpToClient)
@@ -531,6 +549,10 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       this.area.height
     )
     discard XRaiseWindow(this.display, client.window)
+    # Hide all other windows
+    for node in this.taggedClients.currClientsIter():
+      if node.value.window != client.window:
+        node.value.hide(this.display)
 
 proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   ## Helper function for toggleFullscreen

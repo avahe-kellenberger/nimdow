@@ -99,7 +99,6 @@ proc handleButtonReleased(this: WindowManager, e: XButtonEvent)
 proc handleMouseMotion(this: WindowManager, e: XMotionEvent)
 proc renderStatus(this: WindowManager)
 proc setSelectedMonitor(this: WindowManager, monitor: Monitor)
-proc setClientState(this: WindowManager, client: Client, state: int)
 proc unmanage(this: WindowManager, window: Window, destroyed: bool)
 proc updateSizeHints(this: WindowManager, client: var Client, monitor: Monitor)
 proc updateSystray(this: WindowManager)
@@ -1000,7 +999,7 @@ proc addIconToSystray(this: WindowManager, window: Window) =
 
   this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
   this.updateSystray()
-  this.setClientState(Client(icon), NormalState)
+  this.display.setClientState(icon.window, NormalState)
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
@@ -1113,19 +1112,6 @@ proc updateWMHints(this: WindowManager, client: Client) =
           break
   discard XFree(hints)
 
-proc setClientState(this: WindowManager, client: Client, state: int) =
-  var clientState = [state, x.None]
-  discard XChangeProperty(
-    this.display,
-    client.window,
-    $WMState,
-    $WMState,
-    32,
-    PropModeReplace,
-    cast[Pcuchar](clientState.addr),
-    2
-  )
-
 proc getAppRule(this: WindowManager, client: Client): AppRule =
   let classHint = this.display.getWindowClassHint(client.window)
   if classHint == nil:
@@ -1233,7 +1219,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
 
   client.needsResize = false
 
-  this.setClientState(client, NormalState)
+  this.display.setClientState(client.window, NormalState)
   if monitor.taggedClients.currClientsContains(window):
     client.adjustToState(this.display)
 
@@ -1300,7 +1286,7 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
       discard XSetErrorHandler(dummy)
       discard XConfigureWindow(this.display, window, CWBorderWidth, winChanges.addr)
       discard XUngrabButton(this.display, AnyButton, AnyModifier, window)
-      this.setClientState(client, WithdrawnState)
+      this.display.setClientState(client.window, WithdrawnState)
       discard XSync(this.display, false)
       discard XSetErrorHandler(errorHandler)
       discard XUngrabServer(this.display)
@@ -1328,7 +1314,7 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
   let (client, _) = this.windowToClient(e.window)
   if client != nil:
     if e.send_event:
-      this.setClientState(client, WithdrawnState)
+      this.display.setClientState(client.window, WithdrawnState)
     else:
       this.unmanage(client.window, false)
   else:
@@ -1524,13 +1510,13 @@ proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) 
     icon.isMapped = true
     iconActiveState = XEMBED_WINDOW_ACTIVATE
     discard XMapRaised(this.display, icon.window)
-    this.setClientState(Client(icon), NormalState)
+    this.display.setClientState(icon.window, NormalState)
   elif (flags and XEMBED_MAPPED) == 0 and icon.isMapped:
     # Requesting to be upmapped
     icon.isMapped = false
     iconActiveState = XEMBED_WINDOW_DEACTIVATE
     discard XUnmapWindow(this.display, icon.window)
-    this.setClientState(Client(icon), WithdrawnState)
+    this.display.setClientState(icon.window, WithdrawnState)
   else:
     return
 
