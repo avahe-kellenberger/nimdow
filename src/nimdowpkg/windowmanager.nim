@@ -437,7 +437,16 @@ proc moveClientToMonitor(this: WindowManager, client: var Client, monitorIndex: 
   # Add client to all selected tags
   this.selectedMonitor.addClient(client)
 
-  if client.isFloating:
+  if client.isFullscreen:
+    client.resize(
+      this.display,
+      this.selectedMonitor.area.x,
+      this.selectedMonitor.area.y,
+      this.selectedMonitor.area.width,
+      this.selectedMonitor.area.height
+     )
+    this.selectedMonitor.doLayout(false)
+  elif client.isFloating:
     let deltaX = client.x - startMonitor.area.x
     let deltaY = client.y - startMonitor.area.y
     client.resize(
@@ -447,14 +456,6 @@ proc moveClientToMonitor(this: WindowManager, client: var Client, monitorIndex: 
       client.width,
       client.height
     )
-  elif client.isFullscreen:
-    client.resize(
-      this.display,
-      this.selectedMonitor.area.x,
-      this.selectedMonitor.area.y,
-      this.selectedMonitor.area.width,
-      this.selectedMonitor.area.height
-     )
   else:
     this.selectedMonitor.doLayout(false)
 
@@ -1379,6 +1380,7 @@ proc updateSystray(this: WindowManager) =
       barHeight,
       0,
       0,
+      # TODO: If this gets called when reloading config and changing color, this should work?
       backgroundPixel
     )
 
@@ -1422,6 +1424,8 @@ proc updateSystray(this: WindowManager) =
       log("Unable to obtain systray", lvlError)
       this.systray = nil
       return
+
+    this.systrayMonitor.systray = this.systray
 
   let barArea = this.systrayMonitor.statusBar.area
 

@@ -1,6 +1,7 @@
 import
-  x11 / [x],
-  client
+  x11 / [x, xlib],
+  client,
+  area
 
 # TODO: Put this in the config file
 const systrayIconSpacing*: int = 4
@@ -36,4 +37,22 @@ proc removeIcon*(this: Systray, icon: Icon) =
   let index = this.icons.find(icon)
   if index != -1:
     this.icons.delete(index)
+
+proc show*(this: Systray, display: PDisplay, barArea: Area) =
+  ## Moves the status bar off screen.
+  discard XMoveWindow(
+    display,
+    this.window,
+    barArea.x + barArea.width - this.getWidth(),
+    barArea.y
+  )
+
+proc hide*(this: Systray, display: PDisplay) =
+  ## Moves the status bar off screen.
+  discard XMoveWindow(
+    display,
+    this.window,
+    int32.low,
+    int32.low
+  )
 

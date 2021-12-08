@@ -15,6 +15,7 @@ import
   config/configloader,
   keys/keyutils,
   statusbar,
+  systray,
   logger
 
 converter intToCint(x: int): cint = x.cint
@@ -30,6 +31,7 @@ type
     display: PDisplay
     rootWindow: Window
     statusBar*: StatusBar
+    systray*: Systray
     area*: Area
     config: Config
     monitorSettings*: MonitorSettings
@@ -290,28 +292,37 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
       this.layoutOffset
     )
 
-  var currentTagsFullScreenWindows: seq[Window]
-  for client in this.clients.mitems:
+  var topmostFullscreenClient: Client = nil
+  for client in this.clientSelection.mitems:
     if client.tagIDs.anyIt(this.selectedTags.contains(it)):
       if client.needsFullscreen:
-        currentTagsFullScreenWindows.add(client.window)
+        topmostFullscreenClient = client
         client.isFullscreen = false
         client.needsFullscreen = false
         this.setFullscreen(client, true)
       elif client.isFullscreen:
-        currentTagsFullScreenWindows.add(client.window)
+        topmostFullscreenClient = client
         client.show(this.display)
 
-  if currentTagsFullScreenWindows.len == 0:
+  if topmostFullscreenClient == nil:
+    # There are no fullscreen clients on viewable tags.
     for client in this.clients.mitems:
       if client.tagIDs.anyIt(this.selectedTags.contains(it)):
         client.show(this.display)
       else:
         client.hide(this.display)
+    this.statusBar.show()
+    if this.systray != nil:
+      this.systray.show(this.display, this.statusBar.area)
   else:
     for client in this.clients.mitems:
-      if client.window notin currentTagsFullScreenWindows:
+      # Only show the topmost fullscreen client.
+      if client.window != topmostFullscreenClient.window:
         client.hide(this.display)
+    this.statusBar.hide()
+    if this.systray != nil:
+      this.systray.hide(this.display)
+    this.focusClient(topmostFullscreenClient, true)
 
   this.restack()
 
@@ -548,10 +559,7 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       this.area.height
     )
     discard XRaiseWindow(this.display, client.window)
-    # Hide all other windows
-    for node in this.taggedClients.currClientsIter():
-      if node.value.window != client.window:
-        node.value.hide(this.display)
+    this.doLayout()
 
 proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   ## Helper function for toggleFullscreen
