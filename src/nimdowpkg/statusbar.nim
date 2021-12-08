@@ -195,6 +195,24 @@ proc configureBar(this: StatusBar) =
     12
   )
 
+proc show*(this: StatusBar) =
+  ## Moves the status bar off screen.
+  discard XMoveWindow(
+    this.display,
+    this.barWindow,
+    this.area.x,
+    this.area.y
+  )
+
+proc hide*(this: StatusBar) =
+  ## Moves the status bar off screen.
+  discard XMoveWindow(
+    this.display,
+    this.barWindow,
+    this.area.width.int * -2,
+    this.area.y
+  )
+
 proc resizeForSystray*(this: var StatusBar, systrayWidth: int, redraw: bool = true) =
   this.systrayWidth = systrayWidth
   discard XMoveResizeWindow(

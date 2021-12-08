@@ -15,6 +15,7 @@ import
   config/configloader,
   keys/keyutils,
   statusbar,
+  systray,
   logger
 
 converter intToCint(x: int): cint = x.cint
@@ -30,6 +31,7 @@ type
     display: PDisplay
     rootWindow: Window
     statusBar*: StatusBar
+    systray*: Systray
     area*: Area
     config: Config
     monitorSettings*: MonitorSettings
@@ -282,17 +284,6 @@ proc deleteActiveWindowProperty(this: Monitor) =
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
   ## Revalidates the current layout of the viewed tag(s).
-  for client in this.clients.mitems:
-    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
-      if client.needsFullscreen:
-        client.isFullscreen = false
-        client.needsFullscreen = false
-        this.setFullscreen(client, true)
-      else:
-        client.show(this.display)
-    else:
-      client.hide(this.display)
-
   let tag = this.taggedClients.findFirstSelectedTag()
   if tag != nil:
     tag.layout.arrange(
@@ -300,6 +291,38 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
       this.taggedClients.findCurrentClients(),
       this.layoutOffset
     )
+
+  var topmostFullscreenClient: Client = nil
+  for client in this.clientSelection.mitems:
+    if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+      if client.needsFullscreen:
+        topmostFullscreenClient = client
+        client.isFullscreen = false
+        client.needsFullscreen = false
+        this.setFullscreen(client, true)
+      elif client.isFullscreen:
+        topmostFullscreenClient = client
+        client.show(this.display)
+
+  if topmostFullscreenClient == nil:
+    # There are no fullscreen clients on viewable tags.
+    for client in this.clients.mitems:
+      if client.tagIDs.anyIt(this.selectedTags.contains(it)):
+        client.show(this.display)
+      else:
+        client.hide(this.display)
+    this.statusBar.show()
+    if this.systray != nil:
+      this.systray.show(this.display, this.statusBar.area)
+  else:
+    for client in this.clients.mitems:
+      # Only show the topmost fullscreen client.
+      if client.window != topmostFullscreenClient.window:
+        client.hide(this.display)
+    this.statusBar.hide()
+    if this.systray != nil:
+      this.systray.hide(this.display)
+    this.focusClient(topmostFullscreenClient, true)
 
   this.restack()
 
@@ -445,6 +468,11 @@ proc focusNextClient*(
   reversed: bool
 ) =
   ## Focuses the next client in the stack.
+  let currClient = this.taggedClients.currClient
+  if currClient != nil and currClient.isFullscreen:
+    # Fullscreen clients should be the ONLY thing you interact with.
+    return
+
   let node = this.taggedClients.findNextCurrClient(this.taggedClients.currClient, reversed)
   if node != nil:
     this.focusClient(node.value, warpToClient)
@@ -531,6 +559,7 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       this.area.height
     )
     discard XRaiseWindow(this.display, client.window)
+    this.doLayout()
 
 proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   ## Helper function for toggleFullscreen

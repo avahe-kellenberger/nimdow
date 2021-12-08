@@ -149,17 +149,13 @@ proc getStringProperty*(
   )
 
   if numItemsReturn > 0.culong:
-    let val = $propReturn[]
-    return val
-  else:
-    return ""
+    return $propReturn[]
 
 proc getWindowName*(display: PDisplay, window: Window): string =
   ## Gets the name of the window by querying for NetWMName and WMName.
-  var title = display.getStringProperty(window, $NetWMName)
-  if title.len == 0:
-    title = display.getStringProperty(window, $WMName)
-  return title
+  result = display.getStringProperty(window, $NetWMName)
+  if result.len == 0:
+    result = display.getStringProperty(window, $WMName)
 
 proc getWindowClassHint*(display: PDisplay, window: Window): PXClassHint =
   ## Gets the class hint of the window.
@@ -181,10 +177,10 @@ proc sendEvent*(
     numProtocols: int
     exists: bool
     protocols: PAtom
-    mt: Atom
+    messageType: Atom
 
   if protocol == $WMTakeFocus or protocol == $WMDelete:
-    mt = $WMProtocols
+    messageType = $WMProtocols
     if XGetWMProtocols(
       display,
       window,
@@ -198,12 +194,12 @@ proc sendEvent*(
       discard XFree(protocols)
   else:
     exists = true
-    mt = protocol
+    messageType = protocol
 
   if exists:
     event.xclient.theType = ClientMessage
     event.xclient.window = window
-    event.xclient.message_type = mt
+    event.xclient.message_type = messageType
     event.xclient.format = 32
     event.xclient.data.l[0] = d0
     event.xclient.data.l[1] = d1
@@ -213,4 +209,17 @@ proc sendEvent*(
     discard XSendEvent(display, window, false, mask, addr(event))
 
   return exists
+
+proc setClientState*(display: PDisplay, window: Window, state: int) =
+  var clientState = [state, x.None]
+  discard XChangeProperty(
+    display,
+    window,
+    $WMState,
+    $WMState,
+    32,
+    PropModeReplace,
+    cast[Pcuchar](clientState.addr),
+    2
+  )
 
