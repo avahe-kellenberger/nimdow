@@ -47,12 +47,12 @@ proc show*(this: Systray, display: PDisplay, barArea: Area) =
     barArea.y
   )
 
-proc hide*(this: Systray, display: PDisplay) =
+proc hide*(this: Systray, display: PDisplay, barArea: Area) =
   ## Moves the status bar off screen.
   discard XMoveWindow(
     display,
     this.window,
-    int32.low,
-    int32.low
+    -this.getWidth() * 2,
+    -barArea.height * 2
   )
 

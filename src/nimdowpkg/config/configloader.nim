@@ -129,23 +129,22 @@ proc getAutostartCommands(this: Config, configTable: TomlTable): seq[string] =
     else:
       log repr(cmd) & " is not a string", lvlWarn
 
-proc runCommands(this: Config, commands: varargs[string]) =
-  for cmd in commands:
-    try:
-      let process = startProcess(command = cmd, options = { poEvalCommand, poParentStreams })
-      this.eventManager.submitProcess(process)
-    except:
-      log "Failed to start command: " & cmd, lvlWarn
-
-proc runCommandWithArgs(this: Config, command: string, arguments: varargs[string]) =
-  var cmd = command.replace("%0", arguments.join " ")
-  for i, argument in arguments:
-    cmd = cmd.replace("%" & $(i + 1), argument)
+proc runCommand(this: Config, cmd: string) =
   try:
     let process = startProcess(command = cmd, options = { poEvalCommand })
     this.eventManager.submitProcess(process)
   except:
     log "Failed to start command: " & cmd, lvlWarn
+
+proc runCommands(this: Config, commands: varargs[string]) =
+  for cmd in commands:
+    this.runCommand(cmd)
+
+proc runCommandWithArgs(this: Config, command: string, arguments: varargs[string]) =
+  var cmd = command.replace("%0", arguments.join " ")
+  for i, argument in arguments:
+    cmd = cmd.replace("%" & $(i + 1), argument)
+    this.runCommand(cmd)
 
 proc populateAppRules*(this: Config, configTable: TomlTable) =
   this.appRules = configTable.parseAppRules()

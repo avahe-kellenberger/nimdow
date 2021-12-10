@@ -306,12 +306,12 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
 
   if topmostFullscreenClient == nil:
     # There are no fullscreen clients on viewable tags.
+    this.statusBar.show()
     for client in this.clients.mitems:
       if client.tagIDs.anyIt(this.selectedTags.contains(it)):
         client.show(this.display)
       else:
         client.hide(this.display)
-    this.statusBar.show()
     if this.systray != nil:
       this.systray.show(this.display, this.statusBar.area)
   else:
@@ -321,7 +321,7 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
         client.hide(this.display)
     this.statusBar.hide()
     if this.systray != nil:
-      this.systray.hide(this.display)
+      this.systray.hide(this.display, this.area)
     this.focusClient(topmostFullscreenClient, true)
 
   this.restack()
@@ -533,7 +533,8 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
     client.width = client.oldWidth
     client.height = client.oldHeight
     client.adjustToState(this.display)
-    this.doLayout()
+    if this.taggedClients.currClientsContains(client):
+      this.doLayout(false, true)
   else:
     var arr = [$NetWMStateFullScreen]
     discard XChangeProperty(
@@ -558,8 +559,9 @@ proc toggleFullscreen*(this: Monitor, client: var Client) =
       this.area.width,
       this.area.height
     )
-    discard XRaiseWindow(this.display, client.window)
-    this.doLayout()
+    if this.taggedClients.currClientsContains(client):
+      discard XRaiseWindow(this.display, client.window)
+      this.doLayout(false, true)
 
 proc setFullscreen*(this: Monitor, client: var Client, fullscreen: bool) =
   ## Helper function for toggleFullscreen
