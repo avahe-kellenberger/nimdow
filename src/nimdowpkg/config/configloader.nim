@@ -144,7 +144,7 @@ proc runCommandWithArgs(this: Config, command: string, arguments: varargs[string
   var cmd = command.replace("%0", arguments.join " ")
   for i, argument in arguments:
     cmd = cmd.replace("%" & $(i + 1), argument)
-    this.runCommand(cmd)
+  this.runCommand(cmd)
 
 proc populateAppRules*(this: Config, configTable: TomlTable) =
   this.appRules = configTable.parseAppRules()
