@@ -43,8 +43,8 @@ proc show*(this: Systray, display: PDisplay, barArea: Area) =
   discard XMoveWindow(
     display,
     this.window,
-    barArea.x + barArea.width - this.getWidth(),
-    barArea.y
+    cint (barArea.x + barArea.width.int - this.getWidth()),
+    cint barArea.y
   )
 
 proc hide*(this: Systray, display: PDisplay, barArea: Area) =
@@ -52,7 +52,7 @@ proc hide*(this: Systray, display: PDisplay, barArea: Area) =
   discard XMoveWindow(
     display,
     this.window,
-    -this.getWidth() * 2,
-    -barArea.height * 2
+    cint (-this.getWidth() * 2),
+    cint (-barArea.height.int * 2)
   )
 

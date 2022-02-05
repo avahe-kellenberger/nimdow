@@ -22,3 +22,6 @@ proc distanceToCenterSquared*(this: Area, x, y: int): float =
   let center = this.center()
   return pow(abs(center.x - x.float), 2f) + pow(abs(center.y - y.float), 2f)
 
+proc `$`*(this: Area): string =
+  "[x: " & $this.x & ", y: " & $this.y & ", width: " & $this.width & ", height: " & $this.height & "]"
+

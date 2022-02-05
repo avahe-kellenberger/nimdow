@@ -119,6 +119,15 @@ proc resize*(this: Client, display: PDisplay, x, y: int, width, height: uint) =
 
   this.adjustToState(display)
 
+proc setLocation*(this: Client, display: PDisplay, x, y: int) =
+  this.oldX = this.x
+  this.x = x
+
+  this.oldY = this.y
+  this.y = y
+
+  this.adjustToState(display)
+
 proc show*(this: Client, display: PDisplay) =
   ## Moves the client to its current geom.
   if this.needsResize:

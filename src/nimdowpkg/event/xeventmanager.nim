@@ -35,13 +35,10 @@ proc removeListener*(this: XEventManager, listener: XEventListener, types: varar
 
 proc dispatchEvent*(this: XEventManager, e: XEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
-
-  # We are not listening for this event type - exit.
-  if e.theType notin this.listenerMap:
-    return
-  let listeners = this.listenerMap[e.theType]
-  for listener in listeners:
-    listener(e)
+  if this.listenerMap.hasKey(e.theType):
+    let listeners = this.listenerMap[e.theType]
+    for listener in listeners:
+      listener(e)
 
 proc submitProcess*(this: XEventManager, process: Process) =
   this.processes.add(process)

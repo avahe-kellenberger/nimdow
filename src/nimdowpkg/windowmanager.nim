@@ -340,7 +340,6 @@ proc initListeners(this: WindowManager) =
   onEvent(DestroyNotify, e): this.onDestroyNotify(e.xdestroywindow)
   onEvent(ButtonPress, e): this.handleButtonPressed(e.xbutton)
   onEvent(ButtonRelease, e): this.handleButtonReleased(e.xbutton)
-  onEvent(MotionNotify, e): this.handleMouseMotion(e.xmotion)
 
 proc openDisplay(): PDisplay =
   let tempDisplay = XOpenDisplay(nil)
@@ -776,7 +775,7 @@ proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
   updateNumlockMask(this.display)
   let modifiers = [0.cuint, LockMask.cuint, numlockMask, numlockMask or LockMask.cuint]
 
-  discard XUngrabButton(this.display, AnyButton, AnyModifier, this.rootWindow)
+  discard XUngrabButton(this.display, AnyButton, AnyModifier, client.window)
 
   if not focused:
     discard XGrabButton(
@@ -799,11 +798,11 @@ proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
         this.display,
         button,
         Mod4Mask or modifier.int,
-        this.rootWindow,
+        client.window,
         false,
         ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
         GrabModeAsync,
-        GrabModeAsync,
+        GrabModeSync,
         x.None,
         x.None
       )
@@ -1548,6 +1547,7 @@ proc onMotionNotify(this: WindowManager, e: XMotionEvent) =
   # If moving/resizing a client, we delay selecting the new monitor.
   if this.mouseAction == MouseAction.Normal:
     this.selectCorrectMonitor(e.x_root, e.y_root)
+  this.handleMouseMotion(e)
 
 proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
   if this.mouseAction != MouseAction.Normal or e.window == this.rootWindow:
@@ -1832,21 +1832,18 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
   this.lastMoveResizeTime = e.time
 
   if not client.isFloating:
-    client.isFloating = true
-    client.borderWidth = this.windowSettings.borderWidth.int
-    this.selectedMonitor.doLayout(false)
+    this.selectedMonitor.setFloating(client, true)
 
   let
     deltaX = e.x - this.lastMousePress.x
     deltaY = e.y - this.lastMousePress.y
 
+
   if this.mouseAction == Moving:
-    client.resize(
+    client.setLocation(
       this.display,
       this.lastMoveResizeClientState.x + deltaX,
-      this.lastMoveResizeClientState.y + deltaY,
-      max(1, this.lastMoveResizeClientState.width.int),
-      max(1, this.lastMoveResizeClientState.height.int)
+      this.lastMoveResizeClientState.y + deltaY
     )
   elif this.mouseAction == Resizing:
     client.resize(
