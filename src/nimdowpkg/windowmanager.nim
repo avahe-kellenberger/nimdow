@@ -52,6 +52,8 @@ const
   VERSION_MINOR = 0
   XEMBED_EMBEDDED_VERSION = (VERSION_MAJOR shl 16) or VERSION_MINOR
 
+  MOUSE_MASK = ButtonPressMask or ButtonReleaseMask or PointerMotionMask
+
 type
   MouseAction* {.pure.} = enum
     Normal, Moving, Resizing
@@ -784,7 +786,7 @@ proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
       AnyModifier,
       client.window,
       false,
-      ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+      MOUSE_MASK,
       GrabModeSync,
       GrabModeSync,
       x.None,
@@ -800,7 +802,7 @@ proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
         Mod4Mask or modifier.int,
         client.window,
         false,
-        ButtonPressMask or ButtonReleaseMask or PointerMotionMask,
+        MOUSE_MASK,
         GrabModeAsync,
         GrabModeSync,
         x.None,
@@ -1707,7 +1709,7 @@ proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   if client == nil:
       return
   this.moveResizingClient = client
-  this.lastMousePress = (e.x.int, e.y.int)
+  this.lastMousePress = (e.xRoot.int, e.yRoot.int)
   this.lastMoveResizeClientState = client.area
 
 proc findClient(this: WindowManager, e: XButtonEvent): Client =
@@ -1835,9 +1837,8 @@ proc handleMouseMotion(this: WindowManager, e: XMotionEvent) =
     this.selectedMonitor.setFloating(client, true)
 
   let
-    deltaX = e.x - this.lastMousePress.x
-    deltaY = e.y - this.lastMousePress.y
-
+    deltaX = e.xRoot - this.lastMousePress.x
+    deltaY = e.yRoot - this.lastMousePress.y
 
   if this.mouseAction == Moving:
     client.setLocation(
