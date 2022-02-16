@@ -8,6 +8,10 @@ if [ ! -f "$config" ]; then
 fi
 
 nimble debug || exit 1
+
+# See xserver bug: https://gitlab.freedesktop.org/xorg/xserver/-/issues/1289
+unset XDG_SEAT
+
 Xephyr -br -ac -reset -screen 1920x1080 :1 &
 sleep 1s
 export DISPLAY=:1
