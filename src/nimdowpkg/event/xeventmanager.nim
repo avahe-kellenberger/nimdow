@@ -3,7 +3,9 @@ import
   tables,
   sets,
   osproc,
-  times
+  times,
+  safeset,
+  hashes
 
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 
@@ -15,10 +17,16 @@ type
   XEventListener* = proc(e: XEvent)
   XEventManager* = ref object
     listenerMap: Table[cint, HashSet[XEventListener]]
-    processes: seq[Process]
+    processes: SafeSet[Process]
+
+proc hash*(p: Process): Hash =
+  !$p.processID
 
 proc newXEventManager*(): XEventManager =
-  XEventManager(listenerMap: initTable[cint, HashSet[XEventListener]]())
+  XEventManager(
+    listenerMap: initTable[cint, HashSet[XEventListener]](),
+    processes: newSafeSet[Process]()
+  )
 
 proc addListener*(this: XEventManager, listener: XEventListener, types: varargs[cint]) =
   ## Adds a listener for the given x11/x event type.
@@ -46,14 +54,10 @@ proc submitProcess*(this: XEventManager, process: Process) =
 proc closeFinishedProcesses*(this: XEventManager) =
   ## Closes any finished processes
   ## and removes them from the processes seqeunce.
-  var i = 0
-  while i < this.processes.len:
-    let process = this.processes[i]
+  for process in this.processes:
     if not process.running():
       process.close()
-      this.processes.del(i)
-    else:
-      i.inc
+      this.processes.remove(process)
 
 proc checkForProcessesToClose*(this: XEventManager) =
   ## Check for closed processes periodically.

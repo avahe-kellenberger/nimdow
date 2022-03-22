@@ -11,6 +11,7 @@ bin           = @["nimdow"]
 requires "nim >= 1.4.0"
 requires "x11"
 requires "parsetoml"
+requires "https://github.com/avahe-kellenberger/safeset"
 
 # Tasks
 task debug, "Create a debug build":
