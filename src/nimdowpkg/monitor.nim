@@ -65,7 +65,7 @@ proc newMonitor*(
   else:
     result.monitorSettings = currentConfig.defaultMonitorSettings
 
-  let barArea: Area = (area.x, 0, area.width, result.monitorSettings.barSettings.height)
+  let barArea: Area = (area.x, area.y, area.width, result.monitorSettings.barSettings.height)
   result.windowSettings = currentConfig.windowSettings
   result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 

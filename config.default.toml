@@ -58,9 +58,9 @@ exec = [
     "monospace:size=10:antialias=true",
     "NotoColorEmoji:size=10:antialias=true"
   ]
-	# Layout settings
+  # Layout settings
   gapSize = 12
-	resizeStep = 10
+  resizeStep = 10
   # General settings
   loggingEnabled = false
   reverseTagScrolling = false
