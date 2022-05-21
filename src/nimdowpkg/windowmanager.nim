@@ -1035,8 +1035,8 @@ proc centerClientIfNeeded(
   if client.x <= 0 and client.y <= 0:
     # Center the client if its position is top-left or off screen.
     let area = monitor.area
-    client.x = area.x + (area.width.int div 2 - (client.width.int div 2))
-    client.y = area.y + (area.height.int div 2 - (client.height.int div 2))
+    client.x = (area.x.float + (area.width.float - client.totalWidth.float) / 2).int
+    client.y = (area.y.float + (area.height.float - client.totalHeight.float) / 2).int
 
     if monitor == this.selectedMonitor and
        monitor.taggedClients.currClientsContains(client.window):
@@ -1175,7 +1175,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     ).int
 
   if client.y - monitor.area.y <= monitor.statusBar.area.height or
-     (client.y + client.totalHeight) > monitor.area.x + monitor.area.width:
+     (client.y + client.totalHeight) > monitor.area.y + monitor.area.height:
     client.y = (
       monitor.area.y.float +
       (monitor.area.height.float - client.totalHeight.float) / 2
