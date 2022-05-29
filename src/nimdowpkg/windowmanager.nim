@@ -42,11 +42,17 @@ const
   STATUS_MONITOR_PREFIX = "NIMDOW_MONITOR_INDEX="
 
   SYSTEM_TRAY_REQUEST_DOCK = 0
+  SYSTEM_TRAY_REQUEST_BEGIN_MESSAGE = 1
+  SYSTEM_TRAY_REQUEST_CANCEL_MESSAGE = 2
 
   XEMBED_EMBEDDED_NOTIFY = 0
-  XEMBED_MAPPED = 1 shl 0
   XEMBED_WINDOW_ACTIVATE = 1
   XEMBED_WINDOW_DEACTIVATE = 2
+
+  XEMBED_FOCUS_IN = 4
+  XEMBED_MODALITY_ON = 10
+
+  XEMBED_MAPPED = 1 shl 0
 
   VERSION_MAJOR = 0
   VERSION_MINOR = 0
@@ -940,26 +946,51 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
   discard XSync(this.display, false)
 
+proc foo(this: WindowManager, icon: Icon) =
+  var sizeHints = XAllocSizeHints()
+  var returnMask: int
+  if XGetWMNormalHints(this.display, icon.window, sizeHints, returnMask.addr) == 0:
+    sizeHints.flags = PSize
+
+  if sizeHints.min_width > 0 and sizeHints.min_width == sizeHints.max_width and
+     sizeHints.min_height > 0 and sizeHints.min_height == sizeHints.max_height:
+
+    icon.isFloating = true
+    icon.width = max(icon.width, sizeHints.min_width.uint)
+    icon.height = max(icon.height, sizeHints.min_height.uint)
+    icon.needsResize = true
+
+  discard XFree(sizeHints)
+
 proc addIconToSystray(this: WindowManager, window: Window) =
   var
     windowAttr: XWindowAttributes
     setWindowAttr: XSetWindowAttributes
 
-  var icon: Icon = newIcon(window)
+  let icon: Icon = newIcon(window)
   this.systray.addIcon(icon)
 
-  discard XGetWindowAttributes(this.display, icon.window, windowAttr.addr)
+  if XGetWindowAttributes(this.display, icon.window, windowAttr.addr) == 0:
+    # Failed to get attributes, use sane defaults
+    let barHeight = this.systrayMonitor.statusBar.area.height
+    icon.width = barHeight
+    icon.oldwidth = barHeight
+    icon.height = barHeight
+    icon.oldHeight = barHeight
+    icon.oldBorderWidth = 0
+    icon.borderWidth = 0
+  else:
+    icon.width = windowAttr.width
+    icon.oldwidth = windowAttr.width
+    icon.height = windowAttr.height
+    icon.oldHeight = windowAttr.height
+    icon.oldBorderWidth = windowAttr.border_width
 
-  icon.width = windowAttr.width
-  icon.oldwidth = windowAttr.width
-  icon.height = windowAttr.height
-  icon.oldHeight = windowAttr.height
-  icon.oldBorderWidth = windowAttr.border_width
   icon.borderWidth = 0
   icon.isFloating = true
   icon.isMapped = true
 
-  this.updateSizeHints(Client(icon), this.systrayMonitor)
+  this.foo(icon)
   this.updateSystrayIconGeom(icon, windowAttr.width, windowAttr.height)
 
   discard XAddToSaveSet(this.display, icon.window)
@@ -968,11 +999,6 @@ proc addIconToSystray(this: WindowManager, window: Window) =
     icon.window,
     StructureNotifyMask or PropertyChangeMask or ResizeRedirectMask
   )
-
-  var classHint: XClassHint
-  classHint.res_name = "nimdowsystray"
-  classHint.res_class = "nimdowsystray"
-  discard XSetClassHint(this.display, icon.window, classHint.addr)
 
   discard XReparentWindow(
     this.display,
@@ -985,17 +1011,30 @@ proc addIconToSystray(this: WindowManager, window: Window) =
   # Use parent's background color
   setWindowAttr.background_pixel = this.systrayMonitor.statusBar.bgColor.pixel
   discard XChangeWindowAttributes(this.display, icon.window, CWBackPixel, setWindowAttr.addr)
-  discard sendEvent(
-    this.display,
-    icon.window,
-    $Xembed,
-    StructureNotifyMask,
-    CurrentTime,
-    XEMBED_EMBEDDED_NOTIFY,
-    0,
-    this.systray.window.clong,
-    XEMBED_EMBEDDED_VERSION
-  )
+
+  template sendXembedSystrayIconEvent(event: int) =
+    discard sendEvent(
+      this.display,
+      icon.window,
+      $Xembed,
+      StructureNotifyMask,
+      CurrentTime,
+      event,
+      0,
+      this.systray.window.clong,
+      XEMBED_EMBEDDED_VERSION
+    )
+
+  sendXembedSystrayIconEvent(XEMBED_EMBEDDED_NOTIFY)
+  sendXembedSystrayIconEvent(XEMBED_FOCUS_IN)
+  sendXembedSystrayIconEvent(XEMBED_WINDOW_ACTIVATE)
+  # https://specifications.freedesktop.org/xembed-spec/xembed-spec-latest.html#idm46280843263088
+  sendXembedSystrayIconEvent(XEMBED_MODALITY_ON)
+
+  var classHint: XClassHint
+  classHint.res_name = "nimdowsystray"
+  classHint.res_class = "nimdowsystray"
+  discard XSetClassHint(this.display, icon.window, classHint.addr)
 
   discard XSync(this.display, false)
 
@@ -1487,7 +1526,6 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
   if icon == nil:
     return
 
-
   let barHeight = this.selectedMonitorConfig.barSettings.height
   icon.height = barHeight
   if width == height:
@@ -1496,6 +1534,16 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
     icon.width = width
   else:
     icon.width = int(barHeight.float * (width / height))
+
+  # this.updateSizeHints(Client icon, this.systrayMonitor)
+
+  if icon.height > barHeight:
+    if icon.width == icon.height:
+      icon.width = barHeight
+    else:
+      icon.width = int(barHeight.float * (float(icon.width) / float(icon.height)))
+
+    icon.height = barHeight
 
 proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) =
   if icon == nil or e.atom != $XembedInfo:
@@ -1536,12 +1584,12 @@ proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) 
   )
 
 proc onResizeRequest(this: WindowManager, e: XResizeRequestEvent) =
-  let icon = this.systray.windowToIcon(e.window)
+  var icon = this.systray.windowToIcon(e.window)
   if icon == nil:
     return
 
   this.updateSystrayIconGeom(icon, e.width, e.height)
-  let monitor = this.monitors[systrayMonitorID]
+  let monitor = this.systrayMonitor
   monitor.statusBar.resizeForSystray(this.systray.getWidth())
   this.updateSystray()
 
@@ -1644,9 +1692,10 @@ proc windowToClient(
       return (client, monitor)
 
 proc onPropertyNotify(this: WindowManager, e: XPropertyEvent) =
-  let icon = this.systray.windowToIcon(e.window)
+  var icon = this.systray.windowToIcon(e.window)
   if icon != nil:
     if e.atom == XA_WM_NORMAL_HINTS:
+      this.updateSizeHints(Client icon, this.systrayMonitor)
       this.updateSystrayIconGeom(icon, icon.width.int, icon.height.int)
     else:
       this.updateSystrayIconState(icon, e)
