@@ -61,6 +61,7 @@ type
     display*: PDisplay
     rootWindow*: Window
     rootWindowWidth: int
+    rootWindowHeight: int
     systray: Systray
     eventManager: XEventManager
     config: Config
@@ -85,6 +86,7 @@ proc focus*(this: WindowManager, client: Client, warpToClient: bool)
 proc unfocus*(this: WindowManager, client: Client)
 proc destroySelectedWindow*(this: WindowManager)
 proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent)
+proc onConfigureNotify(this: WindowManager, e: XConfigureEvent)
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent)
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent)
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent)
@@ -121,6 +123,7 @@ proc newWindowManager*(
   result.display = openDisplay()
   result.rootWindow = result.configureRootWindow()
   result.rootWindowWidth = DisplayWidth(result.display, DefaultScreen(result.display))
+  result.rootWindowHeight = DisplayHeight(result.display, DefaultScreen(result.display))
   result.eventManager = eventManager
   discard XSetErrorHandler(errorHandler)
 
@@ -330,6 +333,7 @@ template onEvent(theType: int, e, body: untyped): untyped =
 
 proc initListeners(this: WindowManager) =
   onEvent(ConfigureRequest, e): this.onConfigureRequest(e.xconfigurerequest)
+  onEvent(ConfigureNotify, e): this.onConfigureNotify(e.xconfigure)
   onEvent(ClientMessage, e): this.onClientMessage(e.xclient)
   onEvent(MapRequest, e): this.onMapRequest(e.xmaprequest)
   onEvent(UnmapNotify, e): this.onUnmapNotify(e.xunmap)
@@ -950,6 +954,17 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
     discard XConfigureWindow(this.display, e.window, e.value_mask.cuint, changes.addr)
 
   discard XSync(this.display, false)
+
+proc onConfigureNotify(this: WindowManager, e: XConfigureEvent) =
+  if e.window == this.rootWindow:
+    log "rootWindow onConfigureNotify"
+    let hasRootWindowSizeChanged = e.width != this.rootWindowWidth or e.height != this.rootWindowHeight
+    this.rootWindowWidth = e.width
+    this.rootWindowHeight = e.height
+
+    let monitorAreas = this.display.getMonitorAreas(this.rootWindow)
+    # TODO: Compare existing monitors' areas to new ones.
+    # If any have changed, we need to update the positions, sizes, bars, and doLayout.
 
 proc addIconToSystray(this: WindowManager, window: Window) =
   var
