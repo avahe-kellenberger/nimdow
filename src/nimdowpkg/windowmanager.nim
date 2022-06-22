@@ -1132,6 +1132,11 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client: Client
     monitor = this.selectedMonitor
     appRule: AppRule
+    x = windowAttr.x
+    y = windowAttr.y
+    width = windowAttr.width
+    height = windowAttr.height
+    borderWidth = windowAttr.borderWidth
 
   var (c, m) = this.windowToClient(window)
   if c != nil:
@@ -1155,18 +1160,30 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       if appRule.state == wsFloating:
         client.isFloating = true
 
+        # AppRule x and y are default -1 when not set.
+        if appRule.x >= 0:
+          x = appRule.x
+        if appRule.y >= 0:
+          y = appRule.y
+
+        # AppRule width and height are default 0 when not set.
+        if appRule.width > 0:
+          width = appRule.width
+        if appRule.height > 0:
+          height = appRule.height
+
     let appRuleDoesNotHaveValidTags = appRule == nil or appRule.tagIDs.len == 0
     monitor.addClient(client, appRuleDoesNotHaveValidTags)
-    client.x = monitor.area.x + max(0, windowAttr.x)
+    client.x = monitor.area.x + max(0, x)
     client.oldX = client.x
-    client.y = monitor.area.y + max(0, windowAttr.y)
+    client.y = monitor.area.y + max(0, y)
     client.oldY = client.y
-    client.width = windowAttr.width
+    client.width = width
     client.oldWidth = client.width
-    client.height = windowAttr.height
+    client.height = height
     client.oldHeight = client.height
     client.borderWidth = this.config.windowSettings.borderWidth
-    client.oldBorderWidth = windowAttr.border_width
+    client.oldBorderWidth = borderWidth
 
   if client.x - monitor.area.x <= 0 or
      (client.x + client.totalWidth) > monitor.area.x + monitor.area.width:
@@ -1230,8 +1247,11 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       monitor.setFullscreen(client, true)
     else:
       client.needsFullscreen = true
-  elif not client.isFixedSize and not client.isFloating and monitor.taggedClients.currClientsContains(window):
-    monitor.doLayout(false, not client.isFloating)
+  elif
+    not client.isFixedSize and
+    not client.isFloating and
+    monitor.taggedClients.currClientsContains(window):
+      monitor.doLayout(false, not client.isFloating)
 
   discard XMapWindow(this.display, window)
   client.hasBeenMapped = true

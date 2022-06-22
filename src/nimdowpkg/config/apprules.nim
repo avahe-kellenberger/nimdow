@@ -19,6 +19,10 @@ type
     monitorID*: int
     tagIDs*: seq[TagID]
     state*: WindowState
+    x*: int
+    y*: int
+    width*: int
+    height*: int
 
 proc newAppRule*(): AppRule =
   AppRule(
@@ -27,7 +31,11 @@ proc newAppRule*(): AppRule =
     instance: "",
     monitorID: 1,
     tagIDs: @[],
-    state: wsNormal
+    state: wsNormal,
+    x: -1,
+    y: -1,
+    width: 0,
+    height: 0
   )
 
 proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
@@ -38,20 +46,25 @@ proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
       raise newException(Exception, property & " must be a string!")
     return prop.stringVal
 
+proc getIntProperty(appRuleTable: TomlTableRef, property: string, default: int = 0): int =
+  ## Returns the integer property if it exists.
+  if appRuleTable.hasKey(property):
+    let prop = appRuleTable[property]
+    if prop.kind != TomlValueKind.Int:
+      raise newException(Exception, property & " must be an integer!")
+    return prop.intVal.int
+  return default
+
 proc getMonitorID(appRuleTable: TomlTableRef): int =
   const propertyName = "monitor"
   if not appRuleTable.hasKey(propertyName):
     return -1
 
-  let monitorIDToml = appRuleTable[propertyName]
-  if monitorIDToml.kind != TomlValueKind.Int:
-    raise newException(Exception, propertyName & " must be an integer!")
-
-  let monitorID = monitorIDToml.intVal
+  let monitorID = appRuleTable.getIntProperty(propertyName)
   if monitorID < 1:
     raise newException(Exception, propertyName & " must be a positive integer!")
 
-  return monitorID.int
+  return monitorID
 
 proc getTagIDs(appRuleTable: TomlTableRef): seq[TagID] =
   const propertyName = "tags"
@@ -95,10 +108,14 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     let appRule = newAppRule()
     appRule.title = appRuleTable.getStringProperty("title")
     appRule.class = appRuleTable.getStringProperty("class")
-    appRule.instance= appRuleTable.getStringProperty("instance")
+    appRule.instance = appRuleTable.getStringProperty("instance")
     appRule.monitorID = appRuleTable.getMonitorID()
     appRule.tagIDs = appRuleTable.getTagIDs()
     appRule.state = parseEnum[WindowState](appRuleTable.getStringProperty("state").toLower(), wsNormal)
+    appRule.x = appRuleTable.getIntProperty("x", -1)
+    appRule.y = appRuleTable.getIntProperty("y", -1)
+    appRule.width = appRuleTable.getIntProperty("width")
+    appRule.height = appRuleTable.getIntProperty("height")
     result.add(appRule)
 
 proc globMatches*(str, sub: string): bool =
