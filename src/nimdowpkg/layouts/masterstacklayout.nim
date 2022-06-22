@@ -193,7 +193,7 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
   ## Finds all clients that should be arranged in the layout.
   ## Some windows are excluded, such as fullscreen windows.
   for client in clients:
-    if not client.isFullscreen and not client.isFloating and not client.isFixed:
+    if not client.isFullscreen and not client.isFloating and not client.isFixedSize:
       result.add(client)
 
 func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.width.int - offset.left.int - offset.right.int

@@ -24,7 +24,7 @@ type
     isFloating*: bool
     oldFloatingState*: bool
     # Non-resizable
-    isFixed*: bool
+    isFixedSize*: bool
     needsResize*: bool
     needsFullscreen*: bool
     isUrgent*: bool
@@ -201,7 +201,7 @@ proc warpTo*(display: PDisplay, client: Client) =
 proc isNormal*(this: Client): bool =
   ## If the client is "normal".
   ## This currently means the client is not fixed.
-  not this.isFixed
+  not this.isFixedSize
 
 func find*[T](clients: openArray[T], window: Window): int =
   ## Finds a Client's index by its relative window.

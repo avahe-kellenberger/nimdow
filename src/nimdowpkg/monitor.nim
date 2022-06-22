@@ -127,7 +127,7 @@ proc updateWindowBorders(this: Monitor) =
       )
 
   if currClient != nil:
-    if not currClient.isFixed and not currClient.isFullscreen:
+    if not currClient.isFixedSize and not currClient.isFullscreen:
       discard XSetWindowBorder(
         this.display,
         currClient.window,
@@ -155,7 +155,7 @@ proc setConfig*(this: Monitor, config: Config) =
     if client.borderWidth != 0:
       client.borderWidth = this.windowSettings.borderWidth
     client.oldBorderWidth = this.windowSettings.borderWidth
-    if client.isFloating or client.isFixed:
+    if client.isFloating or client.isFixedSize:
       client.adjustToState(this.display)
 
   this.doLayout(false, false)
@@ -497,7 +497,7 @@ proc moveClientNext*(
   var node = this.taggedClients.findNextCurrClient(
     currNode.value,
     reversed,
-    (client: Client) => not client.isFloating and not client.isFixed
+    (client: Client) => not client.isFloating and not client.isFixedSize
   )
 
   if node != nil and node.value != nil:
@@ -598,7 +598,7 @@ proc setFloating*(this: Monitor, client: Client, floating: bool) =
 
 proc toggleFloatingForSelectedClient*(this: Monitor) =
   this.taggedClients.withSomeCurrClient(client):
-    if client.isFixed or client.isFullscreen:
+    if client.isFixedSize or client.isFullscreen:
       return
     this.setFloating(client, not client.isFloating)
 

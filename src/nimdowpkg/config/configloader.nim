@@ -44,6 +44,9 @@ type
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
+  ScratchpadSettings* = object
+    width*: int
+    height*: int
   LayoutSettings* = object
     gapSize*: uint
     resizeStep*: uint
@@ -60,6 +63,7 @@ type
     keyComboTable*: Table[KeyCombo, Action]
     regionClickActionTable*: Table[int, RegionClickAction]
     windowSettings*: WindowSettings
+    scratchpadSettings*: ScratchpadSettings
     xEventListener*: XEventListener
     loggingEnabled*: bool
     reverseTagScrolling*: bool
@@ -81,6 +85,11 @@ proc newConfig*(eventManager: XEventManager): Config =
       borderColorUrgent: 0xff5555,
       borderWidth: 1
     ),
+    scratchpadSettings: ScratchpadSettings(
+      width: 500,
+      height: 300,
+    ),
+
     loggingEnabled: false,
     reverseTagScrolling: false
   )
@@ -430,14 +439,29 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
     if loggingEnabledSetting.kind == TomlValueKind.Bool:
       this.loggingEnabled = loggingEnabledSetting.boolVal
     else:
-      raise newException(Exception, "loggingEnabled is not true/false!")
+      log "loggingEnabled is not true/false!", lvlWarn
 
   if settingsTable.hasKey("reverseTagScrolling"):
     let reverseTagScrollingSetting = settingsTable["reverseTagScrolling"]
     if reverseTagScrollingSetting.kind == TomlValueKind.Bool:
       this.reverseTagScrolling = reverseTagScrollingSetting.boolVal
     else:
-      raise newException(Exception, "reverseTagScrolling is not true/false!")
+      log "reverseTagScrolling is not true/false!", lvlWarn
+
+  # Scratchpad settings
+  if settingsTable.hasKey("scratchpadWidth"):
+    let scratchpadWidthSetting = settingsTable["scratchpadWidth"]
+    if scratchpadWidthSetting.kind == TomlValueKind.Int:
+      this.scratchpadSettings.width = scratchpadWidthSetting.intVal.int
+    else:
+      log "scratchpadWidth is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("scratchpadHeight"):
+    let scratchpadHeightSetting = settingsTable["scratchpadHeight"]
+    if scratchpadHeightSetting.kind == TomlValueKind.Int:
+      this.scratchpadSettings.height = scratchpadHeightSetting.intVal.int
+    else:
+      log "scratchpadHeight is not an integer value!", lvlWarn
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.

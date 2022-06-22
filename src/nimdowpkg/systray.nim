@@ -11,7 +11,6 @@ type
     window*: Window
     icons*: seq[Icon]
   Icon* = ref object of Client
-    isMapped*: bool
 
 proc newIcon*(window: Window): Icon =
   Icon(window: window)
@@ -39,7 +38,6 @@ proc removeIcon*(this: Systray, icon: Icon) =
     this.icons.delete(index)
 
 proc show*(this: Systray, display: PDisplay, barArea: Area) =
-  ## Moves the status bar off screen.
   discard XMoveWindow(
     display,
     this.window,
@@ -48,7 +46,6 @@ proc show*(this: Systray, display: PDisplay, barArea: Area) =
   )
 
 proc hide*(this: Systray, display: PDisplay, barArea: Area) =
-  ## Moves the status bar off screen.
   discard XMoveWindow(
     display,
     this.window,

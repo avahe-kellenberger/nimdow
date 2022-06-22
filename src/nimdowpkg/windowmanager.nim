@@ -611,11 +611,11 @@ proc popScratchpad(this: WindowManager) =
     return
 
   # Normal window
-  if not client.isFullscreen and not client.isFloating and not client.isFixed:
+  if not client.isFullscreen and not client.isFloating and not client.isFixedSize:
     let
-      # TODO: Make these a setting
-      height = 300
-      width = 500
+      width = this.config.scratchpadSettings.width
+      height = this.config.scratchpadSettings.height
+
     client.resize(
       this.display,
       this.selectedMonitor.area.x + (this.selectedMonitor.area.width.int - width) div 2,
@@ -623,6 +623,7 @@ proc popScratchpad(this: WindowManager) =
       width,
       height
     )
+
     client.isFloating = true
     this.moveClientToMonitor(client, selectedMonitorIndex)
   else:
@@ -899,7 +900,7 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
         client.oldHeight = client.height.uint
         client.height = e.height.uint
 
-      if not client.isFixed:
+      if not client.isFixedSize:
         if client.x == 0:
           client.x = monitor.area.x + (monitor.area.width.int div 2 - (client.width.int div 2))
         if client.y == 0:
@@ -957,7 +958,7 @@ proc addIconToSystray(this: WindowManager, window: Window) =
   icon.oldBorderWidth = windowAttr.border_width
   icon.borderWidth = 0
   icon.isFloating = true
-  icon.isMapped = true
+  icon.hasBeenMapped = true
 
   this.updateSizeHints(Client(icon), this.systrayMonitor)
   this.updateSystrayIconGeom(icon, windowAttr.width, windowAttr.height)
@@ -1229,7 +1230,7 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       monitor.setFullscreen(client, true)
     else:
       client.needsFullscreen = true
-  elif not client.isFixed and not client.isFloating and monitor.taggedClients.currClientsContains(window):
+  elif not client.isFixedSize and not client.isFloating and monitor.taggedClients.currClientsContains(window):
     monitor.doLayout(false, not client.isFloating)
 
   discard XMapWindow(this.display, window)
@@ -1300,16 +1301,19 @@ proc unmanage(this: WindowManager, window: Window, destroyed: bool) =
       this.selectedMonitor.taggedClients.withSomeCurrClient(currClient):
         this.focus(currClient, false)
 
+proc removeIconFromSystray(this: WindowManager, window: Window) =
+  let icon = this.systray.windowToIcon(window)
+  if icon != nil:
+    this.systray.removeIcon(icon)
+    this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
+    this.updateSystray()
+
 proc onDestroyNotify(this: WindowManager, e: XDestroyWindowEvent) =
   let (client, _) = this.windowToClient(e.window)
   if client != nil:
     this.unmanage(e.window, true)
   else:
-    let icon = this.systray.windowToIcon(e.window)
-    if icon != nil:
-      this.systray.removeIcon(icon)
-      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
-      this.updateSystray()
+    this.removeIconFromSystray(e.window)
 
 proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
   let (client, _) = this.windowToClient(e.window)
@@ -1319,11 +1323,7 @@ proc onUnmapNotify(this: WindowManager, e: XUnmapEvent) =
     else:
       this.unmanage(client.window, false)
   else:
-    let icon = this.systray.windowToIcon(e.window)
-    if icon != nil:
-      this.systray.removeIcon(icon)
-      this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
-      this.updateSystray()
+    this.removeIconFromSystray(e.window)
 
 proc onMappingNotify(this: WindowManager, e: XMappingEvent) =
   var pevent: PXMappingEvent = e.unsafeaddr
@@ -1487,7 +1487,6 @@ proc updateSystrayIconGeom(this: WindowManager, icon: Icon, width, height: int) 
   if icon == nil:
     return
 
-
   let barHeight = this.selectedMonitorConfig.barSettings.height
   icon.height = barHeight
   if width == height:
@@ -1509,15 +1508,15 @@ proc updateSystrayIconState(this: WindowManager, icon: Icon, e: XPropertyEvent) 
     return
 
   var iconActiveState: int
-  if (flags and XEMBED_MAPPED) != 0 and not icon.isMapped:
+  if (flags and XEMBED_MAPPED) != 0 and not icon.hasBeenMapped:
     # Requesting to be mapped
-    icon.isMapped = true
+    icon.hasBeenMapped = true
     iconActiveState = XEMBED_WINDOW_ACTIVATE
     discard XMapRaised(this.display, icon.window)
     this.display.setClientState(icon.window, NormalState)
-  elif (flags and XEMBED_MAPPED) == 0 and icon.isMapped:
+  elif (flags and XEMBED_MAPPED) == 0 and icon.hasBeenMapped:
     # Requesting to be upmapped
-    icon.isMapped = false
+    icon.hasBeenMapped = false
     iconActiveState = XEMBED_WINDOW_DEACTIVATE
     discard XUnmapWindow(this.display, icon.window)
     this.display.setClientState(icon.window, WithdrawnState)

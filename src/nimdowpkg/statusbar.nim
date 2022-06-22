@@ -223,7 +223,9 @@ proc resizeForSystray*(this: var StatusBar, systrayWidth: int, redraw: bool = tr
     this.currentWidth,
     this.area.height
   )
-  this.redraw()
+
+  if redraw:
+    this.redraw()
 
 proc allocColor(this: StatusBar, color: PXRenderColor, colorPtr: PXftColor) =
   let result = XftColorAllocValue(
