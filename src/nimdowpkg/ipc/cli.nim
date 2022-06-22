@@ -11,7 +11,7 @@ import
   ../wmcommands,
   ../logger
 
-const version* = "v0.7.29"
+const version* = "v0.7.30"
 const commit* = getEnv("LATEST_COMMIT")
 
 proc handleWMCommand(commandStr: string): bool =
