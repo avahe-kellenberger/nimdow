@@ -62,8 +62,8 @@ exec = [
   gapSize = 12
   resizeStep = 10
   # Scratchpad settings
-  scratchpadWidth = 800
-  scratchpadHeight = 600
+  scratchpadWidth = 500
+  scratchpadHeight = 300
   # General settings
   loggingEnabled = false
   reverseTagScrolling = false
