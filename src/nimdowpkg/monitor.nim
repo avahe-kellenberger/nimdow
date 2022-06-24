@@ -396,7 +396,7 @@ proc toggleTagsForClient*(
 
   # Ensure the client is assigned at least one tag.
   if client.tagIDs.len == 0:
-      client.tagIDs.incl(firstTagToggledOff.TagID)
+    client.tagIDs.incl(firstTagToggledOff.TagID)
 
   # Perform the layout if the client was removed from the current tags.
   if wasOnCurrTags and not client.tagIDs.anyIt(this.selectedTags.contains(it)):

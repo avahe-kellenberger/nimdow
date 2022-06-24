@@ -27,9 +27,11 @@ template assertRaises*(exception: typedesc, errorMessage: string, code: untyped)
     except exception:
       discard
     except Exception:
-      raiseAssert(astToStr(exception) &
-                  " wasn't raised, another error was raised instead by:\n"&
-                  astToStr(code))
+      raiseAssert(
+        astToStr(exception) &
+        " wasn't raised, another error was raised instead by:\n" &
+        astToStr(code)
+      )
   if wrong:
     raiseAssert(astToStr(exception) & " wasn't raised by:\n" & astToStr(code))
 

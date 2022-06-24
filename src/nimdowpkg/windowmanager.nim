@@ -321,9 +321,10 @@ proc reloadConfig*(this: WindowManager) =
 
 template onEvent(theType: int, e, body: untyped): untyped =
   this.eventManager.addListener(
-    proc (event: XEvent) =
+    (proc (event: XEvent) =
       let e: XEvent = event
-      body,
+      body
+    ),
     theType
   )
 
@@ -445,7 +446,7 @@ proc moveClientToMonitor(this: WindowManager, client: var Client, monitorIndex: 
       this.selectedMonitor.area.y,
       this.selectedMonitor.area.width,
       this.selectedMonitor.area.height
-     )
+    )
     this.selectedMonitor.doLayout(false)
   elif client.isFloating:
     let deltaX = client.x - startMonitor.area.x
@@ -574,11 +575,11 @@ template modWidthDiff(this: WindowManager, diff: int) =
   if layout of MasterStackLayout:
     var masterStackLayout = cast[MasterStackLayout](layout)
     let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-    if (diff > 0 and masterStackLayout.widthDiff < 0) or
-      (diff < 0 and masterStackLayout.widthDiff > 0) or
-      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
-      masterStackLayout.widthDiff += diff
-      this.selectedMonitor.doLayout()
+    if (diff > 0 and masterStackLayout.widthDiff < 0) or (diff < 0 and masterStackLayout.widthDiff > 0):
+      let clientWidth = masterStackLayout.calcClientWidth(screenWidth).int
+      if clientWidth - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
+        masterStackLayout.widthDiff += diff
+        this.selectedMonitor.doLayout()
 
 proc increaseMasterWidth(this: WindowManager) =
   this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
@@ -1006,7 +1007,7 @@ proc addIconToSystray(this: WindowManager, window: Window) =
 
 proc onClientMessage(this: WindowManager, e: XClientMessageEvent) =
   if e.window == this.systray.window and e.message_type == $NetSystemTrayOP:
-    if  e.data.l[1] == SYSTEM_TRAY_REQUEST_DOCK:
+    if e.data.l[1] == SYSTEM_TRAY_REQUEST_DOCK:
       if e.data.l[2] != 0:
         this.addIconToSystray(e.data.l[2])
     return
@@ -1612,7 +1613,7 @@ proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
 proc setStatus(this: WindowManager, monitorIndex: int, status: string) =
   let monitorID = monitorIndex + 1
   if not this.monitors.hasKey(monitorID):
-    raise newException(ValueError,  "monitor index " & $monitorIndex & " is out of range")
+    raise newException(ValueError, "monitor index " & $monitorIndex & " is out of range")
   this.monitors[monitorID].statusBar.setStatus(status)
 
 proc setStatusForAllMonitors(this: WindowManager, status: string) =
@@ -1726,16 +1727,16 @@ proc onExposeNotify(this: WindowManager, e: XExposeEvent) =
 proc selectClientForMoveResize(this: WindowManager, e: XButtonEvent) =
   let client = this.selectedMonitor.taggedClients.currClient
   if client == nil:
-      return
+    return
   this.moveResizingClient = client
   this.lastMousePress = (e.xRoot.int, e.yRoot.int)
   this.lastMoveResizeClientState = client.area
 
 proc findClient(this: WindowManager, e: XButtonEvent): Client =
- for monitor in this.monitors.values():
-   let client = monitor.taggedClients.findByWindow(e.window)
-   if client != nil:
-     return client
+  for monitor in this.monitors.values():
+    let client = monitor.taggedClients.findByWindow(e.window)
+    if client != nil:
+      return client
 
 proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   if e.window == this.systray.window:
