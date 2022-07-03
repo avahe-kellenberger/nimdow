@@ -573,11 +573,14 @@ proc jumpToUrgentWindow(this: WindowManager) =
 template modWidthDiff(this: WindowManager, diff: int) =
   var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
   if layout of MasterStackLayout:
-    var masterStackLayout = cast[MasterStackLayout](layout)
+    let masterStackLayout = cast[MasterStackLayout](layout)
     let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-    if (diff > 0 and masterStackLayout.widthDiff < 0) or (diff < 0 and masterStackLayout.widthDiff > 0):
-      let clientWidth = masterStackLayout.calcClientWidth(screenWidth).int
-      if clientWidth - abs(masterStackLayout.widthDiff).int - abs(diff).int > 0:
+
+    if
+      (diff > 0 and masterStackLayout.widthDiff < 0) or
+      (diff < 0 and masterStackLayout.widthDiff > 0) or
+      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(
+          diff).int > 0:
         masterStackLayout.widthDiff += diff
         this.selectedMonitor.doLayout()
 
