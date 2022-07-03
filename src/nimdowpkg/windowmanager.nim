@@ -757,6 +757,9 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcPopScratchpad):
     this.popScratchpad()
 
+  createControl(keyCombo, $wmcRotateclients):
+    this.selectedMonitor.rotateClients()
+
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():
     for taggedClient in monitor.taggedClients.clients:

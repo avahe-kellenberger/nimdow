@@ -186,6 +186,10 @@ exec = [
   keys = [ "s" ]
   modifiers = [ "super" ]
 
+  [controls.rotateClients]
+  keys = [ "r" ]
+  modifiers = [ "super" ]
+
 # Example monitor settings:
 # [monitors]
   # [monitors.default.tags]

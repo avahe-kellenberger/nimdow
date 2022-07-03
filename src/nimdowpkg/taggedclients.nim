@@ -69,6 +69,10 @@ proc findByWindowInCurrentTags*(this: TaggedClients, window: Window): Client =
       return client
   return nil
 
+proc findLastCurrClient*( this: TaggedClients): ClientNode =
+  for n in this.currClientsReverseIter:
+    return n
+
 proc findNextCurrClient*(
   this: TaggedClients,
   startClient: Client,
