@@ -1,11 +1,11 @@
 # Package
-version       = "0.7.30"
-author        = "avahe-kellenberger"
-description   = "A window manager written in nim"
-license       = "GPL v2"
-srcDir        = "src"
-installExt    = @["nim"]
-bin           = @["nimdow"]
+version = "0.7.31"
+author = "avahe-kellenberger"
+description = "A window manager written in nim"
+license = "GPL v2"
+srcDir = "src"
+installExt = @["nim"]
+bin = @["nimdow"]
 
 # Deps
 requires "nim >= 1.4.0"
