@@ -69,9 +69,10 @@ proc findByWindowInCurrentTags*(this: TaggedClients, window: Window): Client =
       return client
   return nil
 
-proc findLastCurrClient*( this: TaggedClients): ClientNode =
+proc findLastLayoutNode*( this: TaggedClients): ClientNode =
   for n in this.currClientsReverseIter:
-    return n
+    if not n.value.isFloating:
+      return n
 
 proc findNextCurrClient*(
   this: TaggedClients,
