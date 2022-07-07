@@ -35,6 +35,7 @@ type
     wmcDecreaseMasterWidth = "decreasemasterwidth"
     wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
     wmcPopScratchpad = "popscratchpad"
+    wmcRotateclients = "rotateclients"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

@@ -418,6 +418,12 @@ proc addClient*(this: Monitor, client: var Client, assignToSelectedTags: bool = 
 
   this.statusBar.redraw()
 
+proc rotateClients*(this: Monitor) =
+  let clientNode = this.taggedClients.findLastLayoutNode()
+  this.clients.remove(clientNode)
+  this.clients.prepend(clientNode)
+  this.doLayout()
+
 proc moveClientToTag*(this: Monitor, client: Client, destinationTagID: TagID) =
   if client.tagIDs.len == 1 and destinationTagID in client.tagIDs:
     return
