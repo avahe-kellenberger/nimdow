@@ -42,6 +42,7 @@ type
     taggedClients*: TaggedClients
 
 proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true)
+proc updateMonitor*(this: Monitor)
 proc restack*(this: Monitor)
 proc setSelectedClient*(this: Monitor, client: Client)
 proc updateCurrentDesktopProperty(this: Monitor)
@@ -65,11 +66,7 @@ proc newMonitor*(
     result.monitorSettings = currentConfig.monitorSettings[id]
   else:
     result.monitorSettings = currentConfig.defaultMonitorSettings
-
-  let barArea: Area = (area.x, area.y, area.width, result.monitorSettings.barSettings.height)
   result.windowSettings = currentConfig.windowSettings
-  result.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
-
   result.taggedClients = newTaggedClients(tagCount)
   for i in 1..tagCount:
     let tagSetting = result.monitorSettings.tagSettings[i]
@@ -92,18 +89,28 @@ proc newMonitor*(
 
   result.taggedClients.selectedTags = initOrderedSet[TagID](tagCount)
   result.taggedClients.selectedTags.incl(1)
+  result.isStatusBarEnabled = true
+  result.updateMonitor()
 
-  result.updateCurrentDesktopProperty()
-  result.statusBar =
-    display.newStatusBar(
-      rootWindow,
+proc updateMonitor*(this: Monitor) =
+  let barArea: Area = (this.area.x, this.area.y, this.area.width, this.monitorSettings.barSettings.height)
+  this.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
+
+
+  this.updateCurrentDesktopProperty()
+  this.statusBar =
+    this.display.newStatusBar(
+      this.rootWindow,
       barArea,
-      result.monitorSettings.barSettings,
-      result.taggedClients,
-      result.monitorSettings.tagSettings
+      this.monitorSettings.barSettings,
+      this.taggedClients,
+      this.monitorSettings.tagSettings
     )
   
-  result.isStatusBarEnabled = true
+  for i, tag in this.taggedClients.tags:
+    tag.layout.monitorArea = this.area
+  this.doLayout()
+
 
 ########################################################
 #### Helper procs, iterators, templates, and macros ####

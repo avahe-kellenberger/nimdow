@@ -961,14 +961,18 @@ proc onConfigureRequest(this: WindowManager, e: XConfigureRequestEvent) =
 
 proc onConfigureNotify(this: WindowManager, e: XConfigureEvent) =
   if e.window == this.rootWindow:
-    log "rootWindow onConfigureNotify"
     let hasRootWindowSizeChanged = e.width != this.rootWindowWidth or e.height != this.rootWindowHeight
-    this.rootWindowWidth = e.width
-    this.rootWindowHeight = e.height
 
-    let monitorAreas = this.display.getMonitorAreas(this.rootWindow)
-    # TODO: Compare existing monitors' areas to new ones.
-    # If any have changed, we need to update the positions, sizes, bars, and doLayout.
+    if hasRootWindowSizeChanged:
+      this.rootWindowWidth = e.width
+      this.rootWindowHeight = e.height
+      let monitorAreas = this.display.getMonitorAreas(this.rootWindow)
+
+      for i, area in monitorAreas:
+        let id: MonitorID = i + 1
+        let monitor = this.monitors[id]
+        monitor.area = area
+        monitor.updateMonitor()
 
 proc addIconToSystray(this: WindowManager, window: Window) =
   var
