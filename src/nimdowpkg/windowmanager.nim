@@ -360,7 +360,11 @@ proc configureRootWindow(this: WindowManager): Window =
   var windowAttribs: XSetWindowAttributes
   # Listen for events defined by eventMask.
   # See https://tronche.com/gui/x/xlib/events/processing-overview.html#SubstructureRedirectMask
-  windowAttribs.event_mask = SubstructureRedirectMask or PropertyChangeMask or PointerMotionMask
+  windowAttribs.event_mask =
+    StructureNotifyMask or
+    SubstructureRedirectMask or
+    PropertyChangeMask or
+    PointerMotionMask
 
   # Listen for events on the root window
   discard XChangeWindowAttributes(
