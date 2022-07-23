@@ -6,7 +6,7 @@ if [ -z "$commit" ]; then
   exit 1
 fi
 
-if [ ! "$(git diff-index --quiet HEAD)" ]; then
+if [ -n "$(git diff-index --quiet HEAD)" ]; then
   commit="${commit}*"
 fi
 
