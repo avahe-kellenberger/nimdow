@@ -121,12 +121,16 @@ template clientSelection*(this: Monitor): seq[Client] =
 proc enableStatusBar*(this: Monitor) =
   this.layoutOffset = (this.statusBar.area.height, 0.uint, 0.uint, 0.uint)
   this.statusBar.show()
+  if this.systray != nil:
+    this.systray.show(this.display, this.area)
   this.isStatusBarEnabled = true
   this.doLayout()
 
 proc disableStatusBar*(this: Monitor) =
   this.layoutOffset = (0.uint, 0.uint, 0.uint, 0.uint)
   this.statusBar.hide()
+  if this.systray != nil:
+    this.systray.hide(this.display, this.area)
   this.isStatusBarEnabled = false
   this.doLayout()
 
@@ -334,7 +338,7 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
         client.show(this.display)
       else:
         client.hide(this.display)
-    if this.systray != nil:
+    if this.isStatusBarEnabled and this.systray != nil:
       this.systray.show(this.display, this.statusBar.area)
   else:
     for client in this.clients.mitems:
@@ -345,7 +349,7 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
     if this.isStatusBarEnabled:
       this.statusBar.hide()
 
-    if this.systray != nil:
+    if this.isStatusBarEnabled and this.systray != nil:
       this.systray.hide(this.display, this.area)
     this.focusClient(topmostFullscreenClient, true)
 
