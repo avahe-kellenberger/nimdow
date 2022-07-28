@@ -32,6 +32,7 @@ type
   StatusBar* = object
     settings: BarSettings
     tagSettings*: OrderedTable[TagID, TagSetting]
+    isHidden: bool
     isMonitorSelected: bool
     status: string
     activeWindowTitle: string
@@ -195,8 +196,9 @@ proc configureBar(this: StatusBar) =
     12
   )
 
-proc show*(this: StatusBar) =
+proc show*(this: var StatusBar) =
   ## Moves the status bar off screen.
+  this.isHidden = false
   discard XMoveWindow(
     this.display,
     this.barWindow,
@@ -204,14 +206,18 @@ proc show*(this: StatusBar) =
     this.area.y
   )
 
-proc hide*(this: StatusBar) =
+proc hide*(this: var StatusBar) =
   ## Moves the status bar off screen.
+  this.isHidden = true
   discard XMoveWindow(
     this.display,
     this.barWindow,
     this.area.width.int * -2,
     this.area.y
   )
+
+proc isHidden*(this: StatusBar): lent bool =
+  this.isHidden
 
 proc resizeForSystray*(this: var StatusBar, systrayWidth: int, redraw: bool = true) =
   this.systrayWidth = systrayWidth

@@ -31,6 +31,7 @@ type
     display: PDisplay
     rootWindow: Window
     statusBar*: StatusBar
+    isStatusBarEnabled*: bool
     systray*: Systray
     area*: Area
     config: Config
@@ -98,6 +99,8 @@ proc newMonitor*(
       result.taggedClients,
       result.monitorSettings.tagSettings
     )
+  
+  result.isStatusBarEnabled = true
 
 ########################################################
 #### Helper procs, iterators, templates, and macros ####
@@ -114,6 +117,28 @@ template clients*(this: Monitor): DoublyLinkedList[Client] =
 
 template clientSelection*(this: Monitor): seq[Client] =
   this.taggedClients.clientSelection
+
+proc enableStatusBar*(this: Monitor) =
+  this.layoutOffset = (this.statusBar.area.height, 0.uint, 0.uint, 0.uint)
+  this.statusBar.show()
+  if this.systray != nil:
+    this.systray.show(this.display, this.area)
+  this.isStatusBarEnabled = true
+  this.doLayout()
+
+proc disableStatusBar*(this: Monitor) =
+  this.layoutOffset = (0.uint, 0.uint, 0.uint, 0.uint)
+  this.statusBar.hide()
+  if this.systray != nil:
+    this.systray.hide(this.display, this.area)
+  this.isStatusBarEnabled = false
+  this.doLayout()
+
+proc toggleStatusBar*(this: Monitor) =
+  if this.isStatusBarEnabled:
+    this.disableStatusBar()
+  else:
+    this.enableStatusBar()
 
 proc updateWindowBorders(this: Monitor) =
   let currClient: Client = this.taggedClients.currClient
@@ -306,21 +331,25 @@ proc doLayout*(this: Monitor, warpToClient, focusCurrClient: bool = true) =
 
   if topmostFullscreenClient == nil:
     # There are no fullscreen clients on viewable tags.
-    this.statusBar.show()
+    if this.isStatusBarEnabled:
+      this.statusBar.show()
     for client in this.clients.mitems:
       if client.tagIDs.anyIt(this.selectedTags.contains(it)):
         client.show(this.display)
       else:
         client.hide(this.display)
-    if this.systray != nil:
+    if this.isStatusBarEnabled and this.systray != nil:
       this.systray.show(this.display, this.statusBar.area)
   else:
     for client in this.clients.mitems:
       # Only show the topmost fullscreen client.
       if client.window != topmostFullscreenClient.window:
         client.hide(this.display)
-    this.statusBar.hide()
-    if this.systray != nil:
+
+    if this.isStatusBarEnabled:
+      this.statusBar.hide()
+
+    if this.isStatusBarEnabled and this.systray != nil:
       this.systray.hide(this.display, this.area)
     this.focusClient(topmostFullscreenClient, true)
 

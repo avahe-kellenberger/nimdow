@@ -36,6 +36,7 @@ type
     wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
     wmcPopScratchpad = "popscratchpad"
     wmcRotateclients = "rotateclients"
+    wmcToggleStatusBar = "togglestatusbar"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:
