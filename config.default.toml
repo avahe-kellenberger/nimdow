@@ -190,6 +190,10 @@ exec = [
   keys = [ "r" ]
   modifiers = [ "super" ]
 
+  [controls.toggleStatusBar]
+  keys = [ "b" ]
+  modifiers = [ "super" ]
+
 # Example monitor settings:
 # [monitors]
   # [monitors.default.tags]
