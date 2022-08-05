@@ -13,6 +13,7 @@ const layoutName: string = "masterstack"
 
 type MasterStackLayout* = ref object of Layout
   widthDiff*: int
+  defaultWidth*: int
 
 proc layoutSingleClient(
   this: MasterStackLayout,
@@ -31,6 +32,7 @@ proc layoutMultipleClients(
   offset: LayoutOffset
 )
 
+proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset)
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint
 proc calcRoundingErr(this: MasterStackLayout, clientCount, clientHeight, screenHeight: uint): int
 proc calcYPosition(
@@ -48,18 +50,22 @@ proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
 proc newMasterStackLayout*(
   monitorArea: Area,
   gapSize: uint,
+  defaultWidth: int,
   borderWidth: uint,
-  masterSlots: uint
+  masterSlots: uint,
+  layoutOffset: LayoutOffset
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
   ## masterSlots: The number of clients allowed on the left half of the screen (traditionally 1).
-  MasterStackLayout(
+  result = MasterStackLayout(
     name: layoutName,
     monitorArea: monitorArea,
     gapSize: gapSize,
+    defaultWidth: defaultWidth,
     borderWidth: borderWidth,
     masterSlots: masterSlots
   )
+  result.setDefaultWidth(layoutOffset)
 
 method arrange*(
     this: MasterStackLayout,
@@ -158,6 +164,11 @@ proc layoutMultipleClients(
       clientHeight
     )
 
+proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset) =
+  let screenWidth = calcScreenWidth(this, offset)
+  let pxPercent = math.round(screenWidth.float / 100).int
+  this.widthDiff = (this.defaultWidth - 50) * pxPercent
+
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint =
   ## Calculates the height of a client (not counting its borders).
   if clientsInColumn <= 0:
@@ -187,6 +198,7 @@ proc calcYPosition(
   return max(0, pos).uint
 
 proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
+  ## client width  per pane excluding borders & gaps
   max(0, math.round(screenWidth.float / 2).int - (this.borderWidth * 2).int - math.round(this.gapSize.float * 1.5).int).uint
 
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
