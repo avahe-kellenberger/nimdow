@@ -78,8 +78,10 @@ proc newMonitor*(
       layout = newMasterStackLayout(
         monitorArea = area,
         gapSize = result.monitorSettings.layoutSettings.gapSize,
+        defaultWidth = tagSetting.defaultMasterWidthPercentage,
         borderWidth = currentConfig.windowSettings.borderWidth,
-        masterSlots = tagSetting.numMasterWindows.uint
+        masterSlots = tagSetting.numMasterWindows.uint,
+        layoutOffset = result.layoutOffset
       )
     )
     result.taggedClients.tags.add(tag)
@@ -167,14 +169,17 @@ proc setConfig*(this: Monitor, config: Config) =
   else:
     this.monitorSettings = config.defaultMonitorSettings
 
+  this.layoutOffset = (this.monitorSettings.barSettings.height, 0.uint, 0.uint, 0.uint)
+  this.statusBar.setConfig(this.monitorSettings.barSettings, this.monitorSettings.tagSettings)
+
   for i, tag in this.tags:
     let tagSetting = this.monitorSettings.tagSettings[i + 1]
     tag.layout.gapSize = this.monitorSettings.layoutSettings.gapSize
     tag.layout.borderWidth = this.windowSettings.borderWidth
     tag.layout.masterSlots = tagSetting.numMasterWindows.uint
-
-  this.layoutOffset = (this.monitorSettings.barSettings.height, 0.uint, 0.uint, 0.uint)
-  this.statusBar.setConfig(this.monitorSettings.barSettings, this.monitorSettings.tagSettings)
+    let masterLayout = cast[MasterStackLayout](tag.layout)
+    masterLayout.defaultWidth = tagSetting.defaultMasterWidthPercentage
+    masterLayout.setDefaultWidth(this.layoutOffset)
 
   for client in this.taggedClients.clients:
     if client.borderWidth != 0:

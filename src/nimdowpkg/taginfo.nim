@@ -5,7 +5,8 @@ type
   TagSetting* = ref object
     displayString*: string
     numMasterWindows*: Positive
+    defaultMasterWidthPercentage*: int
 
-proc newTagSetting*(displayString: string, numMasterWindows: Positive): TagSetting =
-  TagSetting(displayString: displayString, numMasterWindows: numMasterWindows)
+proc newTagSetting*(displayString: string, numMasterWindows: Positive, defaultMasterWidthPercentage :int): TagSetting =
+  TagSetting(displayString: displayString, numMasterWindows: numMasterWindows, defaultMasterWidthPercentage: defaultMasterWidthPercentage)
 
