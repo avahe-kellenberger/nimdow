@@ -27,10 +27,9 @@ I am using this project to learn Nim, x11, and to replace my build of **dwm** (w
 
 ## Screenshots
 
-![](https://user-images.githubusercontent.com/34498340/84605679-209c3d80-ae6d-11ea-8823-09b2c8626b55.png)
+![](https://user-images.githubusercontent.com/34498340/187017440-95f191ae-5701-45ce-9481-9c1f5fd450dc.png)
 ![](https://user-images.githubusercontent.com/34498340/132368685-570a2629-f948-4f24-9ab8-00804824a497.png)
-![](https://user-images.githubusercontent.com/34498340/184628815-de108c6c-db3c-448a-bcad-277476afc03b.png)
-![](https://user-images.githubusercontent.com/34498340/184628833-775ba6ba-16e6-43c9-9d46-fc9d87f91708.png)
+![](https://user-images.githubusercontent.com/34498340/84605679-209c3d80-ae6d-11ea-8823-09b2c8626b55.png)
 
 ## Installation
 
