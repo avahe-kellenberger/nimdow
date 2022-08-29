@@ -14,6 +14,7 @@ const layoutName: string = "masterstack"
 type MasterStackLayout* = ref object of Layout
   widthDiff*: int
   defaultWidth*: int
+  outterGap*: uint
 
 proc layoutSingleClient(
   this: MasterStackLayout,
@@ -53,7 +54,8 @@ proc newMasterStackLayout*(
   defaultWidth: int,
   borderWidth: uint,
   masterSlots: uint,
-  layoutOffset: LayoutOffset
+  layoutOffset: LayoutOffset,
+  outterGap: uint = 0
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
   ## masterSlots: The number of clients allowed on the left half of the screen (traditionally 1).
@@ -63,7 +65,8 @@ proc newMasterStackLayout*(
     gapSize: gapSize,
     defaultWidth: defaultWidth,
     borderWidth: borderWidth,
-    masterSlots: masterSlots
+    masterSlots: masterSlots,
+    outterGap: outterGap
   )
   result.setDefaultWidth(layoutOffset)
 
@@ -95,16 +98,18 @@ proc layoutSingleClient(
   screenWidth: uint,
   screenHeight: uint,
   offset: LayoutOffset
-  ) =
+) =
   client.oldBorderWidth = client.borderWidth
   # Hide border if it's the only client
-  client.borderWidth = 0
+  if this.outterGap == 0:
+    client.borderWidth = 0
+
   client.resize(
     display,
-    this.monitorArea.x + offset.left.int,
-    this.monitorArea.y + offset.top.int,
-    screenWidth,
-    screenHeight
+    this.monitorArea.x + offset.left.int + int(this.outterGap),
+    this.monitorArea.y + offset.top.int + int(this.outterGap),
+    max(uint 1, screenWidth - this.outterGap * 2),
+    max(uint 1, screenHeight - this.outterGap * 2)
   )
 
 proc layoutMultipleClients(

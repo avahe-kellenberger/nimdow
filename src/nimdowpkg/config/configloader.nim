@@ -49,6 +49,7 @@ type
     height*: int
   LayoutSettings* = object
     gapSize*: uint
+    outterGap*: uint
     resizeStep*: uint
   MonitorSettings* = object
     tagSettings*: TagSettings
@@ -207,6 +208,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
   this.defaultMonitorSettings.layoutSettings = LayoutSettings(
       gapSize: 12,
+      outterGap: 0,
       resizeStep: 10
   )
 
@@ -334,13 +336,24 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
       raise newException(Exception, valueName & " is not a proper hex value! Ensure it is wrapped in double quotes")
   return -1
 
-proc populateLayoutSettings*(this: Config, layoutSettings: var LayoutSettings, settingsTable: TomlTableRef) =
+proc populateLayoutSettings*(
+  this: Config,
+  layoutSettings: var LayoutSettings,
+  settingsTable: TomlTableRef
+) =
   if settingsTable.hasKey("gapSize"):
     let gapSizeSetting = settingsTable["gapSize"]
     if gapSizeSetting.kind == TomlValueKind.Int:
       layoutSettings.gapSize = max(0, gapSizeSetting.intVal).uint
     else:
       log "gapSize is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("outterGap"):
+    let outterGapSetting = settingsTable["outterGap"]
+    if outterGapSetting.kind == TomlValueKind.Int:
+      layoutSettings.outterGap = max(0, outterGapSetting.intVal).uint
+    else:
+      log "outterGap is not an integer value!", lvlWarn
 
   if settingsTable.hasKey("resizeStep"):
     let resizeStepSetting = settingsTable["resizeStep"]

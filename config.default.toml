@@ -60,6 +60,7 @@ exec = [
   ]
   # Layout settings
   gapSize = 12
+  outterGap = 0
   resizeStep = 10
   # Scratchpad settings
   scratchpadWidth = 500
