@@ -35,11 +35,11 @@ proc layoutMultipleClients(
 
 proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset)
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint
-proc calcRoundingErr(this: MasterStackLayout, clientCount, clientHeight, screenHeight: uint): int
+proc calcRoundingErr(this: MasterStackLayout, clientsInColumn, clientHeight, screenHeight: uint): int
 proc calcYPosition(
   this: MasterStackLayout,
   stackIndex,
-  clientCount,
+  clientsInColumn,
   clientHeight: uint,
   roundingError: int
 ): uint
@@ -108,8 +108,8 @@ proc layoutSingleClient(
     display,
     this.monitorArea.x + offset.left.int + int(this.outterGap),
     this.monitorArea.y + offset.top.int + int(this.outterGap),
-    max(uint 1, screenWidth - this.outterGap * 2),
-    max(uint 1, screenHeight - this.outterGap * 2)
+    max(uint 1, screenWidth - this.outterGap * 2 - client.borderWidth * 2),
+    max(uint 1, screenHeight - this.outterGap * 2 - client.borderWidth * 2)
   )
 
 proc layoutMultipleClients(
@@ -136,18 +136,23 @@ proc layoutMultipleClients(
   let stackRoundingErr: int = this.calcRoundingErr(stackClientCount, stackClientHeight, screenHeight)
   let masterRoundingErr: int = this.calcRoundingErr(masterClientCount, masterClientHeight, screenHeight)
 
+  let outterGap =
+    if this.outterGap > 0:
+      this.outterGap
+    else:
+      this.gapSize
+
   let stackXPos: uint =
     if masterClientCount == 0:
-      this.gapSize else:
-        uint(
-          math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff
-        )
+      outterGap
+    else:
+      uint math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff
 
   for (i, client) in clients.pairs():
     var xPos, yPos, clientWidth, clientHeight: uint
     if i.uint < masterClientCount:
       # Master layout
-      xPos = this.gapSize
+      xPos = outterGap
       yPos = this.calcYPosition(i.uint, masterClientCount, masterClientHeight, masterRoundingErr)
       clientHeight = masterClientHeight
       clientWidth = uint(normalClientWidth.int + this.widthDiff)
@@ -175,36 +180,77 @@ proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset) =
   this.widthDiff = (this.defaultWidth - 50) * pxPercent
 
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint =
-  ## Calculates the height of a client (not counting its borders).
+  ## Calculates the height of a client, including borders.
   if clientsInColumn <= 0:
     return 0
-  else:
-    let availableHeight: int = screenHeight.int - (clientsInColumn * (this.gapSize + this.borderWidth * 2) + this.gapSize).int
-    if availableHeight <= 0:
-      return 0
-    return math.round(availableHeight.float / clientsInColumn.float).uint
 
-proc calcRoundingErr(this: MasterStackLayout, clientCount, clientHeight, screenHeight: uint): int =
+  let outterGap =
+    if this.outterGap > 0:
+      this.outterGap
+    else:
+      this.gapSize
+
+  let availableHeight =
+    screenHeight.int -
+      int((clientsInColumn - 1) * this.gapSize) -
+        int(clientsInColumn * (this.borderWidth * 2)) -
+          int(outterGap * 2)
+
+  if availableHeight <= 0:
+    return 0
+
+  result = math.round(availableHeight.float / clientsInColumn.float).uint
+
+proc calcRoundingErr(this: MasterStackLayout, clientsInColumn, clientHeight, screenHeight: uint): int =
   ## Calculates the overall rounding error created from diving an imperfect number of pixels.
   ## E.g. A screen with a height of 1080px cannot be evenly divided by 7 clients.
-  return (screenHeight.int - (this.gapSize + (clientHeight + this.gapSize + this.borderWidth * 2) * clientCount).int)
+  let outterGap =
+    if this.outterGap > 0:
+      this.outterGap
+    else:
+      this.gapSize
+
+  return
+    screenHeight.int -
+      int(clientsInColumn * (clientHeight + this.borderWidth * 2)) -
+        int(int(this.gapSize) * int(clientsInColumn) - int(this.gapSize)) -
+          int(outterGap * 2)
 
 proc calcYPosition(
   this: MasterStackLayout,
   stackIndex,
-  clientCount,
+  clientsInColumn,
   clientHeight: uint,
   roundingError: int
 ): uint =
   ## Calculates the y position of a client within a client stack.
-  var pos = (stackIndex * (this.gapSize + clientHeight + this.borderWidth * 2) + this.gapSize).int
-  if stackIndex == clientCount - 1:
+  let outterGap =
+    if this.outterGap > 0:
+      this.outterGap
+    else:
+      this.gapSize
+
+  var pos = int(outterGap) + int(stackIndex * (this.gapSize + clientHeight + this.borderWidth * 2))
+  if stackIndex == clientsInColumn - 1:
      pos += roundingError
+
   return max(0, pos).uint
 
 proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
-  ## client width  per pane excluding borders & gaps
-  max(0, math.round(screenWidth.float / 2).int - (this.borderWidth * 2).int - math.round(this.gapSize.float * 1.5).int).uint
+  ## client width per pane excluding borders & gaps
+  let outterGap =
+    if this.outterGap > 0:
+      this.outterGap
+    else:
+      this.gapSize
+
+  uint max(
+    0,
+    math.round(screenWidth.float / 2).int -
+      (this.borderWidth * 2).int -
+        int(outterGap.float) -
+          math.round(this.gapSize.float * 0.5).int
+  )
 
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
   ## Finds all clients that should be arranged in the layout.
