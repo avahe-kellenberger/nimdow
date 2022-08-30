@@ -49,7 +49,7 @@ type
     height*: int
   LayoutSettings* = object
     gapSize*: uint
-    outterGap*: uint
+    outerGap*: uint
     resizeStep*: uint
   MonitorSettings* = object
     tagSettings*: TagSettings
@@ -208,7 +208,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
   this.defaultMonitorSettings.layoutSettings = LayoutSettings(
       gapSize: 12,
-      outterGap: 0,
+      outerGap: 0,
       resizeStep: 10
   )
 
@@ -348,12 +348,12 @@ proc populateLayoutSettings*(
     else:
       log "gapSize is not an integer value!", lvlWarn
 
-  if settingsTable.hasKey("outterGap"):
-    let outterGapSetting = settingsTable["outterGap"]
-    if outterGapSetting.kind == TomlValueKind.Int:
-      layoutSettings.outterGap = max(0, outterGapSetting.intVal).uint
+  if settingsTable.hasKey("outerGap"):
+    let outerGapSetting = settingsTable["outerGap"]
+    if outerGapSetting.kind == TomlValueKind.Int:
+      layoutSettings.outerGap = max(0, outerGapSetting.intVal).uint
     else:
-      log "outterGap is not an integer value!", lvlWarn
+      log "outerGap is not an integer value!", lvlWarn
 
   if settingsTable.hasKey("resizeStep"):
     let resizeStepSetting = settingsTable["resizeStep"]

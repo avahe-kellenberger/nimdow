@@ -82,7 +82,7 @@ proc newMonitor*(
         borderWidth = currentConfig.windowSettings.borderWidth,
         masterSlots = tagSetting.numMasterWindows.uint,
         layoutOffset = result.layoutOffset,
-        outterGap = result.monitorSettings.layoutSettings.outterGap
+        outerGap = result.monitorSettings.layoutSettings.outerGap
       )
     )
     result.taggedClients.tags.add(tag)
@@ -179,12 +179,12 @@ proc setConfig*(this: Monitor, config: Config) =
     tag.layout.borderWidth = this.windowSettings.borderWidth
     tag.layout.masterSlots = tagSetting.numMasterWindows.uint
     let masterLayout = cast[MasterStackLayout](tag.layout)
-    masterLayout.outterGap = this.monitorSettings.layoutSettings.outterGap
+    masterLayout.outerGap = this.monitorSettings.layoutSettings.outerGap
     masterLayout.defaultWidth = tagSetting.defaultMasterWidthPercentage
     masterLayout.setDefaultWidth(this.layoutOffset)
 
   for client in this.taggedClients.clients:
-    if client.borderWidth != 0 or this.monitorSettings.layoutSettings.outterGap > 0:
+    if client.borderWidth != 0 or this.monitorSettings.layoutSettings.outerGap > 0:
       client.borderWidth = this.windowSettings.borderWidth
     client.oldBorderWidth = this.windowSettings.borderWidth
     if client.isFloating or client.isFixedSize:
