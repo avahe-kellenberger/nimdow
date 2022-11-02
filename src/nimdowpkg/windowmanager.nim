@@ -1803,11 +1803,11 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
-      if e.state == Mod4Mask:
+      if cleanMask(int e.state) == Mod4Mask:
         this.mouseAction = MouseAction.Moving
         this.selectClientForMoveResize(e)
     of Button3:
-      if e.state == Mod4Mask:
+      if cleanMask(int e.state) == Mod4Mask:
         this.mouseAction = MouseAction.Resizing
         this.selectClientForMoveResize(e)
     else:
