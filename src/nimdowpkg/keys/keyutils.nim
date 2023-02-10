@@ -16,7 +16,7 @@ const ModifierTable* = {
   "mod3": Mod3Mask,
   "mod4": Mod4Mask,
   "mod5": Mod5Mask,
-}.toTable
+}.toTable()
 
 var numlockmask*: cuint = 0
 

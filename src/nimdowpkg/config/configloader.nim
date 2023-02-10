@@ -38,6 +38,7 @@ type
     borderColorFocused*: int
     borderColorUrgent*: int
     borderWidth*: uint
+    modKey*: int
   BarSettings* = object
     height*: uint
     windowTitlePosition*: WindowTitlePosition
@@ -84,7 +85,8 @@ proc newConfig*(eventManager: XEventManager): Config =
       borderColorUnfocused: 0x1c1b19,
       borderColorFocused: 0x519f50,
       borderColorUrgent: 0xff5555,
-      borderWidth: 1
+      borderWidth: 1,
+      modKey: ModifierTable["super"]
     ),
     scratchpadSettings: ScratchpadSettings(
       width: 500,
@@ -475,6 +477,13 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
       this.scratchpadSettings.height = scratchpadHeightSetting.intVal.int
     else:
       log "scratchpadHeight is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("modKey"):
+    let modKeySettings = settingsTable["modKey"]
+    if modKeySettings.kind == TomlValueKind.String:
+      this.windowSettings.modKey = ModifierTable[modKeySettings.stringVal]
+    else:
+      log "modKey is not a string value!", lvlWarn
 
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay) =
   ## Reads the user's configuration file and set the keybindings.

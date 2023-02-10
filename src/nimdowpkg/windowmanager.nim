@@ -810,7 +810,7 @@ proc grabButtons*(this: WindowManager, client: Client, focused: bool) =
       discard XGrabButton(
         this.display,
         button,
-        Mod4Mask or modifier.int,
+        this.config.windowSettings.modKey or modifier.int,
         client.window,
         false,
         MOUSE_MASK,
@@ -1132,8 +1132,8 @@ proc getAppRule(this: WindowManager, client: Client): AppRule =
   let title = this.display.getWindowName(client.window)
   for rule in this.config.appRules:
     if rule.matches(title, $classHint.res_name, $classHint.res_class):
-      discard XFree(classHint)
-      return rule
+      result = rule
+      break
 
   discard XFree(classHint)
 
@@ -1803,11 +1803,11 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
   # Need to not change mouse state if e.state is not the mod key.
   case e.button:
     of Button1:
-      if cleanMask(int e.state) == Mod4Mask:
+      if cleanMask(int e.state) == this.config.windowSettings.modKey:
         this.mouseAction = MouseAction.Moving
         this.selectClientForMoveResize(e)
     of Button3:
-      if cleanMask(int e.state) == Mod4Mask:
+      if cleanMask(int e.state) == this.config.windowSettings.modKey:
         this.mouseAction = MouseAction.Resizing
         this.selectClientForMoveResize(e)
     else:

@@ -68,6 +68,12 @@ exec = [
   # General settings
   loggingEnabled = false
   reverseTagScrolling = false
+  # The key used for moving and resizing windows.
+  # All options: "control", "shift", "alt", "super", "caps lock", "mod1", "mod2", "mod3", "mod4", "mod5"
+  # alt is an alias for Mod1Mask,
+  # super is an alias for Mod4Mask
+  # See keyutils.nim for details
+  modKey = "super"
 
 # Window manager controls
 [controls]

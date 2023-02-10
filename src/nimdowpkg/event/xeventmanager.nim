@@ -1,11 +1,13 @@
 import
-  x11/xlib,
+  x11/[x, xlib],
   tables,
   sets,
   osproc,
   times,
   safeset,
   hashes
+
+import ../logger
 
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 
@@ -40,6 +42,80 @@ proc removeListener*(this: XEventManager, listener: XEventListener, types: varar
   for theType in types:
     if theType in this.listenerMap:
       this.listenerMap[theType].excl(listener)
+
+when defined(debug):
+  proc logEventTypeName(e: XEvent) =
+   case e.theType:
+      of KeyPress:
+        log "KeyPress"
+      of KeyRelease:
+        log "KeyRelease"
+      of ButtonPress:
+        log "ButtonPress"
+      of ButtonRelease:
+        log "ButtonRelease"
+      of MotionNotify:
+        log "MotionNotify"
+      of EnterNotify:
+        log "EnterNotify"
+      of LeaveNotify:
+        log "LeaveNotify"
+      of FocusIn:
+        log "FocusIn"
+      of FocusOut:
+        log "FocusOut"
+      of KeymapNotify:
+        log "KeymapNotify"
+      of Expose:
+        log "Expose"
+      of GraphicsExpose:
+        log "GraphicsExpose"
+      of NoExpose:
+        log "NoExpose"
+      of VisibilityNotify:
+        log "VisibilityNotify"
+      of CreateNotify:
+        log "CreateNotify"
+      of DestroyNotify:
+        log "DestroyNotify"
+      of UnmapNotify:
+        log "UnmapNotify"
+      of MapNotify:
+        log "MapNotify"
+      of MapRequest:
+        log "MapRequest"
+      of ReparentNotify:
+        log "ReparentNotify"
+      of ConfigureNotify:
+        log "ConfigureNotify"
+      of ConfigureRequest:
+        log "ConfigureRequest"
+      of GravityNotify:
+        log "GravityNotify"
+      of ResizeRequest:
+        log "ResizeRequest"
+      of CirculateNotify:
+        log "CirculateNotify"
+      of CirculateRequest:
+        log "CirculateRequest"
+      of PropertyNotify:
+        log "PropertyNotify"
+      of SelectionClear:
+        log "SelectionClear"
+      of SelectionRequest:
+        log "SelectionRequest"
+      of SelectionNotify:
+        log "SelectionNotify"
+      of ColormapNotify:
+        log "ColormapNotify"
+      of ClientMessage:
+        log "ClientMessage"
+      of MappingNotify:
+        log "MappingNotify"
+      of GenericEvent:
+        log "GenericEvent"
+      else:
+        log "?"
 
 proc dispatchEvent*(this: XEventManager, e: XEvent) =
   ## Dispatches an event to all listeners with the same TXEvent.theType
