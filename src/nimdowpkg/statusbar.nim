@@ -460,7 +460,7 @@ proc renderStringRightAligned(
     else:
       try:
         sgr.add parseInt($currentSgr)
-      except:
+      except CatchableError:
         invalidSgr = true
     reset currentSgr
 

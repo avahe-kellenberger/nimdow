@@ -21,7 +21,7 @@ proc handleWMCommand(commandStr: string): bool =
     socket = newSocket(AF_UNIX, SOCK_STREAM, IPPROTO_IP)
     let socketLoc = findSocketPath()
     socket.connectUnix(socketLoc)
-  except Exception:
+  except CatchableError:
     log "Failed to connect to live socket", lvlError
     return false
 
@@ -77,6 +77,6 @@ proc handleCommandLineParams*(): bool =
     discard parseEnum[WMCommand](strArr[0])
     discard handleWMCommand(commandStr)
     return false
-  except Exception:
+  except CatchableError:
     return handleSpecialCommand(strArr)
 

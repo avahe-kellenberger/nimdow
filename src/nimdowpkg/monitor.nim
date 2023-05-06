@@ -264,7 +264,7 @@ proc keycodeToTagID*(this: Monitor, keycode: int): Option[TagID] =
       raise newException(Exception, "Invalid tag number: " & $tagNumber)
 
     return this.tags[tagNumber - 1].id.option
-  except:
+  except CatchableError:
     log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =

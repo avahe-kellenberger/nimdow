@@ -135,7 +135,7 @@ proc newWindowManager*(
     result.config.populateGeneralSettings(configTable)
     result.config.hookConfig()
     result.grabKeys()
-  except:
+  except CatchableError:
     log getCurrentExceptionMsg(), lvlError
 
   result.windowSettings = result.config.windowSettings
@@ -306,7 +306,7 @@ proc reloadConfig*(this: WindowManager) =
     this.config.populateKeyComboTable(configTable, this.display)
     this.config.populateGeneralSettings(configTable)
     logger.enabled = this.config.loggingEnabled
-  except:
+  except CatchableError:
     logger.enabled = oldLoggingEnabled
     # If the config fails to load, restore the old config.
     this.config = oldConfig

@@ -52,7 +52,7 @@ when isMainModule:
   var configTable: TomlTable
   try:
     configTable = loadConfigFile()
-  except:
+  except CatchableError:
     log getCurrentExceptionMsg(), lvlError
 
   let nimdow = newWindowManager(eventManager, loadedConfig, configTable)
@@ -70,7 +70,7 @@ when isMainModule:
   try:
     loadedConfig.populateAppRules(configTable)
     loadedConfig.runAutostartCommands(configTable)
-  except:
+  except CatchableError:
     log getCurrentExceptionMsg(), lvlError
 
   let
@@ -98,7 +98,7 @@ when isMainModule:
           client.close()
           handleCommand(received, nimdow, loadedConfig.actionIdentifierTable)
           discard XSync(nimdow.display, false.XBool)
-        except:
+        except CatchableError:
           # Client disconnected when we tried to accept.
           discard
 

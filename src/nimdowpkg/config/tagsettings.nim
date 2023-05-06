@@ -69,7 +69,7 @@ proc populateTagSettings*(settings: var TagSettings, tagSettingsTable: TomlTable
     var tagID: int
     try:
       tagID = parseInt(tagIDstr)
-    except:
+    except CatchableError:
       raise newException(Exception, "Invalid tag id: " & tagIDstr)
 
     let currentTagSettingsTable = settingsToml.tableVal

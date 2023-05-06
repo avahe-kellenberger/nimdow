@@ -19,7 +19,7 @@ template log*(message: string, level: Level = lvlInfo) =
     if logger == nil:
       try:
         logger = newRollingFileLogger(getHomeDir() & ".nimdow.log", fmAppend)
-      except:
+      except CatchableError:
         let err = getCurrentExceptionMsg()
         echo "Failed to open log file for logging:"
         echo err

@@ -1,13 +1,11 @@
 import
-  x11/[x, xlib],
+  x11/xlib,
   tables,
   sets,
   osproc,
   times,
   safeset,
   hashes
-
-import ../logger
 
 const CLOSE_PROCESS_CHECK_INTERVAL = 5.0
 

@@ -145,7 +145,7 @@ proc runCommand(this: Config, cmd: string) =
   try:
     let process = startProcess(command = cmd, options = { poEvalCommand })
     this.eventManager.submitProcess(process)
-  except:
+  except CatchableError:
     log "Failed to start command: " & cmd, lvlWarn
 
 proc runCommands(this: Config, commands: varargs[string]) =
@@ -252,7 +252,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
     var monitorID: MonitorID
     try:
       monitorID = parseInt(monitorIDStr)
-    except:
+    except CatchableError:
       log "Invalid monitor ID: " & monitorIDStr, lvlError
       continue
 
