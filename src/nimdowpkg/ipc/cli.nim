@@ -74,9 +74,10 @@ proc handleCommandLineParams*(): bool =
   let commandStr = strArr.join(" ")
   try:
     # Ensure the first param is a valid command.
+    if strArr.len == 0:
+      return handleSpecialCommand(strArr)
     discard parseEnum[WMCommand](strArr[0])
     discard handleWMCommand(commandStr)
     return false
   except CatchableError:
     return handleSpecialCommand(strArr)
-
