@@ -974,6 +974,10 @@ proc onConfigureNotify(this: WindowManager, e: XConfigureEvent) =
         monitor.area = area
         monitor.updateMonitor()
 
+        # Ensure this monitor is set as "selected" again to fix status bar rendering.
+        if monitor == this.selectedMonitor:
+          this.setSelectedMonitor(monitor)
+
 proc addIconToSystray(this: WindowManager, window: Window) =
   var
     windowAttr: XWindowAttributes
