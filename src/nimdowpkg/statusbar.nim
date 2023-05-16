@@ -196,6 +196,9 @@ proc configureBar(this: StatusBar) =
     12
   )
 
+proc getStatus*(this: StatusBar): string =
+  return this.status
+
 proc show*(this: var StatusBar) =
   ## Moves the status bar off screen.
   this.isHidden = false

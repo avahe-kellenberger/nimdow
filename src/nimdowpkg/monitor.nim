@@ -96,8 +96,8 @@ proc updateMonitor*(this: Monitor) =
   let barArea: Area = (this.area.x, this.area.y, this.area.width, this.monitorSettings.barSettings.height)
   this.layoutOffset = (barArea.height, 0.uint, 0.uint, 0.uint)
 
-
   this.updateCurrentDesktopProperty()
+  let status = this.statusBar.getStatus()
   this.statusBar =
     this.display.newStatusBar(
       this.rootWindow,
@@ -106,11 +106,12 @@ proc updateMonitor*(this: Monitor) =
       this.taggedClients,
       this.monitorSettings.tagSettings
     )
-  
+
   for i, tag in this.taggedClients.tags:
     tag.layout.monitorArea = this.area
   this.doLayout()
 
+  this.statusBar.setStatus(status)
 
 ########################################################
 #### Helper procs, iterators, templates, and macros ####
