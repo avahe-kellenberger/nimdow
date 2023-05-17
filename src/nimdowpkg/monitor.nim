@@ -107,6 +107,8 @@ proc updateMonitor*(this: Monitor) =
       this.monitorSettings.tagSettings
     )
 
+  if this.systray != nil:
+    this.statusBar.resizeForSystray(this.systray.getWidth)
   for i, tag in this.taggedClients.tags:
     tag.layout.monitorArea = this.area
   this.doLayout()
