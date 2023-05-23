@@ -47,6 +47,11 @@ If you are on an Arch Linux based system, use `nimdow-bin` in the AUR to install
 
 Default config is stored at `/usr/share/nimdow/config.default.toml`
 
+## Nixos
+
+If you are on Nixos, you can set `services.xserver.windowManager.nimdow.enable=true;` to install and
+enable nimdow in your login manager. (in `nixos-unstable` or in stable from 2023-05 release).
+
 ## Config File <a name="config"></a>
 
 Nimdow searches for a config file in 3 locations in this order:
