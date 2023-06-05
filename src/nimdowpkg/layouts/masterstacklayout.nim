@@ -126,8 +126,10 @@ proc layoutMultipleClients(
   let stackClientCount = max(0, clientCount.int - this.masterSlots.int).uint
 
   # If there are only master clients, take up all horizontal space.
-  let normalClientWidth = if masterClientCount == clientCount or masterClientCount == 0:
-    this.calcClientWidth(screenWidth) * 2 else:
+  let normalClientWidth =
+    if masterClientCount == clientCount or masterClientCount == 0:
+      this.calcClientWidth(screenWidth) * 2
+    else:
       this.calcClientWidth(screenWidth)
 
   let masterClientHeight = this.calculateClientHeight(masterClientCount, screenHeight)
@@ -142,11 +144,19 @@ proc layoutMultipleClients(
     else:
       this.gapSize
 
+  # TODO: widthDiff is related to masterWidth
   let stackXPos: uint =
     if masterClientCount == 0:
       outerGap
     else:
       uint math.round(screenWidth.float / 2).int + math.round(this.gapSize.float / 2).int + this.widthDiff
+
+
+  let widthDiff =
+    if masterClientCount == clientCount or masterClientCount == 0:
+      0
+    else:
+      this.widthDiff
 
   for (i, client) in clients.pairs():
     var xPos, yPos, clientWidth, clientHeight: uint
@@ -155,14 +165,14 @@ proc layoutMultipleClients(
       xPos = outerGap
       yPos = this.calcYPosition(i.uint, masterClientCount, masterClientHeight, masterRoundingErr)
       clientHeight = masterClientHeight
-      clientWidth = uint(normalClientWidth.int + this.widthDiff)
+      clientWidth = uint(normalClientWidth.int + widthDiff)
     else:
       # Stack layout
       xPos = stackXPos
       let stackIndex = i.uint - masterClientCount
       yPos = this.calcYPosition(stackIndex, stackClientCount, stackClientHeight, stackRoundingErr)
       clientHeight = stackClientHeight
-      clientWidth = uint(normalClientWidth.int - this.widthDiff)
+      clientWidth = uint(normalClientWidth.int - widthDiff)
 
     client.oldBorderWidth = client.borderWidth
     client.borderWidth = this.borderWidth
