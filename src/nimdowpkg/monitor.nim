@@ -261,7 +261,7 @@ proc keycodeToTagID*(this: Monitor, keycode: int): Option[TagID] =
   try:
     let tagNumber = parseInt(keycode.toString(this.display))
     if tagNumber < 1 or tagNumber > this.tags.len:
-      raise newException(Exception, "Invalid tag number: " & $tagNumber)
+      log("Invalid tag number: " & $tagNumber, lvlError)
 
     return this.tags[tagNumber - 1].id.option
   except CatchableError:
