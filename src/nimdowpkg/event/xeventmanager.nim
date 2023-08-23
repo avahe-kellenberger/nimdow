@@ -4,7 +4,7 @@ import
   sets,
   osproc,
   times,
-  safeset,
+  safeseq,
   hashes
 
 import ../logger
@@ -19,7 +19,7 @@ type
   XEventListener* = proc(e: XEvent)
   XEventManager* = ref object
     listenerMap: Table[cint, HashSet[XEventListener]]
-    processes: SafeSet[Process]
+    processes: SafeSeq[Process]
 
 proc hash*(p: Process): Hash =
   !$p.processID
@@ -27,7 +27,7 @@ proc hash*(p: Process): Hash =
 proc newXEventManager*(): XEventManager =
   XEventManager(
     listenerMap: initTable[cint, HashSet[XEventListener]](),
-    processes: newSafeSet[Process]()
+    processes: newSafeSeq[Process]()
   )
 
 proc addListener*(this: XEventManager, listener: XEventListener, types: varargs[cint]) =
