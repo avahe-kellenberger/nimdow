@@ -465,8 +465,8 @@ proc addClient*(this: Monitor, client: var Client, assignToSelectedTags: bool = 
   this.statusBar.redraw()
 
 proc rotateClients*(this: Monitor) =
-  if this.clients.len > 1:
-    let clientNode = this.taggedClients.findLastLayoutNode()
+  let clientNode = this.taggedClients.findLastLayoutNode()
+  if clientNode != nil:
     this.clients.remove(clientNode)
     this.clients.prepend(clientNode)
     this.doLayout()
