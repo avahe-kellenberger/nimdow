@@ -35,7 +35,7 @@ converter toXBool(x: bool): XBool = x.XBool
 converter toBool(x: XBool): bool = x.bool
 
 const
-  wmName = "nimdow"
+  wmName = cstring "nimdow"
   minimumUpdateInterval = math.round(1000 / 60).int
 
   systrayMonitorID = 1
