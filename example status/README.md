@@ -3,7 +3,10 @@ A Simple Status For Nimdow Window Manager
 https://github.com/avahe-kellenberger/nimdow
 
 ## Screenshot
-![alt text](images/screenshot.png "NimdowStatus")
+![alt text](images/screenshot.png "NimdowStatus - Gruvbox")
+
+![alt text](images/screenshot.png "NimdowStatus - Dracula")
+
 
 ## Installation
 install font awesome for the icons. most distrobutions have this package in their repo.

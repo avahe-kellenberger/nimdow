@@ -35,7 +35,8 @@ const
 #                  THEME                   #
 #++++++++++++++++++++++++++++++++++++++++++#
 # include themed arrows gruvbox, only one for now, more to come
-include themes/gruvbox_arrows
+#include themes/gruvbox_arrows
+include themes/dracula_arrows
 
 
 #++++++++++++++++++++++++++++++++++++++++++#
@@ -55,7 +56,7 @@ include functions/getWeather
 #          STATUS FORMATTING               #
 #++++++++++++++++++++++++++++++++++++++++++#
 var
-  STATUS_STRING = fmt"{ARROW_BROWN}{ARROW_GREEN}{getWeather()}{ARROW_BLUE}{getBatStatus()}{ARROW_ORANGE}{getMemory()}{ARROW_RED}{getDateTime()}{RESET}"
+  STATUS_STRING = fmt"{ARROW_PURPLE}{ARROW_CYAN}{getWeather()}{ARROW_ORANGE}{getBatStatus()}{ARROW_PINK}{getMemory()}{ARROW_RED}{getDateTime()}{RESET}"
 
 
 #++++++++++++++++++++++++++++++++++++++++++#
