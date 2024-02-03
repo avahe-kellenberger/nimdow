@@ -1,7 +1,3 @@
-
-const
-  ICON_RAM: string = "  "
-
 proc getMemory(): string =
     let
       sMemory = "/proc/meminfo".readLines(3)
@@ -10,4 +6,4 @@ proc getMemory(): string =
       iTotalMem =  sTotalMem.parseInt div 1024
       iAvailableMem = sAvailableMem.parseInt div 1024
 
-    result = ICON_RAM & $(iTotalMem - iAvailableMem) & " MiB"
+    result = MEMORY_ICON & $(iTotalMem - iAvailableMem) & " MiB"

@@ -1,14 +1,9 @@
-
-const
-  DATE_ICON: string = "  "
-  TIME_ICON: string = "  "
-
 # get the date and time
 proc getDateTime(): string =
-  result = DATE_ICON & format(now(), " ddd, dd MMM HH:mm ")
+  result = DATE_ICON & format(now(), DATETIME_FORMAT)
 
 proc getDate(): string =
-  result = DATE_ICON & format(now(), " ddd, dd MMM ")
+  result = DATE_ICON & format(now(), DATE_FORMAT)
 
 proc getTime(): string =
-  result =  TIME_ICON & format(now(), " HH:mm ")
+  result =  TIME_ICON & format(now(), TIME_FORMAT)

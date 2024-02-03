@@ -16,7 +16,12 @@ git clone https://gitlab.com/ ~/.config/nimdow/nimdowstatus
 ### Compile
 ```bash
 cd ~/.config/nimdow/nimdowstatus
-nimble build
+nimble build -d:ssl
+```
+Or for some optimisation compiler flags use the below
+```bash
+cd ~/.config/nimdow/nimdowstatus
+nimble release
 ```
 
 ### Config Nimdow
@@ -39,7 +44,7 @@ Incluse font awesome for icons
 barFonts = [
     "FontAwesome:size=14:antialias=true"
   ]
-```   
+```
 
 ### ToDo
 

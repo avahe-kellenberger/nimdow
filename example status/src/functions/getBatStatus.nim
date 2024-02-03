@@ -1,7 +1,8 @@
 
 ## Battery Icons
 const
-  isPlg   = " "   #" 󰚥 "#Nerd fonts
+  ## Below icons are from the front awesome package
+  isPlg   = " "
   is3Qrt  = "  " 
   isFull  = "  "
   isHalf  = "  "
@@ -34,5 +35,5 @@ proc getBatStatus(): string =
     else:
       sBatIcon = isEmpty
 
-  # return the corrisponding icon and battery level percentage
+  # return the corresponding icon and battery level percentage
   return sBatIcon & sCapacity[0] & "% "
