@@ -8,29 +8,21 @@ const
   isLow   = ORANGE_FG & "  " & RESET
   isEmpty = RED_FG & "  " & RESET
 
-
 # get the current battery status and battery level of laptop
 proc getBatStatus(): string =
-   #Battery Level Percentage, change to BAT1 if needed
-  let fCapacity = open("/sys/class/power_supply/BAT0/capacity")
-  defer: fCapacity.close
-  #Battery Status
-  let fBatStatus = open("/sys/class/power_supply/BAT0/status")
-  defer: fBatStatus.close
-
   # Read the first line
   let
-    sCapacity = fCapacity.readline()
-    sBatStats = fBatStatus.readline()
+    sCapacity = "/sys/class/power_supply/BAT0/capacity".readLines()
+    sBatStats = "/sys/class/power_supply/BAT0/status".readLines()
 
   # Place holder for the battery icon
   var sBatIcon = ""
 
   # Check if battery status is in charging mode
-  if sBatStats == "Charging":
+  if sBatStats[0] == "Charging":
     sBatIcon = isPlg
   else:
-    case parseInt(sCapacity):
+    case parseInt(sCapacity[0]):
     of 10..35:
       sBatIcon = isLow
     of 36..59:
@@ -43,4 +35,4 @@ proc getBatStatus(): string =
       sBatIcon = isEmpty
 
   # return the corrisponding icon and battery level percentage
-  return sBatIcon & sCapacity & "% "
+  return sBatIcon & sCapacity[0] & "% "
