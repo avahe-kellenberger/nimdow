@@ -33,6 +33,29 @@ const
   ARROW_YELLOW: string = RESET & YELLOW_FG & "" & RESET & YELLOW_BG
 
 
+#[ Nimdow config.toml
+
+  # Window settings
+  borderWidth = 1
+  borderColorUnfocused = "#6272a4"
+  borderColorFocused = "#ff79c6"
+  borderColorUrgent = "#ff5555"
+  # Bar settings
+  barHeight = 28
+  windowTitlePosition = "center"
+  barBackgroundColor = "#282a36"
+  barForegroundColor = "#44475a"
+  barSelectionColor = "#f1fa8c"
+  barUrgentColor = "#ff5555"
+  barFonts = [
+    "DejaVu Sans:style=Bold:size=12:antialias=true",
+    "FontAwesome:size=14:antialias=true",
+    "JetBrainsMono Nerd Font:size=20:antialias=true",
+  ]
+
+
+]#
+
 
 
 

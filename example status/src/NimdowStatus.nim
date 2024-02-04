@@ -1,7 +1,6 @@
 import std/[os, times, strutils, httpclient, options, strformat]
 # import parsetoml  <--- WiP to move all the below settings to a toml file
 
-
 #++++++++++++++++++++++++++++++++++++++++++#
 #                SETTINGS                  #
 #++++++++++++++++++++++++++++++++++++++++++#
@@ -17,11 +16,11 @@ const
   ## typically its either BAT0 or BAT1, not used yet, see getBatStatus.nim to change
   #BAT = "BAT0"
   ## date formatting
-  DATE_FORMAT = "ddd d MMM"
+  DATE_FORMAT = "ddd d MMM "
   ## time formatting
-  TIME_FORMAT = "HH:mm"
+  TIME_FORMAT = "HH:mm "
   ## date and time formatting
-  DATETIME_FORMAT = "ddd d MMM HH:mm"
+  DATETIME_FORMAT = "ddd d MMM HH:mm "
   ## weather icon, be sure to include font in the nimdow config.toml
   WEATHER_ICON = "  "
   ## date icon to display
@@ -34,7 +33,7 @@ const
 #++++++++++++++++++++++++++++++++++++++++++#
 #                  THEME                   #
 #++++++++++++++++++++++++++++++++++++++++++#
-# include themed arrows gruvbox, only one for now, more to come
+# include themed arrows gruvbox or dracula, more to come
 #include themes/gruvbox_arrows
 include themes/dracula_arrows
 
@@ -42,26 +41,16 @@ include themes/dracula_arrows
 #++++++++++++++++++++++++++++++++++++++++++#
 #           INCLUDED FUNCTIONS             #
 #++++++++++++++++++++++++++++++++++++++++++#
-# include getDateTime function
+# include getDateTime function {getDateTime()}
 include functions/getDateTime
-# include getBatStatus function and battery icons
+# include getBatStatus function and battery icons {getBatStatus()}
 include functions/getBatStatus
-# include getMemory function
+# include getMemory function {getMemory()}
 include functions/getMemory
-# include weather function
+# include weather function {getWeather()}
 include functions/getWeather
 
 
-#++++++++++++++++++++++++++++++++++++++++++#
-#          STATUS FORMATTING               #
-#++++++++++++++++++++++++++++++++++++++++++#
-var
-  STATUS_STRING = fmt"{ARROW_PURPLE}{ARROW_CYAN}{getWeather()}{ARROW_ORANGE}{getBatStatus()}{ARROW_PINK}{getMemory()}{ARROW_RED}{getDateTime()}{RESET}"
-
-
-#++++++++++++++++++++++++++++++++++++++++++#
-#     DO NOT EDIT BELOW THIS SECTION       #
-#++++++++++++++++++++++++++++++++++++++++++#
 
 # Function to set the string
 proc setStatus(sStatus: string) = 
@@ -71,7 +60,8 @@ proc setStatus(sStatus: string) =
 proc main() =
   while true:
     # create the string using themed arrows and functions
-    let sStatusString = STATUS_STRING
+    let sStatusString = fmt"{ARROW_CYAN}{ARROW_ORANGE}{getWeather()}{ARROW_PINK}{getBatStatus()}{ARROW_PURPLE}{getMemory()}{ARROW_RED}{getDateTime()}{RESET}"
+    #let sStatusString = fmt"{CIRCLE_GREEN_L}{getWeather()}{CIRCLE_GREEN_R}{CIRCLE_ORANGE_L}{getBatStatus()}{CIRCLE_ORANGE_R}{CIRCLE_BLUE_L}{getMemory()}{CIRCLE_BLUE_R}{CIRCLE_RED_L}{getDateTime()}{CIRCLE_RED_R}{RESET}"
     # set the status
     setStatus(sStatusString)
     # sleep for n seconds
