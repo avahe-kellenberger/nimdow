@@ -50,14 +50,9 @@ type
   ScratchpadSettings* = object
     width*: int
     height*: int
-  OldLayoutSettings* = object
-    gapSize*: uint
-    outerGap*: uint
-    resizeStep*: uint
   MonitorSettings* = object
     tagSettings*: TagSettings
     barSettings*: BarSettings
-    layoutSettings*: OldLayoutSettings
   MonitorSettingsRef* = ref MonitorSettings
 
   MonitorID* = int
@@ -103,7 +98,7 @@ proc newConfig*(eventManager: XEventManager): Config =
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef)
-proc populateLayoutSettings*(this: Config, layoutSettings: var OldLayoutSettings, settingsTable: TomlTableRef)
+proc populateLayoutSettings*(this: Config, settingsTable: TomlTableRef)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc getKeyCombos(
@@ -213,11 +208,12 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       urgentColor: 0xef2f27
   )
 
-  this.defaultMonitorSettings.layoutSettings = OldLayoutSettings(
-      gapSize: 12,
-      outerGap: 0,
-      resizeStep: 10
-  )
+  # TODO: Move this to masterstacklayout and a populateLayoutSettings method
+  #this.defaultMonitorSettings.layoutSettings = OldLayoutSettings(
+  #    gapSize: 12,
+  #    outerGap: 0,
+  #    resizeStep: 10
+  #)
 
   this.defaultMonitorSettings.tagSettings = createDefaultTagSettings()
 
@@ -235,7 +231,7 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
   if monitorsTable.hasKey("default"):
     let settingsTable = configTable["settings"].tableVal
     this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
-    this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
+    this.populateLayoutSettings(settingsTable)
 
     let changedDefaults = monitorsTable["default"]
     if changedDefaults.hasKey("tags"):
@@ -346,7 +342,6 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
 
 proc populateLayoutSettings*(
   this: Config,
-  layoutSettings: var OldLayoutSettings,
   settingsTable: TomlTableRef
 ) =
   if settingsTable.hasKey("layout"):
@@ -354,29 +349,7 @@ proc populateLayoutSettings*(
    if layoutSetting.isSome:
     this.layoutSettings = layoutSetting.get
     echo "Set layout"
-  if settingsTable.hasKey("gapSize"):
-    let gapSizeSetting = settingsTable["gapSize"]
-    if gapSizeSetting.kind == TomlValueKind.Int:
-      layoutSettings.gapSize = max(0, gapSizeSetting.intVal).uint
-    else:
-      log "gapSize is not an integer value!", lvlWarn
-
-  if settingsTable.hasKey("outerGap"):
-    let outerGapSetting = settingsTable["outerGap"]
-    if outerGapSetting.kind == TomlValueKind.Int:
-      layoutSettings.outerGap = max(0, outerGapSetting.intVal).uint
-    else:
-      log "outerGap is not an integer value!", lvlWarn
-
-  if settingsTable.hasKey("resizeStep"):
-    let resizeStepSetting = settingsTable["resizeStep"]
-    if resizeStepSetting.kind == TomlValueKind.Int:
-      if resizeStepSetting.intVal > 0:
-        layoutSettings.resizeStep = resizeStepSetting.intVal.uint
-      else:
-        log "resizeStep is not a positive integer!", lvlWarn
-    else:
-      log "resizeStep is not an integer value!", lvlWarn
+  this.layoutSettings.populateLayoutSettings(settingsTable)
 
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef) =
   if settingsTable.hasKey("windowTitlePosition"):
@@ -432,7 +405,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 
   let settingsTable = configTable["settings"].tableVal
   this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
-  this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
+  this.populateLayoutSettings(settingsTable)
 
   # Window settings
   if settingsTable.hasKey("borderWidth"):
@@ -457,7 +430,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   # Bar & layout settings
   for monitorSettings in this.monitorSettings.mvalues():
     this.populateBarSettings(monitorSettings.barSettings, settingsTable)
-    this.populateLayoutSettings(monitorSettings.layoutSettings, settingsTable)
+    this.populateLayoutSettings(settingsTable)
 
   # General settings
   if settingsTable.hasKey("loggingEnabled"):

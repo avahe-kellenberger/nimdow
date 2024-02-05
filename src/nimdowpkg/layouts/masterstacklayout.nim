@@ -1,5 +1,6 @@
 import
   x11/xlib,
+  parsetoml,
   strutils,
   math,
   layout,
@@ -19,7 +20,9 @@ type
     outerGap*: uint
     offset: LayoutOffset
   MasterStackLayoutSettings* = ref object of LayoutSettings
-    dummy: int
+    gapSize*: uint
+    outerGap*: uint
+    resizeStep*: uint
   Commands = enum
     mscIncreaseMasterCount = "increasemastercount",
     mscDecreaseMasterCount = "decreasemastercount",
@@ -63,6 +66,32 @@ method parseLayoutCommand*(this: MasterStackLayoutSettings, command: string): st
     return $parseEnum[Commands](command.toLower)
   except:
     return ""
+
+method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTable: TomlTableRef) =
+  if settingsTable.hasKey("gapSize"):
+    let gapSizeSetting = settingsTable["gapSize"]
+    if gapSizeSetting.kind == TomlValueKind.Int:
+      this.gapSize = max(0, gapSizeSetting.intVal).uint
+      echo "Parsed gap size: ", this.gapSize
+    else:
+      log "gapSize is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("outerGap"):
+    let outerGapSetting = settingsTable["outerGap"]
+    if outerGapSetting.kind == TomlValueKind.Int:
+      this.outerGap = max(0, outerGapSetting.intVal).uint
+    else:
+      log "outerGap is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("resizeStep"):
+    let resizeStepSetting = settingsTable["resizeStep"]
+    if resizeStepSetting.kind == TomlValueKind.Int:
+      if resizeStepSetting.intVal > 0:
+        this.resizeStep = resizeStepSetting.intVal.uint
+      else:
+        log "resizeStep is not a positive integer!", lvlWarn
+    else:
+      log "resizeStep is not an integer value!", lvlWarn
 
 proc increaseMasterCount(layout: Layout) =
   MasterStackLayout(layout).masterSlots.inc
@@ -121,6 +150,32 @@ proc newMasterStackLayout*(
     offset: layoutOffset
   )
   result.setDefaultWidth(layoutOffset)
+
+method newLayout*(settings: MasterStackLayoutSettings,
+    monitorArea: Area,
+    defaultWidth: int,
+    borderWidth: uint,
+    masterSlots: uint,
+    layoutOffset: LayoutOffset): Layout =
+  newMasterStackLayout(monitorArea, settings.gapSize, defaultWidth, borderWidth, masterSlots, layoutOffset, settings.outerGap)
+
+method updateSettings*(
+    this: var MasterStackLayout,
+    settings: LayoutSettings,
+    monitorArea: Area,
+    defaultWidth: int,
+    borderWidth: uint,
+    masterSlots: uint,
+    layoutOffset: LayoutOffset) =
+  let masterStackSettings = cast[MasterStackLayoutSettings](settings)
+  echo masterStackSettings.gapSize
+  this.monitorArea = monitorArea
+  this.gapSize = masterStackSettings.gapSize
+  this.defaultWidth = defaultWidth
+  this.borderWidth = borderWidth
+  this.masterSlots = masterSlots
+  this.outerGap = masterStackSettings.outerGap
+  this.setDefaultWidth(layoutOffset)
 
 method arrange*(
     this: MasterStackLayout,
