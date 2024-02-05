@@ -72,7 +72,6 @@ proc newMonitor*(
     let tagSetting = result.monitorSettings.tagSettings[i]
     let tag: Tag = newTag(
       id = i,
-      # TODO: Call method newLayout with LayoutSettings from config
       layout = newLayout(
         currentConfig.layoutSettings,
         monitorArea = area,
