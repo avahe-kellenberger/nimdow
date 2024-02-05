@@ -7,8 +7,6 @@ export options
 type
   WMCommand* = enum
     wmcReloadConfig = "reloadconfig",
-    wmcIncreaseMasterCount = "increasemastercount",
-    wmcDecreaseMasterCount = "decreasemastercount",
     wmcMoveWindowToPreviousMonitor = "movewindowtopreviousmonitor",
     wmcMoveWindowToNextMonitor = "movewindowtonextmonitor",
     wmcFocusPreviousMonitor = "focuspreviousmonitor",
@@ -31,12 +29,13 @@ type
     wmcDestroySelectedWindow = "destroyselectedwindow",
     wmcToggleFloating = "togglefloating",
     wmcJumpToUrgentWindow = "jumptourgentwindow"
-    wmcIncreaseMasterWidth = "increasemasterwidth"
-    wmcDecreaseMasterWidth = "decreasemasterwidth"
+    #wmcIncreaseMasterWidth = "increasemasterwidth"
+    #wmcDecreaseMasterWidth = "decreasemasterwidth"
     wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
     wmcPopScratchpad = "popscratchpad"
     wmcRotateclients = "rotateclients"
     wmcToggleStatusBar = "togglestatusbar"
+    wmcLayout = "layout"
 
 proc parseCommand*(command: string): Option[WMCommand] =
   try:

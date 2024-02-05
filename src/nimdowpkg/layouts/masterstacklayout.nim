@@ -1,5 +1,6 @@
 import
   x11/xlib,
+  strutils,
   math,
   layout,
   ../client,
@@ -11,10 +12,19 @@ converter intToCUint(x: int): cuint = x.cuint
 
 const layoutName: string = "masterstack"
 
-type MasterStackLayout* = ref object of Layout
-  widthDiff*: int
-  defaultWidth*: int
-  outerGap*: uint
+type
+  MasterStackLayout* = ref object of Layout
+    widthDiff*: int
+    defaultWidth*: int
+    outerGap*: uint
+    offset: LayoutOffset
+  MasterStackLayoutSettings* = ref object of LayoutSettings
+    dummy: int
+  Commands = enum
+    mscIncreaseMasterCount = "increasemastercount",
+    mscDecreaseMasterCount = "decreasemastercount",
+    mscIncreaseMasterWidth = "increasemasterwidth",
+    mscDecreaseMasterWidth = "decreasemasterwidth",
 
 proc layoutSingleClient(
   this: MasterStackLayout,
@@ -43,10 +53,51 @@ proc calcYPosition(
   clientHeight: uint,
   roundingError: int
 ): uint
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint
+proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint {.gcsafe.}
 func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int
 func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
+
+method parseLayoutCommand*(this: MasterStackLayoutSettings, command: string): string =
+  try:
+    return $parseEnum[Commands](command.toLower)
+  except:
+    return ""
+
+proc increaseMasterCount(layout: Layout) =
+  MasterStackLayout(layout).masterSlots.inc
+
+proc decreaseMasterCount(layout: Layout) =
+  var masterStackLayout = MasterStackLayout(layout)
+  if masterStackLayout.masterSlots.int > 0:
+    masterStackLayout.masterSlots.dec
+
+template modWidthDiff(layout: Layout, diff: int) =
+  let masterStackLayout = cast[MasterStackLayout](layout)
+  let screenWidth = masterStackLayout.calcScreenWidth(masterStackLayout.offset)
+
+  if
+    (diff > 0 and masterStackLayout.widthDiff < 0) or
+    (diff < 0 and masterStackLayout.widthDiff > 0) or
+    masterStackLayout.calcClientWidth(masterStackLayout.monitorArea.width).int - abs(masterStackLayout.widthDiff).int - abs(
+        diff).int > 0:
+      masterStackLayout.widthDiff += diff
+
+proc increaseMasterWidth(layout: Layout) {.gcsafe.} =
+  layout.modWidthDiff(10)#this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+
+proc decreaseMasterWidth(layout: Layout) {.gcsafe.} =
+  layout.modWidthDiff(-10)#-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+
+method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout) {.nimcall.}]] =
+  result = @[
+    ($mscIncreaseMasterWidth, increaseMasterWidth),
+    ($mscDecreaseMasterWidth, decreaseMasterWidth),
+    ($mscIncreaseMasterCount, increaseMasterCount),
+    ($mscDecreaseMasterCount, decreaseMasterCount)
+  ]
+  echo result.repr
+  echo result[0][1].addr.repr
 
 proc newMasterStackLayout*(
   monitorArea: Area,
@@ -66,7 +117,8 @@ proc newMasterStackLayout*(
     defaultWidth: defaultWidth,
     borderWidth: borderWidth,
     masterSlots: masterSlots,
-    outerGap: outerGap
+    outerGap: outerGap,
+    offset: layoutOffset
   )
   result.setDefaultWidth(layoutOffset)
 
@@ -246,7 +298,7 @@ proc calcYPosition(
 
   return max(0, pos).uint
 
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
+proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint {.gcsafe.} =
   ## client width per pane excluding borders & gaps
   let outerGap =
     if this.outerGap > 0:
