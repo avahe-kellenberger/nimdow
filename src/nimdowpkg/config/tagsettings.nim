@@ -4,7 +4,8 @@ import
 
 import
   ../tag,
-  ../logger
+  ../logger,
+  ../layouts/layoutsettings
 
 type
   TagSettings* = OrderedTable[TagID, TagSetting]
@@ -40,6 +41,8 @@ proc parseTagSetting(tagSetting: var TagSetting, settingsTable: TomlTableRef) =
         log "Invalid defaultMasterWidthPercentage, clamped to 10-90%", lvlWarn
     else:
       raise newException(Exception, "invalid defaultMasterWidthPercentage for tag")
+
+  tagSetting.layoutSettings.populateLayoutSettings(settingsTable)
 
 proc populateTagSettings*(settings: var TagSettings, tagSettingsTable: TomlTableRef) =
   if tagSettingsTable.hasKey("all"):

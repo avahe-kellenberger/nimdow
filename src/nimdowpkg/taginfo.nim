@@ -1,3 +1,5 @@
+import layouts/layoutsettings
+
 const tagCount* = 9
 
 type
@@ -6,6 +8,7 @@ type
     displayString*: string
     numMasterWindows*: Positive
     defaultMasterWidthPercentage*: int
+    layoutSettings*: LayoutSettings
 
 proc newTagSetting*(displayString: string, numMasterWindows: Positive, defaultMasterWidthPercentage :int): TagSetting =
   TagSetting(displayString: displayString, numMasterWindows: numMasterWindows, defaultMasterWidthPercentage: defaultMasterWidthPercentage)

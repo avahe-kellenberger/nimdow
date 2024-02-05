@@ -238,6 +238,8 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
       let tagsTable = changedDefaults["tags"]
       if tagsTable.kind == TomlValueKind.Table:
         # this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
+        for tag in this.defaultMonitorSettings.tagSettings.mvalues:
+          tag.layoutSettings = deepCopy this.layoutSettings
         this.defaultMonitorSettings.tagSettings.populateTagSettings(tagsTable.tableVal)
 
   # Populate settings per-monitor
@@ -262,6 +264,8 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
     if settingsToml.hasKey("tags"):
       let tagsTable = settingsToml["tags"]
       if tagsTable.kind == TomlValueKind.Table:
+        for tag in monitorSettings.tagSettings.mvalues:
+          tag.layoutSettings = deepCopy this.layoutSettings
         monitorSettings.tagSettings.populateTagSettings(tagsTable.tableVal)
 
     this.monitorSettings[monitorID] = monitorSettings

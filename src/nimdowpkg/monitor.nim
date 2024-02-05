@@ -73,7 +73,8 @@ proc newMonitor*(
     let tag: Tag = newTag(
       id = i,
       layout = newLayout(
-        currentConfig.layoutSettings,
+        #currentConfig.layoutSettings,
+        tagSetting.layoutSettings,
         monitorArea = area,
         defaultWidth = tagSetting.defaultMasterWidthPercentage,
         borderWidth = currentConfig.windowSettings.borderWidth,
@@ -185,7 +186,7 @@ proc setConfig*(this: Monitor, config: Config) =
   for i, tag in this.tags:
     let tagSetting = this.monitorSettings.tagSettings[i + 1]
     tag.layout.updateSettings(
-      config.layoutSettings,
+      tagSetting.layoutSettings,
       this.area,
       tagSetting.defaultMasterWidthPercentage,
       this.windowSettings.borderWidth,

@@ -133,7 +133,6 @@ proc newWindowManager*(
     result.config = config
     result.config.populateGeneralSettings(configTable)
     result.mapConfigActions()
-    # TODO: Add mapLayoutActions which calls method in layout to register callbacks
     result.config.populateKeyComboTable(configTable, result.display)
     result.config.hookConfig()
     result.grabKeys()
@@ -555,27 +554,6 @@ proc jumpToUrgentWindow(this: WindowManager) =
 
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
-
-# TODO: Move layoutsettings to layout, re-enable this
-#template modWidthDiff(this: WindowManager, diff: int) =
-#  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
-#  if layout of MasterStackLayout:
-#    let masterStackLayout = cast[MasterStackLayout](layout)
-#    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-#
-#    if
-#      (diff > 0 and masterStackLayout.widthDiff < 0) or
-#      (diff < 0 and masterStackLayout.widthDiff > 0) or
-#      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(
-#          diff).int > 0:
-#        masterStackLayout.widthDiff += diff
-#        this.selectedMonitor.doLayout()
-#
-#proc increaseMasterWidth(this: WindowManager) =
-#  this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
-#
-#proc decreaseMasterWidth(this: WindowManager) =
-#  this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
 
 proc moveWindowToScratchpad(this: WindowManager) =
   var client = this.selectedMonitor.taggedClients.currClient
