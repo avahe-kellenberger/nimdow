@@ -59,6 +59,7 @@ exec = [
     "NotoColorEmoji:size=10:antialias=true"
   ]
   # Layout settings
+  layout = "masterstack"
   gapSize = 12
   outerGap = 0
   resizeStep = 10
@@ -129,11 +130,11 @@ exec = [
   keys = [ "period" ]
   modifiers = [ "super", "shift" ]
 
-  [controls.increaseMasterCount]
   keys = [ "z" ]
+  [controls.layout.increaseMasterCount]
   modifiers = [ "super" ]
 
-  [controls.decreaseMasterCount]
+  [controls.layout.decreaseMasterCount]
   keys = [ "x" ]
   modifiers = [ "super" ]
 
@@ -177,11 +178,11 @@ exec = [
   keys = [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
   modifiers = [ "super", "shift", "control" ]
 
-	[controls.increaseMasterWidth]
+	[controls.layout.increaseMasterWidth]
 	keys = [ "l" ]
 	modifiers = [ "super" ]
 
-	[controls.decreaseMasterWidth]
+	[controls.layout.decreaseMasterWidth]
 	keys = [ "h" ]
 	modifiers = [ "super" ]
 
