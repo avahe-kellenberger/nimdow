@@ -704,12 +704,6 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
-  #createControl(keyCombo, $wmcIncreaseMasterWidth):
-  #  this.increaseMasterWidth()
-
-  #createControl(keyCombo, $wmcDecreaseMasterWidth):
-  #  this.decreaseMasterWidth()
-
   createControl(keyCombo, $wmcMoveWindowToScratchpad):
     this.moveWindowToScratchpad()
 

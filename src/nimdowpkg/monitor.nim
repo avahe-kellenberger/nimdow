@@ -72,12 +72,9 @@ proc newMonitor*(
     let tag: Tag = newTag(
       id = i,
       layout = newLayout(
-        #currentConfig.layoutSettings,
         tagSetting.layoutSettings,
         monitorArea = area,
-        #defaultWidth = tagSetting.defaultMasterWidthPercentage,
         borderWidth = currentConfig.windowSettings.borderWidth,
-        #masterSlots = tagSetting.numMasterWindows.uint,
         layoutOffset = result.layoutOffset,
       )
     )
@@ -201,7 +198,6 @@ proc setConfig*(this: Monitor, config: Config) =
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
-  #hello
   let currClient = this.taggedClients.currClient
   var title: string
   if currClient != nil:
