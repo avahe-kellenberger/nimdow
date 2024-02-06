@@ -188,14 +188,13 @@ method updateSettings*(
     settings: LayoutSettings,
     monitorArea: Area,
     borderWidth: uint,
-    masterSlots: uint,
     layoutOffset: LayoutOffset) =
   let masterStackSettings = cast[MasterStackLayoutSettings](settings)
   this.monitorArea = monitorArea
   this.gapSize = masterStackSettings.gapSize
   this.defaultWidth = masterStackSettings.defaultMasterWidthPercentage
   this.borderWidth = borderWidth
-  this.masterSlots = masterSlots
+  this.masterSlots = masterStackSettings.numMasterWindows
   this.outerGap = masterStackSettings.outerGap
   this.setDefaultWidth(layoutOffset)
 

@@ -208,10 +208,11 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
   this.defaultMonitorSettings.tagSettings = createDefaultTagSettings()
 
-proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
-  this.populateDefaultMonitorSettings(display)
   for tag in this.defaultMonitorSettings.tagSettings.mvalues:
     tag.layoutSettings = deepCopy this.layoutSettings
+
+proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
+  this.populateDefaultMonitorSettings(display)
 
   if not configTable.hasKey("monitors"):
     return
