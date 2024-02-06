@@ -61,7 +61,7 @@ proc calcYPosition(
   clientHeight: uint,
   roundingError: int
 ): uint
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint {.gcsafe.}
+proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint
 func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int
 func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int
 proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
@@ -138,10 +138,10 @@ template modWidthDiff(layout: Layout, diff: int) =
         diff).int > 0:
       masterStackLayout.widthDiff += diff
 
-proc increaseMasterWidth(layout: Layout) {.gcsafe.} =
+proc increaseMasterWidth(layout: Layout) =
   layout.modWidthDiff(layout.MasterStackLayout.resizeStep.int)
 
-proc decreaseMasterWidth(layout: Layout) {.gcsafe.} =
+proc decreaseMasterWidth(layout: Layout) =
   layout.modWidthDiff(-layout.MasterStackLayout.resizeStep.int)
 
 method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout) {.nimcall.}]] =
@@ -375,7 +375,7 @@ proc calcYPosition(
 
   return max(0, pos).uint
 
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint {.gcsafe.} =
+proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
   ## client width per pane excluding borders & gaps
   let outerGap =
     if this.outerGap > 0:
