@@ -21,6 +21,7 @@ type
     outerGap*: uint
     offset: LayoutOffset
     masterSlots*: uint
+    resizeStep*: uint
   MasterStackLayoutSettings* = ref object of LayoutSettings
     gapSize*: uint
     outerGap*: uint
@@ -138,10 +139,10 @@ template modWidthDiff(layout: Layout, diff: int) =
       masterStackLayout.widthDiff += diff
 
 proc increaseMasterWidth(layout: Layout) {.gcsafe.} =
-  layout.modWidthDiff(10)#this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+  layout.modWidthDiff(layout.MasterStackLayout.resizeStep.int)
 
 proc decreaseMasterWidth(layout: Layout) {.gcsafe.} =
-  layout.modWidthDiff(-10)#-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
+  layout.modWidthDiff(-layout.MasterStackLayout.resizeStep.int)
 
 method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout) {.nimcall.}]] =
   result = @[
@@ -158,6 +159,7 @@ proc newMasterStackLayout*(
   borderWidth: uint,
   masterSlots: uint,
   layoutOffset: LayoutOffset,
+  resizeStep: uint,
   outerGap: uint = 0
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
@@ -170,16 +172,16 @@ proc newMasterStackLayout*(
     borderWidth: borderWidth,
     masterSlots: masterSlots,
     outerGap: outerGap,
-    offset: layoutOffset
+    offset: layoutOffset,
+    resizeStep: resizeStep
   )
   result.setDefaultWidth(layoutOffset)
 
 method newLayout*(settings: MasterStackLayoutSettings,
     monitorArea: Area,
-    #defaultWidth: int,
     borderWidth: uint,
     layoutOffset: LayoutOffset): Layout =
-  newMasterStackLayout(monitorArea, settings.gapSize, settings.defaultMasterWidthPercentage, borderWidth, settings.numMasterWindows, layoutOffset, settings.outerGap)
+  newMasterStackLayout(monitorArea, settings.gapSize, settings.defaultMasterWidthPercentage, borderWidth, settings.numMasterWindows, layoutOffset, settings.outerGap, settings.resizeStep)
 
 method updateSettings*(
     this: var MasterStackLayout,
