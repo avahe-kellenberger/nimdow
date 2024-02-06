@@ -29,8 +29,6 @@ type
     wmcDestroySelectedWindow = "destroyselectedwindow",
     wmcToggleFloating = "togglefloating",
     wmcJumpToUrgentWindow = "jumptourgentwindow"
-    #wmcIncreaseMasterWidth = "increasemasterwidth"
-    #wmcDecreaseMasterWidth = "decreasemasterwidth"
     wmcMoveWindowToScratchpad = "movewindowtoscratchpad"
     wmcPopScratchpad = "popscratchpad"
     wmcRotateclients = "rotateclients"
