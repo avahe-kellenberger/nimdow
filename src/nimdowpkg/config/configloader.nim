@@ -210,6 +210,8 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   this.populateDefaultMonitorSettings(display)
+  for tag in this.defaultMonitorSettings.tagSettings.mvalues:
+    tag.layoutSettings = deepCopy this.layoutSettings
 
   if not configTable.hasKey("monitors"):
     return
@@ -218,8 +220,6 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
   if monitorsTable.kind != TomlValueKind.Table:
     raise newException(Exception, "Invalid monitors config table")
 
-  for tag in this.defaultMonitorSettings.tagSettings.mvalues:
-    tag.layoutSettings = deepCopy this.layoutSettings
   # Change default monitor settings.
   if monitorsTable.hasKey("default"):
     let settingsTable = configTable["settings"].tableVal
