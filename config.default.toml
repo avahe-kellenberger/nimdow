@@ -130,8 +130,8 @@ exec = [
   keys = [ "period" ]
   modifiers = [ "super", "shift" ]
 
-  keys = [ "z" ]
   [controls.layout.increaseMasterCount]
+  keys = [ "z" ]
   modifiers = [ "super" ]
 
   [controls.layout.decreaseMasterCount]
