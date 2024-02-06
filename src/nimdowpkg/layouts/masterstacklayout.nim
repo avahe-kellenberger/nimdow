@@ -15,14 +15,18 @@ const layoutName: string = "masterstack"
 
 type
   MasterStackLayout* = ref object of Layout
+    gapSize*: uint
     widthDiff*: int
     defaultWidth*: int
     outerGap*: uint
     offset: LayoutOffset
+    masterSlots*: uint
   MasterStackLayoutSettings* = ref object of LayoutSettings
     gapSize*: uint
     outerGap*: uint
     resizeStep*: uint
+    numMasterWindows*: uint
+    defaultMasterWidthPercentage*: int
   Commands = enum
     mscIncreaseMasterCount = "increasemastercount",
     mscDecreaseMasterCount = "decreasemastercount",
@@ -68,11 +72,17 @@ method parseLayoutCommand*(this: MasterStackLayoutSettings, command: string): st
     return ""
 
 method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTable: TomlTableRef) =
+  if settingsTable == nil:
+    this.numMasterWindows = 1
+    this.gapSize = 12
+    this.outerGap = 0
+    this.resizeStep = 10
+    this.defaultMasterWidthPercentage = 50
+    return
   if settingsTable.hasKey("gapSize"):
     let gapSizeSetting = settingsTable["gapSize"]
     if gapSizeSetting.kind == TomlValueKind.Int:
       this.gapSize = max(0, gapSizeSetting.intVal).uint
-      echo "Parsed gap size: ", this.gapSize
     else:
       log "gapSize is not an integer value!", lvlWarn
 
@@ -93,6 +103,22 @@ method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTabl
     else:
       log "resizeStep is not an integer value!", lvlWarn
 
+  # Check for numMasterWindows
+  if settingsTable.hasKey("numMasterWindows"):
+    let numMasterWindows = settingsTable["numMasterWindows"]
+    if numMasterWindows.kind != TomlValueKind.Int:
+      raise newException(Exception, "Invalid numMasterWindows for tag")
+    this.numMasterWindows = numMasterWindows.intVal.uint
+
+  if settingsTable.hasKey("defaultMasterWidthPercentage"):
+    let masterWidthSetting = settingsTable["defaultMasterWidthPercentage"]
+    if masterWidthSetting.kind == TomlValueKind.Int:
+      this.defaultMasterWidthPercentage = masterWidthSetting.intVal.int.clamp(10, 90)
+      if this.defaultMasterWidthPercentage != masterWidthSetting.intVal:
+        log "Invalid defaultMasterWidthPercentage, clamped to 10-90%", lvlWarn
+    else:
+      raise newException(Exception, "invalid defaultMasterWidthPercentage for tag")
+
 proc increaseMasterCount(layout: Layout) =
   MasterStackLayout(layout).masterSlots.inc
 
@@ -103,7 +129,6 @@ proc decreaseMasterCount(layout: Layout) =
 
 template modWidthDiff(layout: Layout, diff: int) =
   let masterStackLayout = cast[MasterStackLayout](layout)
-  let screenWidth = masterStackLayout.calcScreenWidth(masterStackLayout.offset)
 
   if
     (diff > 0 and masterStackLayout.widthDiff < 0) or
@@ -125,8 +150,6 @@ method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: s
     ($mscIncreaseMasterCount, increaseMasterCount),
     ($mscDecreaseMasterCount, decreaseMasterCount)
   ]
-  echo result.repr
-  echo result[0][1].addr.repr
 
 proc newMasterStackLayout*(
   monitorArea: Area,
@@ -153,25 +176,22 @@ proc newMasterStackLayout*(
 
 method newLayout*(settings: MasterStackLayoutSettings,
     monitorArea: Area,
-    defaultWidth: int,
+    #defaultWidth: int,
     borderWidth: uint,
-    masterSlots: uint,
     layoutOffset: LayoutOffset): Layout =
-  newMasterStackLayout(monitorArea, settings.gapSize, defaultWidth, borderWidth, masterSlots, layoutOffset, settings.outerGap)
+  newMasterStackLayout(monitorArea, settings.gapSize, settings.defaultMasterWidthPercentage, borderWidth, settings.numMasterWindows, layoutOffset, settings.outerGap)
 
 method updateSettings*(
     this: var MasterStackLayout,
     settings: LayoutSettings,
     monitorArea: Area,
-    defaultWidth: int,
     borderWidth: uint,
     masterSlots: uint,
     layoutOffset: LayoutOffset) =
   let masterStackSettings = cast[MasterStackLayoutSettings](settings)
-  echo masterStackSettings.gapSize
   this.monitorArea = monitorArea
   this.gapSize = masterStackSettings.gapSize
-  this.defaultWidth = defaultWidth
+  this.defaultWidth = masterStackSettings.defaultMasterWidthPercentage
   this.borderWidth = borderWidth
   this.masterSlots = masterSlots
   this.outerGap = masterStackSettings.outerGap

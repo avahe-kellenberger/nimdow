@@ -723,10 +723,8 @@ proc mapConfigActions*(this: WindowManager) =
     this.selectedMonitor.toggleStatusBar()
 
   for (command, action) in this.config.layoutSettings.availableCommands():
-    echo "Registering command ", command
     capture command, action:
       createControl(keyCombo, command):
-        echo "Hit combination: ", keyCombo
         let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
         if firstSelectedTag == nil:
           return

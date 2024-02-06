@@ -11,7 +11,6 @@ import
   xatoms,
   area,
   layouts/layout,
-  layouts/masterstacklayout,
   config/configloader,
   keys/keyutils,
   statusbar,
@@ -76,9 +75,9 @@ proc newMonitor*(
         #currentConfig.layoutSettings,
         tagSetting.layoutSettings,
         monitorArea = area,
-        defaultWidth = tagSetting.defaultMasterWidthPercentage,
+        #defaultWidth = tagSetting.defaultMasterWidthPercentage,
         borderWidth = currentConfig.windowSettings.borderWidth,
-        masterSlots = tagSetting.numMasterWindows.uint,
+        #masterSlots = tagSetting.numMasterWindows.uint,
         layoutOffset = result.layoutOffset,
       )
     )
@@ -188,13 +187,10 @@ proc setConfig*(this: Monitor, config: Config) =
     tag.layout.updateSettings(
       tagSetting.layoutSettings,
       this.area,
-      tagSetting.defaultMasterWidthPercentage,
       this.windowSettings.borderWidth,
-      tagSetting.numMasterWindows.uint,
       this.layoutOffset)
 
   for client in this.taggedClients.clients:
-    #if client.borderWidth != 0 or this.monitorSettings.layoutSettings.outerGap > 0:
     client.borderWidth = this.windowSettings.borderWidth
     client.oldBorderWidth = this.windowSettings.borderWidth
     if client.isFloating or client.isFixedSize:
@@ -205,6 +201,7 @@ proc setConfig*(this: Monitor, config: Config) =
 proc updateWindowTitle(this: Monitor, redrawBar: bool = true) =
   ## Renders the title of the active window of the given monitor
   ## on the monitor's status bar.
+  #hello
   let currClient = this.taggedClients.currClient
   var title: string
   if currClient != nil:
