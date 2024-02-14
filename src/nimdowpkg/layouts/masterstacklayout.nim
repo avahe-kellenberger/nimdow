@@ -51,7 +51,7 @@ proc layoutMultipleClients(
   offset: LayoutOffset
 )
 
-proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset)
+proc setDefaultWidth(this: MasterStackLayout, offset: LayoutOffset)
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint
 proc calcRoundingErr(this: MasterStackLayout, clientsInColumn, clientHeight, screenHeight: uint): int
 proc calcYPosition(
@@ -61,10 +61,9 @@ proc calcYPosition(
   clientHeight: uint,
   roundingError: int
 ): uint
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint
-func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int
-func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int
-proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
+proc calcClientWidth(this: MasterStackLayout, screenWidth: uint): uint
+func calcScreenWidth(this: MasterStackLayout, offset: LayoutOffset): int
+func calcScreenHeight(this: MasterStackLayout, offset: LayoutOffset): int
 
 method parseLayoutCommand*(this: MasterStackLayoutSettings, command: string): string =
   try:
@@ -152,7 +151,7 @@ method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: s
     ($mscDecreaseMasterCount, decreaseMasterCount)
   ]
 
-proc newMasterStackLayout*(
+proc newMasterStackLayout(
   monitorArea: Area,
   gapSize: uint,
   defaultWidth: int,
@@ -312,7 +311,7 @@ proc layoutMultipleClients(
       clientHeight
     )
 
-proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset) =
+proc setDefaultWidth(this: MasterStackLayout, offset: LayoutOffset) =
   let screenWidth = calcScreenWidth(this, offset)
   let pxPercent = math.round(screenWidth.float / 100).int
   this.widthDiff = (this.defaultWidth - 50) * pxPercent
@@ -374,7 +373,7 @@ proc calcYPosition(
 
   return max(0, pos).uint
 
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
+proc calcClientWidth(this: MasterStackLayout, screenWidth: uint): uint =
   ## client width per pane excluding borders & gaps
   let outerGap =
     if this.outerGap > 0:
@@ -390,12 +389,5 @@ proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
           math.round(this.gapSize.float * 0.5).int
   )
 
-proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
-  ## Finds all clients that should be arranged in the layout.
-  ## Some windows are excluded, such as fullscreen windows.
-  for client in clients:
-    if not client.isFullscreen and not client.isFloating and not client.isFixedSize:
-      result.add(client)
-
-func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.width.int - offset.left.int - offset.right.int
-func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.height.int - offset.top.int - offset.bottom.int
+func calcScreenWidth(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.width.int - offset.left.int - offset.right.int
+func calcScreenHeight(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.height.int - offset.top.int - offset.bottom.int

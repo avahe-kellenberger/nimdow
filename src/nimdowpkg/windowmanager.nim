@@ -1153,17 +1153,17 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       if appRule.state == wsFloating:
         client.isFloating = true
 
-        # AppRule x and y are default -1 when not set.
-        if appRule.x >= 0:
-          x = appRule.x
-        if appRule.y >= 0:
-          y = appRule.y
+      # AppRule x and y are default -1 when not set.
+      if appRule.x >= 0:
+        x = appRule.x
+      if appRule.y >= 0:
+        y = appRule.y
 
-        # AppRule width and height are default 0 when not set.
-        if appRule.width > 0:
-          width = appRule.width
-        if appRule.height > 0:
-          height = appRule.height
+      # AppRule width and height are default 0 when not set.
+      if appRule.width > 0:
+        width = appRule.width
+      if appRule.height > 0:
+        height = appRule.height
 
     let appRuleDoesNotHaveValidTags = appRule == nil or appRule.tagIDs.len == 0
     monitor.addClient(client, appRuleDoesNotHaveValidTags)
