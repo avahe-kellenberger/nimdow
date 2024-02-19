@@ -1,0 +1,101 @@
+## CATPUCCIN themed arrows
+const
+  RESET: string  = "\x1b[0m"
+  FG: string = "\x1b[38;2;"
+  BG: string = "\x1b[48;2;"
+
+  CATPUCCIN0: string  = "59;66;82m"     #0D1117
+  CATPUCCIN1: string  = "69;71;90m"     #45475A
+  CATPUCCIN2: string  = "88;91;112m"    #585B70
+  CATPUCCIN3: string  = "243;139;168m"  #F38BA8
+  CATPUCCIN4: string  = "166;227;161m"  #A6E3A1
+  CATPUCCIN5: string  = "249;226;175m"  #F9E2AF
+  CATPUCCIN6: string  = "137;180;250m"  #89B4FA
+  CATPUCCIN7: string  = "245;194;231m"  #F5C2E7
+  CATPUCCIN8: string  = "148;226;213m"  #94E2D5
+  CATPUCCIN9: string  = "166;173;200m"  #A6ADC8
+  CATPUCCIN10: string  = "250;179;135m" #FAB387
+  CATPUCCIN11: string = "245;224;220m"  #F5E0DC
+  CATPUCCIN12: string = "180;190;254m"  #B4BEFE
+  CATPUCCIN13: string = "203;166;247m"  #CBA6F7
+  CATPUCCIN14: string = "116;199;236m"  #74C7EC
+  CATPUCCIN15: string = "225;139;138m"  #E18B8A 
+
+
+  ARROW_0: string = RESET & FG&CATPUCCIN0 & "" & RESET & BG&CATPUCCIN0     #0D1117  
+  ARROW_1: string = RESET & FG&CATPUCCIN1 & "" & RESET & BG&CATPUCCIN1     #45475A 
+  ARROW_2: string = RESET & FG&CATPUCCIN2 & "" & RESET & BG&CATPUCCIN2     #585B70 
+  ARROW_3: string = RESET & FG&CATPUCCIN3 & "" & RESET & BG&CATPUCCIN3     #F38BA8 
+  ARROW_4: string = RESET & FG&CATPUCCIN4 & "" & RESET & BG&CATPUCCIN4     #A6E3A1  
+  ARROW_5: string = RESET & FG&CATPUCCIN5 & "" & RESET & BG&CATPUCCIN5     #F9E2AF 
+  ARROW_6: string = RESET & FG&CATPUCCIN6 & "" & RESET & BG&CATPUCCIN6     #89B4FA  
+  ARROW_7: string = RESET & FG&CATPUCCIN7 & "" & RESET & BG&CATPUCCIN7     #F5C2E7 
+  ARROW_8: string = RESET & FG&CATPUCCIN8 & "" & RESET & BG&CATPUCCIN8     #94E2D5 
+  ARROW_9: string = RESET & FG&CATPUCCIN9 & "" & RESET & BG&CATPUCCIN9     #A6ADC8 
+  ARROW_10: string = RESET & FG&CATPUCCIN10 & "" & RESET & BG&CATPUCCIN10  #FAB387
+  ARROW_11: string = RESET & FG&CATPUCCIN11 & "" & RESET & BG&CATPUCCIN11  #F5E0DC
+  ARROW_12: string = RESET & FG&CATPUCCIN12 & "" & RESET & BG&CATPUCCIN12  #B4BEFE 
+  ARROW_13: string = RESET & FG&CATPUCCIN13 & "" & RESET & BG&CATPUCCIN13  #CBA6F7
+  ARROW_14: string = RESET & FG&CATPUCCIN14 & "" & RESET & BG&CATPUCCIN14  #74C7EC
+  ARROW_15: string = RESET & FG&CATPUCCIN15 & "" & RESET & BG&CATPUCCIN15  #E18B8A
+  
+
+  CIRCLE_0: string = RESET & FG&CATPUCCIN0 & "" & RESET & BG&CATPUCCIN0    #0D1117  
+  CIRCLE_1: string = RESET & FG&CATPUCCIN1 & "" & RESET & BG&CATPUCCIN1    #45475A  
+  CIRCLE_2: string = RESET & FG&CATPUCCIN2 & "" & RESET & BG&CATPUCCIN2    #585B70 
+  CIRCLE_3: string = RESET & FG&CATPUCCIN3 & "" & RESET & BG&CATPUCCIN3    #F38BA8 
+  CIRCLE_4: string = RESET & FG&CATPUCCIN4 & "" & RESET & BG&CATPUCCIN4    #A6E3A1 
+  CIRCLE_5: string = RESET & FG&CATPUCCIN5 & "" & RESET & BG&CATPUCCIN5    #F9E2AF 
+  CIRCLE_6: string = RESET & FG&CATPUCCIN6 & "" & RESET & BG&CATPUCCIN6    #89B4FA  
+  CIRCLE_7: string = RESET & FG&CATPUCCIN7 & "" & RESET & BG&CATPUCCIN7    #F5C2E7  
+  CIRCLE_8: string = RESET & FG&CATPUCCIN8 & "" & RESET & BG&CATPUCCIN8    #94E2D5 
+  CIRCLE_9: string = RESET & FG&CATPUCCIN9 & "" & RESET & BG&CATPUCCIN9    #A6ADC8 
+  CIRCLE_10: string = RESET & FG&CATPUCCIN10 & "" & RESET & BG&CATPUCCIN10 #FAB387
+  CIRCLE_11: string = RESET & FG&CATPUCCIN11 & "" & RESET & BG&CATPUCCIN11 #F5E0DC
+  CIRCLE_12: string = RESET & FG&CATPUCCIN12 & "" & RESET & BG&CATPUCCIN12 #B4BEFE
+  CIRCLE_13: string = RESET & FG&CATPUCCIN13 & "" & RESET & BG&CATPUCCIN13 #CBA6F7 
+  CIRCLE_14: string = RESET & FG&CATPUCCIN14 & "" & RESET & BG&CATPUCCIN14 #74C7EC 
+  CIRCLE_15: string = RESET & FG&CATPUCCIN15 & "" & RESET & BG&CATPUCCIN15 #E18B8A
+  
+
+  ANGLE_0: string = RESET & FG&CATPUCCIN0 & "" & RESET & BG&CATPUCCIN0     #0D1117  
+  ANGLE_1: string = RESET & FG&CATPUCCIN1 & "" & RESET & BG&CATPUCCIN1     #3B4252  
+  ANGLE_2: string = RESET & FG&CATPUCCIN2 & "" & RESET & BG&CATPUCCIN2     #434C5E  
+  ANGLE_3: string = RESET & FG&CATPUCCIN3 & "" & RESET & BG&CATPUCCIN3     #F38BA8  
+  ANGLE_4: string = RESET & FG&CATPUCCIN4 & "" & RESET & BG&CATPUCCIN4     #A6E3A1 
+  ANGLE_5: string = RESET & FG&CATPUCCIN5 & "" & RESET & BG&CATPUCCIN5     #F9E2AF 
+  ANGLE_6: string = RESET & FG&CATPUCCIN6 & "" & RESET & BG&CATPUCCIN6     #89B4FA  
+  ANGLE_7: string = RESET & FG&CATPUCCIN7 & "" & RESET & BG&CATPUCCIN7     #F5C2E7 
+  ANGLE_8: string = RESET & FG&CATPUCCIN8 & "" & RESET & BG&CATPUCCIN8     #94E2D5 
+  ANGLE_9: string = RESET & FG&CATPUCCIN9 & "" & RESET & BG&CATPUCCIN9     #A6ADC8 
+  ANGLE_10: string = RESET & FG&CATPUCCIN10 & "" & RESET & BG&CATPUCCIN10  #FAB387 
+  ANGLE_11: string = RESET & FG&CATPUCCIN11 & "" & RESET & BG&CATPUCCIN11  #F5E0DC
+  ANGLE_12: string = RESET & FG&CATPUCCIN12 & "" & RESET & BG&CATPUCCIN12  #B4BEFE 
+  ANGLE_13: string = RESET & FG&CATPUCCIN13 & "" & RESET & BG&CATPUCCIN13  #CBA6F7 
+  ANGLE_14: string = RESET & FG&CATPUCCIN14 & "" & RESET & BG&CATPUCCIN14  #74C7EC 
+  ANGLE_15: string = RESET & FG&CATPUCCIN15 & "" & RESET & BG&CATPUCCIN15  #E18B8A
+  
+
+
+#[
+[settings]
+  # Window settings - CATPUCCIN type theme
+  borderWidth = 1
+  borderColorUnfocused = "#585b70"
+  borderColorFocused = "#f5c2e7"
+  borderColorUrgent = "#f38ba8"
+  # Bar settings
+  barHeight = 26
+  windowTitlePosition = "center"
+  barBackgroundColor = "#45475a"
+  barForegroundColor = "#0d1117"
+  barSelectionColor = "#b4befe"
+  barUrgentColor = "#f38ba8"
+  barFonts = ["Noto:style=Bold:size=11:antialias=true", 
+              "JetBrainsMono Nerd Font Mono:size=19:antialias=true"]
+
+]#
+
+
+
+
