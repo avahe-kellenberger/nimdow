@@ -39,14 +39,17 @@ const
   KB_ICON = "  "
   ## Update Icon to display
   UPDATE_ICON = "   Updates: "
+  ## Regions for clickable statusbar
+  REGION: string = "\x1F" # Do not edit, use Nimdows config.toml to set
 
 #++++++++++++++++++++++++++++++++++++++++++#
 #                  THEME                   #
 #++++++++++++++++++++++++++++++++++++++++++#
-# include themed arrows gruvbox or dracula, more to come
-#include themes/gruvbox_arrows
-#include themes/dracula_arrows
-include themes/nord_arrows
+# include themed arrows/circles/angle in gruvbox, dracula, nord and catpuccin
+#include themes/gruvbox
+#include themes/dracula
+#include themes/nord
+include themes/catpuccin
 
 
 #++++++++++++++++++++++++++++++++++++++++++#
@@ -71,6 +74,8 @@ include functions/getArchUpdates
 # Function to set the string
 proc setStatus(sStatus: string) =
   discard execShellCmd("xsetroot -name " & "\"" & sStatus & "\"")
+  #Debug/test from the terminal
+  #echo sStatus
 
 # Main loop
 proc main() =
@@ -78,8 +83,25 @@ proc main() =
     #+++++++++++++++++++++++++++
     #  CREATE STATUS STRING    #
     #+++++++++++++++++++++++++++
-    let sStatusString = fmt"{ARROW_6}{getArchUpdates()}{ARROW_7}{getWeather()}{ARROW_8}{getMemory()}{ARROW_9}{getBatStatus()}{ARROW_10}{getAlsa()}{ARROW_11}{getKeyboard()}{ARROW_12}{getDateTime()}{RESET}"
-    #let sStatusString = fmt"{CIRCLE_GREEN_L}{getWeather()}{CIRCLE_GREEN_R}{CIRCLE_ORANGE_L}{getBatStatus()}{CIRCLE_ORANGE_R}{CIRCLE_BLUE_L}{getMemory()}{CIRCLE_BLUE_R}{CIRCLE_RED_L}{getDateTime()}{CIRCLE_RED_R}{RESET}"
+
+    # ARROWS with Battery
+    #let sStatusString = fmt"{ARROW_4}{getArchUpdates()}{REGION}{ARROW_5}{getWeather()}{REGION}{ARROW_6}{getMemory()}{REGION}{ARROW_7}{getBatStatus()}{REGION}{ARROW_8}{getAlsa()}{REGION}{ARROW_9}{getKeyboard()}{REGION}{ARROW_10}{getDateTime()}{RESET}"
+
+    # ARROWS without Battery
+    #let sStatusString = fmt"{ARROW_4}{getArchUpdates()}{REGION}{ARROW_5}{getWeather()}{REGION}{ARROW_6}{getMemory()}{REGION}{ARROW_8}{getAlsa()}{REGION}{ARROW_9}{getKeyboard()}{REGION}{ARROW_10}{getDateTime()}{RESET}"
+    
+    # CIRCLES with Battery
+    let sStatusString = fmt"{CIRCLE_11}{getArchUpdates()}{REGION}{CIRCLE_13}{getWeather()}{REGION}{CIRCLE_7}{getMemory()}{REGION}{CIRCLE_15}{getBatStatus()}{REGION}{CIRCLE_11}{getAlsa()}{REGION}{CIRCLE_4}{getKeyboard()}{REGION}{CIRCLE_12}{getDateTime()}{RESET}"
+
+    # CIRCLES without Battery
+    #let sStatusString = fmt"{CIRCLE_4}{getArchUpdates()}{REGION}{CIRCLE_5}{getWeather()}{REGION}{CIRCLE_6}{getMemory()}{REGION}{CIRCLE_8}{getAlsa()}{REGION}{CIRCLE_9}{getKeyboard()}{REGION}{CIRCLE_10}{getDateTime()}{RESET}"
+
+    # ANGLES with Battery
+    #let sStatusString = fmt"{ANGLE_11}{getArchUpdates()}{REGION}{ANGLE_13}{getWeather()}{REGION}{ANGLE_7}{getMemory()}{REGION}{ANGLE_15}{getBatStatus()}{REGION}{ANGLE_11}{getAlsa()}{REGION}{ANGLE_4}{getKeyboard()}{REGION}{ANGLE_12}{getDateTime()}{RESET}"
+
+    # ANGLES without Battery
+    #let sStatusString = fmt"{ANGLE_4}{getArchUpdates()}{REGION}{ANGLE_5}{getWeather()}{REGION}{ANGLE_6}{getMemory()}{REGION}{ANGLE_8}{getAlsa()}{REGION}{ANGLE_9}{getKeyboard()}{REGION}{ANGLE_10}{getDateTime()}{RESET}"
+
     # set the status
     setStatus(sStatusString)
     # sleep for n seconds
