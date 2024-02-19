@@ -2,12 +2,12 @@
 ## Battery Icons
 const
   ## Below icons are from the front awesome package
-  isPlg = "  "
-  is3Qrt = "  "
-  isFull = "  "
-  isHalf = "  "
-  isLow = FG&NORD12 & "  " & RESET
-  isEmpty = FG&NORD11 & "  " & RESET
+  isPlg =   "  "
+  is3Qrt =  "  "
+  isFull =  "  "
+  isHalf =  "  "
+  isLow =   "  "
+  isEmpty = "  "
 
 # get the current battery status and battery level of laptop
 proc getBatStatus(): string =
