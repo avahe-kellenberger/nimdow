@@ -513,6 +513,7 @@ proc renderStringRightAligned(
             while i < sgr.len:
               if sgr[i] == resetCode:
                 color = -1
+                bgColor = -1
                 selectedFont = -1
                 fontErrorLogged = false
               elif sgr[i] >= fontStart and sgr[i] <= fontStop:
