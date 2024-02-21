@@ -30,7 +30,7 @@ proc findConfigPath*(): string =
 type
   KeyCombo* = tuple[keycode: int, modifiers: int]
   Action* = proc(keyCombo: KeyCombo): void
-  RegionClickAction* = proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int]): void
+  RegionClickAction* = proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int], button: int): void
 
   WindowSettings* = object
     tagCount*: uint
@@ -308,7 +308,7 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
       closureScope:
         let command = command
         this.regionClickActionTable[clickRegion] =
-          proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int]) =
+          proc(idx: int, width: int, regionCord: Point[int], clickCord: Point[int], button: int) =
             this.runCommandWithArgs(
               command,
               $idx,
@@ -316,7 +316,8 @@ proc populateExternalProcessSettings(this: Config, configTable: TomlTable, displ
               $regionCord.y,
               $clickCord.x,
               $clickCord.y,
-              $width
+              $width,
+              $button
             )
     else:
       this.configureExternalProcess(command)
