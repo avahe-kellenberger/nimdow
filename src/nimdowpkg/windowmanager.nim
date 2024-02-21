@@ -1823,7 +1823,8 @@ proc handleButtonPressed(this: WindowManager, e: XButtonEvent) =
           clickedInfo.index,
           clickedInfo.width,
           clickedInfo.regionCord,
-          clickedInfo.clickCord
+          clickedInfo.clickCord,
+          e.button.int
         )
       return
 

@@ -31,7 +31,7 @@ modifiers = [ "super" ]
 
 # Example: Start process when region is clicked, see github wiki for what constitutes a region
 # [[startProcess]]
-# command = "notify-send \"Id: %1, rx: %2, cx: %4, w: %6\""
+# command = "notify-send \"Id: %1, rx: %2, cx: %4, cy: %5, w: %6, b: %7\""
 # clickRegion = 0
 
 [autostart]
