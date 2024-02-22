@@ -116,6 +116,7 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.y = appRuleTable.getIntProperty("y", -1)
     appRule.width = appRuleTable.getIntProperty("width")
     appRule.height = appRuleTable.getIntProperty("height")
+    echo appRule[]
     result.add(appRule)
 
 proc globMatches*(str, sub: string): bool =
