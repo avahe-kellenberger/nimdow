@@ -1,5 +1,5 @@
 import
-  x11/xlib,
+  x11/[x, xlib],
   parsetoml,
   strutils,
   math,
@@ -119,10 +119,10 @@ method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTabl
     else:
       raise newException(Exception, "invalid defaultMasterWidthPercentage for tag")
 
-proc increaseMasterCount(layout: Layout) =
+proc increaseMasterCount(layout: Layout, _: PDisplay) =
   MasterStackLayout(layout).masterSlots.inc
 
-proc decreaseMasterCount(layout: Layout) =
+proc decreaseMasterCount(layout: Layout, _: PDisplay) =
   var masterStackLayout = MasterStackLayout(layout)
   if masterStackLayout.masterSlots.int > 0:
     masterStackLayout.masterSlots.dec
@@ -137,13 +137,13 @@ template modWidthDiff(layout: Layout, diff: int) =
         diff).int > 0:
       masterStackLayout.widthDiff += diff
 
-proc increaseMasterWidth(layout: Layout) =
+proc increaseMasterWidth(layout: Layout, _: PDisplay) =
   layout.modWidthDiff(layout.MasterStackLayout.resizeStep.int)
 
-proc decreaseMasterWidth(layout: Layout) =
+proc decreaseMasterWidth(layout: Layout, _: PDisplay) =
   layout.modWidthDiff(-layout.MasterStackLayout.resizeStep.int)
 
-method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout) {.nimcall.}]] =
+method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay) {.nimcall.}]] =
   result = @[
     ($mscIncreaseMasterWidth, increaseMasterWidth),
     ($mscDecreaseMasterWidth, decreaseMasterWidth),

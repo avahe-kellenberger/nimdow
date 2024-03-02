@@ -36,6 +36,7 @@ type
   PimoLayout* = ref object of Layout
     offset: LayoutOffset
     trackedClients: seq[TrackedClient]
+    settings: PimoLayoutSettings
   PimoLayoutSettings* = ref object of LayoutSettings
     gapSize*: uint
     outerGap*: uint
@@ -43,10 +44,13 @@ type
     numMasterWindows*: uint
     defaultMasterWidthPercentage*: int
   Commands = enum
-    mscIncreaseMasterCount = "increasemastercount",
-    mscDecreaseMasterCount = "decreasemastercount",
-    mscIncreaseMasterWidth = "increasemasterwidth",
-    mscDecreaseMasterWidth = "decreasemasterwidth",
+    pExpandX = "expandx"
+    pExpandY = "expandy"
+    pMoveLeft = "moveleft"
+    pMoveRight = "moveright"
+    pMoveUp = "moveup"
+    pMoveDown = "movedown"
+    #pFocusLeft = "focusleft"
 
 proc shuffle(this: PimoLayout, dir: Direction): bool {.discardable.} =
   let clients = this.trackedClients
@@ -370,6 +374,10 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
 
   #s.client.area = s.requested
   s.requested = s.client.area
+  s.requested.width += s.client.borderWidth * 2 + this.settings.gapSize
+  s.requested.height += s.client.borderWidth * 2 + this.settings.gapSize
+  s.requested.x -= s.client.borderWidth.int + this.settings.gapSize.int div 2
+  s.requested.y -= s.client.borderWidth.int + this.settings.gapSize.int div 2
   var solutions: seq[Solution]
   let
     backup = this.trackedClients.mapIt(it.client.area)
@@ -393,7 +401,7 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
   for i, client in this.trackedClients.mpairs: client.client.area = solution.solution[i]
   s.client.area = solution.newPosition
   if solution.overlaps.len != 0:
-    echo "Solution has overlaps, solving with new window in position: ", s.client.area
+    #echo "Solution has overlaps, solving with new window in position: ", s.client.area
     this.solveConflict(s, solution)
   else:
     this.trackedClients.add s
@@ -404,6 +412,120 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
     of Up: this.distribDown()
     of Down: this.distribUp()
 
+proc see(this: PimoLayout, x: TrackedClient, dir: Direction): seq[TrackedClient] =
+  this.shuffle(dir)
+  generalizeForDirection(dir)
+  for square in this.trackedClients:
+    if ((towardsStart and x.client.area.startEdge == square.client.area.endEdge)  or
+       (towardsEnd and x.client.area.endEdge == square.client.area.startEdge)) and
+       x.client.area.sameDir square.client.area:
+      result.add square
+  this.shuffle(dir.opposite)
+  for square in this.trackedClients:
+    if ((towardsStart and x.client.area.startEdge == square.client.area.endEdge)  or
+       (towardsEnd and x.client.area.endEdge == square.client.area.startEdge)) and
+       x.client.area.sameDir square.client.area:
+      if square notin result:
+        result.add square
+  this.iterDistr(dir)
+
+proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
+  this.shuffle(dir2)
+  this.iterGrow(dir2.opposite)
+  this.iterDistr(dir2.opposite)
+  this.shuffle(dir1)
+  this.iterGrow(dir1.opposite)
+  this.iterDistr(dir1.opposite)
+
+proc insertInStack(this: PimoLayout, x, point: TrackedClient, beginning: bool, stack: seq[TrackedClient], dir: Direction, flipped = false) =
+  generalizeForDirection(if flipped: dir else: (if dir in {Right, Left}: Up else: Left))
+  # Handle the opposite direction of the stack
+  # TODO: Don't go more in the opposite direction than we currently are. If adding to left side don't move right side further away. Then grow in height before growing in width
+  if vertical:
+    x.client.area.leftEdge = point.client.area.leftEdge
+    x.client.area.width = point.client.area.width
+  else:
+    x.client.area.topEdge = point.client.area.topEdge
+    x.client.area.height = point.client.area.height
+  # Add next to chosen window in stack
+  let ratio = x.client.area.size.float / (x.client.area.size + point.client.area.size).float
+  x.client.area.size = (point.client.area.size.float * ratio).int
+  for square in stack:
+    square.client.area.size = (square.client.area.size.float * (1 - ratio)).int
+  #point.size = (point.size.float * (1 - ratio)).cint
+  if beginning:
+    x.client.area.startEdge = point.client.area.startEdge
+    point.client.area.startEdge = point.client.area.startEdge + x.client.area.size.int
+    this.reDistr(dir, if dir in {Right, Left}: Down else: Right)
+  else:
+    x.client.area.startEdge = point.client.area.endEdge
+    this.reDistr(dir, if dir in {Right, Left}: Up else: Left)
+
+proc addToStack(this: PimoLayout, x: TrackedClient, stack: seq[TrackedClient], dir: Direction) =
+  generalizeForDirection(if dir in {Right, Left}: Up else: Left)
+  var
+    beginning = true
+    point = stack[0]
+    minDist = int.high
+    xPos = x.client.area.startEdge + x.client.area.size.int div 2
+  for square in stack:
+    let dist = (square.client.area.startEdge + square.client.area.size.int div 2) - xPos
+    if abs(dist) < minDist:
+      minDist = abs(dist)
+      beginning = dist > 0
+      point = square
+  this.insertInStack(x, point, beginning, stack, dir)
+
+proc move(this: PimoLayout, x: TrackedClient, dir: Direction) =
+  let sees = this.see(x, dir)
+  generalizeForDirection(dir)
+  case sees.len.uint:
+  of 0:
+    #echo "Try moving to stack besides it!"
+    let
+      stackBefore = this.see(x, if horizontal: Up else: Left)
+      stackAfter = this.see(x, if horizontal: Down else: Right)
+    var beforePoint = x
+    for square in stackBefore:
+      if beforePoint == x or square.client.area.leadingEdge.before beforePoint.client.area.leadingEdge:
+        beforePoint = square
+    var afterPoint = x
+    for square in stackAfter:
+      if afterPoint == x or square.client.area.leadingEdge.before afterPoint.client.area.leadingEdge:
+        afterPoint = square
+    let
+      before = if beforePoint != x and (afterPoint == x or abs(beforePoint.client.area.leadingEdge - x.client.area.trailingEdge) < abs(afterPoint.client.area.leadingEdge - x.client.area.trailingEdge)): true else: false
+      point = if before: beforePoint else: afterPoint
+    this.insertInStack(x, point, towardsStart, if before: stackBefore else: stackAfter, dir, flipped = true)
+    #if (before and stackBefore.len > 1) or (not before and stackAfter.len > 1):
+    #  #this.insertInStack(x, point, towardsStart, if before: stackBefore else: stackAfter, dir, flipped = true)
+    #  this.addToStack(x, @[point], if before: (if horizontal: Left else: Up) else: (if horizontal: Right else: Down))
+    #else:
+    #  if before and stackBefore.len == 1:
+    #    point.client.area.
+    #  #if before:
+    #  #  point.client.area.leadingEdge = x.client.area.trailingEdge
+    #  #  if direction
+    #  #this.addToStack(x, @[point], if before: (if horizontal: Up else: Left) else: (if horizontal: Down else: Right))
+    #  discard
+  of 1:
+    let otherSees = this.see(sees[0], dir.opposite)
+    if otherSees.len == 1:
+      #echo "Swapping!"
+      swap(x.client.area, sees[0].client.area)
+      x.client.area.size = min(x.client.area.size, sees[0].client.area.size)
+      sees[0].client.area.size = min(x.client.area.size, sees[0].client.area.size)
+      if horizontal:
+        this.reDistr(dir, Up)
+      else:
+        this.reDistr(dir, Left)
+    else:
+      #echo "Create stack!"
+      this.addToStack(x, sees, dir)
+  of 2..uint.high:
+    #echo "Inject into stack!"
+    this.addToStack(x, sees, dir)
+
 method newLayout*(settings: PimoLayoutSettings,
     monitorArea: Area,
     borderWidth: uint,
@@ -412,7 +534,8 @@ method newLayout*(settings: PimoLayoutSettings,
     name: layoutName,
     monitorArea: monitorArea,
     borderWidth: borderWidth,
-    offset: layoutOffset
+    offset: layoutOffset,
+    settings: settings
   ).Layout
 
 method updateSettings*(
@@ -421,45 +544,144 @@ method updateSettings*(
   monitorArea: Area,
   borderWidth: uint,
   layoutOffset: LayoutOffset) =
-  echo "Updating PiMo layout settings"
+  # TODO: Implement
+  discard
 
 method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) =
-  echo "Arranging by PiMo layout"
   this.offset = offset
+  this.offset.left += this.settings.gapSize div 2
+  this.offset.right += this.settings.gapSize div 2
+  this.offset.top += this.settings.gapSize div 2
+  this.offset.bottom += this.settings.gapSize div 2
+
   var
     removedClients = this.trackedClients
     addedClients: seq[TrackedClient]
   for client in clients:
-    echo client.repr
     block clientCheck:
       for i, removed in removedClients:
         if removed.client.window == client.window:
           removedClients.del(i)
           break clientCheck
       addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
-  echo "Clients removed: ", removedClients.len
-  echo "Clients added: ", addedClients.len
+  for client in removedClients:
+    this.trackedClients.keepItIf(it.client.window != client.client.window)
+    this.shuffle(Left)
+    this.shuffle(Up)
+    this.distribRight()
+    this.distribDown()
   for client in addedClients:
     #this.trackedClients.add client
     this.addWindow(client)
   #this.shuffle(Down, Right)
-  for client in this.trackedClients:
-    client.client.adjustToState(display)
-    echo client.repr
+  if addedClients.len == 0 and removedClients.len == 0:
+    this.shuffle(Left)
+    this.distribRight()
+    this.shuffle(Up)
+    this.distribDown()
 
-method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout) {.nimcall.}]] =
-  echo "Reporting available commands"
+  for client in this.trackedClients:
+    client.client.area.x += client.client.borderWidth.int + this.settings.gapSize.int div 2
+    client.client.area.y += client.client.borderWidth.int + this.settings.gapSize.int div 2
+    client.client.area.width -= client.client.borderWidth * 2'u + this.settings.gapSize
+    client.client.area.height -= client.client.borderWidth * 2'u + this.settings.gapSize
+    client.client.adjustToState(display)
+    #echo client.repr
+
+template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
+  var
+    window: Window
+    reverse: cint
+  discard display.XGetInputFocus(window.addr, reverse.addr)
+  for client in layout.trackedClients:
+    if client.client.window == window:
+      client.`expand dir` = not client.`expand dir`
+      break
+  layout.shuffle(Left)
+  layout.distribRight()
+
+proc expandX(layout: Layout, display: PDisplay) =
+  var layout = cast[PimoLayout](layout)
+  expand(layout, display, X)
+
+proc expandY(layout: Layout, display: PDisplay) =
+  var layout = cast[PimoLayout](layout)
+  expand(layout, display, Y)
+
+proc move(layout: Layout, display: PDisplay, dir: Direction) =
+  var
+    window: Window
+    reverse: cint
+  discard display.XGetInputFocus(window.addr, reverse.addr)
+  var layout = cast[PimoLayout](layout)
+  for client in layout.trackedClients:
+    if client.client.window == window:
+      layout.move(client, dir)
+      break
+
+proc moveRight(layout: Layout, display: PDisplay) =
+  layout.move(display, Right)
+
+proc moveLeft(layout: Layout, display: PDisplay) =
+  layout.move(display, Left)
+
+proc moveUp(layout: Layout, display: PDisplay) =
+  layout.move(display, Up)
+
+proc moveDown(layout: Layout, display: PDisplay) =
+  layout.move(display, Down)
+
+#proc focusLeft(layout: Layout, display: PDisplay) =
+#  var
+#    window: Window
+#    reverse: cint
+#  discard display.XGetInputFocus(window.addr, reverse.addr)
+#  var layout = cast[PimoLayout](layout)
+#  for client in layout.trackedClients:
+#    if client.client.window == window:
+#      let sees = layout.see(client, Left)
+#      if sees.len > 0:
+#        echo "Moving focus from ", client.repr, " to ", sees[0].repr
+#        echo reverse
+#        var event = XEvent()
+#        event.xclient.theType = FocusOut
+#        event.xclient.window = window
+#        event.xclient.format = 32
+#        event.xclient.data.l[0] = NotifyUngrab
+#        event.xclient.data.l[1] = NotifyInferior
+#        event.xclient.data.l[2] = CurrentTime
+#        echo XSendEvent(display, window, false.XBool, NoEventMask, addr(event))
+#        #echo XSetInputFocus(display, sees[0].client.window, RevertToPointerRoot, CurrentTime)
+#        event.xclient.theType = FocusIn
+#        event.xclient.window = sees[0].client.window
+#        event.xclient.data.l[0] = NotifyGrab
+#        echo XSendEvent(display, sees[0].client.window, false.XBool, NoEventMask, addr(event))
+#      break
+
+method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay) {.nimcall.}]] =
   result = @[
+    ($pMoveLeft, moveLeft),
+    ($pMoveRight, moveRight),
+    ($pMoveUp, moveUp),
+    ($pMoveDown, moveDown),
+    #($pFocusLeft, focusLeft),
+    ($pExpandX, expandX),
+    ($pExpandY, expandY)
   ]
 
 method parseLayoutCommand*(this: PimoLayoutSettings, command: string): string =
-  echo "Parsing layout commands"
-  return ""
   try:
     return $parseEnum[Commands](command.toLower)
   except:
     return ""
 
 method populateLayoutSettings*(this: var PimoLayoutSettings, config: TomlTableRef) =
-  echo "Populating PiMo layout settings"
-  discard
+  if config == nil:
+    this.gapSize = 12
+    return
+  if config.hasKey("gapSize"):
+    let gapSizeSetting = config["gapSize"]
+    if gapSizeSetting.kind == TomlValueKind.Int:
+      this.gapSize = max(0, gapSizeSetting.intVal).uint
+    else:
+      log "gapSize is not an integer value!", lvlWarn
