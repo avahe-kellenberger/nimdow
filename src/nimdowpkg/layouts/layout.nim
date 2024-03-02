@@ -2,16 +2,11 @@ import
   x11 / [x, xlib],
   ../client,
   ../area,
-  layoutsettings
+  layoutsettings,
+  layouttype,
+  ../taggedclients
 
-export layoutsettings
-
-type
-  Layout* = ref object of RootObj
-    name*: string
-    monitorArea*: Area
-    borderWidth*: uint
-  LayoutOffset* = tuple[top, left, bottom, right: uint]
+export layoutsettings, layouttype
 
 method newLayout*(settings: LayoutSettings,
   monitorArea: Area,
@@ -30,5 +25,5 @@ method updateSettings*(
 method arrange*(this: Layout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) {.base.} =
   echo "arrange not implemented for base class"
 
-method availableCommands*(this: LayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay) {.nimcall.}]] {.base.} =
+method availableCommands*(this: LayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay, taggedClients: TaggedClients) {.nimcall.}]] {.base.} =
   echo "availableCommands not implemented for base class"

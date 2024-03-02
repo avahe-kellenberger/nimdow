@@ -727,7 +727,7 @@ proc mapConfigActions*(this: WindowManager) =
           layout = firstSelectedTag.layout
           window: Window
           reverse: cint
-        action(layout, this.display)
+        action(layout, this.display, this.selectedMonitor.taggedClients)
         this.selectedMonitor.doLayout()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =

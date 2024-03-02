@@ -6,7 +6,8 @@ import
   layout,
   ../client,
   ../area,
-  ../logger
+  ../logger,
+  ../taggedclients
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
@@ -119,10 +120,10 @@ method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTabl
     else:
       raise newException(Exception, "invalid defaultMasterWidthPercentage for tag")
 
-proc increaseMasterCount(layout: Layout, _: PDisplay) =
+proc increaseMasterCount(layout: Layout, _: PDisplay, _: TaggedClients) =
   MasterStackLayout(layout).masterSlots.inc
 
-proc decreaseMasterCount(layout: Layout, _: PDisplay) =
+proc decreaseMasterCount(layout: Layout, _: PDisplay, _: TaggedClients) =
   var masterStackLayout = MasterStackLayout(layout)
   if masterStackLayout.masterSlots.int > 0:
     masterStackLayout.masterSlots.dec
@@ -137,13 +138,13 @@ template modWidthDiff(layout: Layout, diff: int) =
         diff).int > 0:
       masterStackLayout.widthDiff += diff
 
-proc increaseMasterWidth(layout: Layout, _: PDisplay) =
+proc increaseMasterWidth(layout: Layout, _: PDisplay, _: TaggedClients) =
   layout.modWidthDiff(layout.MasterStackLayout.resizeStep.int)
 
-proc decreaseMasterWidth(layout: Layout, _: PDisplay) =
+proc decreaseMasterWidth(layout: Layout, _: PDisplay, _: TaggedClients) =
   layout.modWidthDiff(-layout.MasterStackLayout.resizeStep.int)
 
-method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay) {.nimcall.}]] =
+method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay, taggedClients: TaggedClients) {.nimcall.}]] =
   result = @[
     ($mscIncreaseMasterWidth, increaseMasterWidth),
     ($mscDecreaseMasterWidth, decreaseMasterWidth),

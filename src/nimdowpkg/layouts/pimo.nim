@@ -8,6 +8,7 @@ import
   ../client,
   ../area,
   ../logger,
+  ../taggedclients,
   pimo/areatools
 import std/algorithm except shuffle
 
@@ -50,7 +51,10 @@ type
     pMoveRight = "moveright"
     pMoveUp = "moveup"
     pMoveDown = "movedown"
-    #pFocusLeft = "focusleft"
+    pFocusLeft = "focusleft"
+    pFocusRight = "focusright"
+    pFocusUp = "focusup"
+    pFocusDown = "focusdown"
 
 proc shuffle(this: PimoLayout, dir: Direction): bool {.discardable.} =
   let clients = this.trackedClients
@@ -600,11 +604,11 @@ template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
   layout.shuffle(Left)
   layout.distribRight()
 
-proc expandX(layout: Layout, display: PDisplay) =
+proc expandX(layout: Layout, display: PDisplay, _: TaggedClients) =
   var layout = cast[PimoLayout](layout)
   expand(layout, display, X)
 
-proc expandY(layout: Layout, display: PDisplay) =
+proc expandY(layout: Layout, display: PDisplay, _: TaggedClients) =
   var layout = cast[PimoLayout](layout)
   expand(layout, display, Y)
 
@@ -619,52 +623,55 @@ proc move(layout: Layout, display: PDisplay, dir: Direction) =
       layout.move(client, dir)
       break
 
-proc moveRight(layout: Layout, display: PDisplay) =
+proc moveRight(layout: Layout, display: PDisplay, _: TaggedClients) =
   layout.move(display, Right)
 
-proc moveLeft(layout: Layout, display: PDisplay) =
+proc moveLeft(layout: Layout, display: PDisplay, _: TaggedClients) =
   layout.move(display, Left)
 
-proc moveUp(layout: Layout, display: PDisplay) =
+proc moveUp(layout: Layout, display: PDisplay, _: TaggedClients) =
   layout.move(display, Up)
 
-proc moveDown(layout: Layout, display: PDisplay) =
+proc moveDown(layout: Layout, display: PDisplay, _: TaggedClients) =
   layout.move(display, Down)
 
-#proc focusLeft(layout: Layout, display: PDisplay) =
-#  var
-#    window: Window
-#    reverse: cint
-#  discard display.XGetInputFocus(window.addr, reverse.addr)
-#  var layout = cast[PimoLayout](layout)
-#  for client in layout.trackedClients:
-#    if client.client.window == window:
-#      let sees = layout.see(client, Left)
-#      if sees.len > 0:
-#        echo "Moving focus from ", client.repr, " to ", sees[0].repr
-#        echo reverse
-#        var event = XEvent()
-#        event.xclient.theType = FocusOut
-#        event.xclient.window = window
-#        event.xclient.format = 32
-#        event.xclient.data.l[0] = NotifyUngrab
-#        event.xclient.data.l[1] = NotifyInferior
-#        event.xclient.data.l[2] = CurrentTime
-#        echo XSendEvent(display, window, false.XBool, NoEventMask, addr(event))
-#        #echo XSetInputFocus(display, sees[0].client.window, RevertToPointerRoot, CurrentTime)
-#        event.xclient.theType = FocusIn
-#        event.xclient.window = sees[0].client.window
-#        event.xclient.data.l[0] = NotifyGrab
-#        echo XSendEvent(display, sees[0].client.window, false.XBool, NoEventMask, addr(event))
-#      break
+proc focus(layout: PimoLayout, dir: Direction, display: PDisplay, taggedClients: TaggedClients) =
+  var
+    window: Window
+    reverse: cint
+  discard display.XGetInputFocus(window.addr, reverse.addr)
+  for client in layout.trackedClients:
+    if client.client.window == window:
+      let sees = layout.see(client, dir)
+      if sees.len > 0:
+        #echo "Changing focus from ", client.client.window, " to ", sees[0].client.window
+        taggedClients.selectClient(sees[0].client.window)
+        #echo XSetInputFocus(display, sees[0].client.window, RevertToPointerRoot, CurrentTime)
+        #echo XFlush(display)
+      break
 
-method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay) {.nimcall.}]] =
+proc focusLeft(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Left, display, taggedClients)
+
+proc focusRight(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Right, display, taggedClients)
+
+proc focusUp(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Up, display, taggedClients)
+
+proc focusDown(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Down, display, taggedClients)
+
+method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay, taggedClients: TaggedClients) {.nimcall.}]] =
   result = @[
+    ($pFocusLeft, focusLeft),
+    ($pFocusRight, focusRight),
+    ($pFocusUp, focusUp),
+    ($pFocusDown, focusDown),
     ($pMoveLeft, moveLeft),
     ($pMoveRight, moveRight),
     ($pMoveUp, moveUp),
     ($pMoveDown, moveDown),
-    #($pFocusLeft, focusLeft),
     ($pExpandX, expandX),
     ($pExpandY, expandY)
   ]
