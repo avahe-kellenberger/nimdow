@@ -376,12 +376,8 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
       return xOverlap - yOverlap
     return x.overlaps.len - y.overlaps.len
 
-  #s.client.area = s.requested
   s.requested = s.client.area
-  s.requested.width += s.client.borderWidth * 2 + this.settings.gapSize
-  s.requested.height += s.client.borderWidth * 2 + this.settings.gapSize
-  s.requested.x -= s.client.borderWidth.int + this.settings.gapSize.int div 2
-  s.requested.y -= s.client.borderWidth.int + this.settings.gapSize.int div 2
+
   var solutions: seq[Solution]
   let
     backup = this.trackedClients.mapIt(it.client.area)
@@ -433,10 +429,17 @@ proc see(this: PimoLayout, x: TrackedClient, dir: Direction): seq[TrackedClient]
         result.add square
   this.iterDistr(dir)
 
+proc collapse(this: PimoLayout, dir: Direction) =
+  generalizeForDirection(dir)
+  for square in this.trackedClients:
+    square.client.area.size = 2
+
 proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
+  this.collapse(dir2)
   this.shuffle(dir2)
   this.iterGrow(dir2.opposite)
   this.iterDistr(dir2.opposite)
+  this.collapse(dir1)
   this.shuffle(dir1)
   this.iterGrow(dir1.opposite)
   this.iterDistr(dir1.opposite)
@@ -590,7 +593,6 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     client.client.area.width -= client.client.borderWidth * 2'u + this.settings.gapSize
     client.client.area.height -= client.client.borderWidth * 2'u + this.settings.gapSize
     client.client.adjustToState(display)
-    #echo client.repr
 
 template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
   var
