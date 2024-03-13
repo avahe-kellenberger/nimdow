@@ -558,7 +558,6 @@ method updateSettings*(
   discard
 
 method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) =
-  echo "Arrange"
   this.offset = offset
   this.offset.left += this.settings.gapSize div 2 + this.settings.outerGap
   this.offset.right += this.settings.gapSize div 2 + this.settings.outerGap
@@ -571,10 +570,12 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
   for client in clients:
     block clientCheck:
       for i, removed in removedClients:
-        if removed.client.window == client.window and not removed.client.isFloating:
-          removedClients.del(i)
+        if removed.client.window == client.window:
+          if not client.isFloating and not client.isFullscreen:
+            removedClients.del(i)
           break clientCheck
-      addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
+      if not client.isFloating and not client.isFullscreen:
+        addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
   for client in removedClients:
     this.trackedClients.keepItIf(it.client.window != client.client.window)
     this.reDistr(Up, Left)
@@ -597,11 +598,9 @@ template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
   discard display.XGetInputFocus(window.addr, reverse.addr)
   for client in layout.trackedClients:
     if client.client.window == window:
+      client.client.isFloating = false
       client.`expand dir` = not client.`expand dir`
       break
-  #layout.collapse(Left)
-  #layout.shuffle(Left)
-  #layout.distribRight()
 
 proc expandX(layout: Layout, display: PDisplay, _: TaggedClients) =
   var layout = cast[PimoLayout](layout)
@@ -664,6 +663,7 @@ proc move(layout: Layout, display: PDisplay, dir: Direction) =
   var layout = cast[PimoLayout](layout)
   for client in layout.trackedClients:
     if client.client.window == window:
+      client.client.isFloating = false
       layout.move(client, dir)
       break
 
