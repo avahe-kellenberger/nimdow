@@ -42,11 +42,13 @@ type
     gapSize*: uint
     outerGap*: uint
     resizeStep*: uint
-    numMasterWindows*: uint
-    defaultMasterWidthPercentage*: int
   Commands = enum
     pExpandX = "expandx"
     pExpandY = "expandy"
+    pGrowX = "growx"
+    pGrowY = "growy"
+    pShrinkX = "shrinkx"
+    pShrinkY = "shrinky"
     pMoveLeft = "moveleft"
     pMoveRight = "moveright"
     pMoveUp = "moveup"
@@ -355,6 +357,21 @@ proc distribDown(this: PimoLayout) =
   this.iterGrow(Down)
   this.iterDistr(Down)
 
+proc collapse(this: PimoLayout, dir: Direction) =
+  generalizeForDirection(dir)
+  for square in this.trackedClients:
+    square.client.area.size = 2
+
+proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
+  this.collapse(dir2)
+  this.shuffle(dir2)
+  this.iterGrow(dir2.opposite)
+  this.iterDistr(dir2.opposite)
+  this.collapse(dir1)
+  this.shuffle(dir1)
+  this.iterGrow(dir1.opposite)
+  this.iterDistr(dir1.opposite)
+
 proc addWindow(this: PimoLayout, s: TrackedClient) =
   proc cmp(x, y: Solution): int =
     # TODO: Take into account movement length for windows
@@ -362,7 +379,7 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
       areaX = x.bounding.area
       areaY = y.bounding.area
     if areaX != areaY:
-      return (areaX - areaY).int
+      return areaX.int - areaY.int
     let
       ratio = (this.monitorArea.width - this.offset.left - this.offset.right).float / (this.monitorArea.height - this.offset.top - this.offset.bottom).float
       ratioX = abs(x.bounding.width.float / x.bounding.height.float - ratio)
@@ -405,12 +422,13 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
     this.solveConflict(s, solution)
   else:
     this.trackedClients.add s
-  for dir in [solution.dir1, solution.dir2]:
-    case dir:
-    of Left: this.distribRight()
-    of Right: this.distribLeft()
-    of Up: this.distribDown()
-    of Down: this.distribUp()
+  this.reDistr(solution.dir1, solution.dir2)
+  #for dir in [solution.dir1, solution.dir2]:
+  #  case dir:
+  #  of Left: this.distribRight()
+  #  of Right: this.distribLeft()
+  #  of Up: this.distribDown()
+  #  of Down: this.distribUp()
 
 proc see(this: PimoLayout, x: TrackedClient, dir: Direction): seq[TrackedClient] =
   this.shuffle(dir)
@@ -428,21 +446,6 @@ proc see(this: PimoLayout, x: TrackedClient, dir: Direction): seq[TrackedClient]
       if square notin result:
         result.add square
   this.iterDistr(dir)
-
-proc collapse(this: PimoLayout, dir: Direction) =
-  generalizeForDirection(dir)
-  for square in this.trackedClients:
-    square.client.area.size = 2
-
-proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
-  this.collapse(dir2)
-  this.shuffle(dir2)
-  this.iterGrow(dir2.opposite)
-  this.iterDistr(dir2.opposite)
-  this.collapse(dir1)
-  this.shuffle(dir1)
-  this.iterGrow(dir1.opposite)
-  this.iterDistr(dir1.opposite)
 
 proc insertInStack(this: PimoLayout, x, point: TrackedClient, beginning: bool, stack: seq[TrackedClient], dir: Direction, flipped = false) =
   generalizeForDirection(if flipped: dir else: (if dir in {Right, Left}: Up else: Left))
@@ -555,11 +558,12 @@ method updateSettings*(
   discard
 
 method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) =
+  echo "Arrange"
   this.offset = offset
-  this.offset.left += this.settings.gapSize div 2
-  this.offset.right += this.settings.gapSize div 2
-  this.offset.top += this.settings.gapSize div 2
-  this.offset.bottom += this.settings.gapSize div 2
+  this.offset.left += this.settings.gapSize div 2 + this.settings.outerGap
+  this.offset.right += this.settings.gapSize div 2 + this.settings.outerGap
+  this.offset.top += this.settings.gapSize div 2 + this.settings.outerGap
+  this.offset.bottom += this.settings.gapSize div 2 + this.settings.outerGap
 
   var
     removedClients = this.trackedClients
@@ -567,25 +571,17 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
   for client in clients:
     block clientCheck:
       for i, removed in removedClients:
-        if removed.client.window == client.window:
+        if removed.client.window == client.window and not removed.client.isFloating:
           removedClients.del(i)
           break clientCheck
       addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
   for client in removedClients:
     this.trackedClients.keepItIf(it.client.window != client.client.window)
-    this.shuffle(Left)
-    this.shuffle(Up)
-    this.distribRight()
-    this.distribDown()
+    this.reDistr(Up, Left)
   for client in addedClients:
-    #this.trackedClients.add client
     this.addWindow(client)
-  #this.shuffle(Down, Right)
   if addedClients.len == 0 and removedClients.len == 0:
-    this.shuffle(Left)
-    this.distribRight()
-    this.shuffle(Up)
-    this.distribDown()
+    this.reDistr(Up, Left)
 
   for client in this.trackedClients:
     client.client.area.x += client.client.borderWidth.int + this.settings.gapSize.int div 2
@@ -603,8 +599,9 @@ template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
     if client.client.window == window:
       client.`expand dir` = not client.`expand dir`
       break
-  layout.shuffle(Left)
-  layout.distribRight()
+  #layout.collapse(Left)
+  #layout.shuffle(Left)
+  #layout.distribRight()
 
 proc expandX(layout: Layout, display: PDisplay, _: TaggedClients) =
   var layout = cast[PimoLayout](layout)
@@ -613,6 +610,51 @@ proc expandX(layout: Layout, display: PDisplay, _: TaggedClients) =
 proc expandY(layout: Layout, display: PDisplay, _: TaggedClients) =
   var layout = cast[PimoLayout](layout)
   expand(layout, display, Y)
+
+template grow(layout: Layout, display: PDisplay, dir, dim: untyped): untyped =
+  var
+    window: Window
+    reverse: cint
+  discard display.XGetInputFocus(window.addr, reverse.addr)
+  for client in layout.trackedClients:
+    if client.client.window == window:
+      client.requested.dim = max(client.client.area.dim, client.requested.dim)
+      client.requested.dim += layout.settings.resizeStep
+      break
+  layout.shuffle(Left)
+  layout.distribRight()
+  # TODO: If size hasn't changed, shrink all "seen" windows in the given dimension?
+
+proc growX(layout: Layout, display: PDisplay, _: TaggedClients) =
+  var layout = cast[PimoLayout](layout)
+  grow(layout, display, x, width)
+
+proc growY(layout: Layout, display: PDisplay, _: TaggedClients) =
+  var layout = cast[PimoLayout](layout)
+  grow(layout, display, y, height)
+
+template shrink(layout: Layout, display: PDisplay, dir, dim: untyped): untyped =
+  var
+    window: Window
+    reverse: cint
+  discard display.XGetInputFocus(window.addr, reverse.addr)
+  for client in layout.trackedClients:
+    if client.client.window == window:
+      if client.`expand dir`:
+        client.`expand dir` = false
+        client.requested.dim = client.client.area.dim
+      client.requested.dim = max(client.requested.dim - layout.settings.resizeStep, 100)
+      break
+  layout.shuffle(Left)
+  layout.distribRight()
+
+proc shrinkX(layout: Layout, display: PDisplay, _: TaggedClients) =
+  var layout = cast[PimoLayout](layout)
+  shrink(layout, display, x, width)
+
+proc shrinkY(layout: Layout, display: PDisplay, _: TaggedClients) =
+  var layout = cast[PimoLayout](layout)
+  shrink(layout, display, y, height)
 
 proc move(layout: Layout, display: PDisplay, dir: Direction) =
   var
@@ -675,7 +717,11 @@ method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, 
     ($pMoveUp, moveUp),
     ($pMoveDown, moveDown),
     ($pExpandX, expandX),
-    ($pExpandY, expandY)
+    ($pExpandY, expandY),
+    ($pGrowX, growX),
+    ($pGrowY, growY),
+    ($pShrinkX, shrinkX),
+    ($pShrinkY, shrinkY)
   ]
 
 method parseLayoutCommand*(this: PimoLayoutSettings, command: string): string =
@@ -687,6 +733,8 @@ method parseLayoutCommand*(this: PimoLayoutSettings, command: string): string =
 method populateLayoutSettings*(this: var PimoLayoutSettings, config: TomlTableRef) =
   if config == nil:
     this.gapSize = 12
+    this.resizeStep = 10
+    this.outerGap = 0
     return
   if config.hasKey("gapSize"):
     let gapSizeSetting = config["gapSize"]
@@ -694,3 +742,15 @@ method populateLayoutSettings*(this: var PimoLayoutSettings, config: TomlTableRe
       this.gapSize = max(0, gapSizeSetting.intVal).uint
     else:
       log "gapSize is not an integer value!", lvlWarn
+  if config.hasKey("resizeStep"):
+    let resizeStepSetting = config["resizeStep"]
+    if resizeStepSetting.kind == TomlValueKind.Int:
+      this.resizeStep = max(0, resizeStepSetting.intVal).uint
+    else:
+      log "resizeStep is not an integer value!", lvlWarn
+  if config.hasKey("outerGap"):
+    let outerGapSetting = config["outerGap"]
+    if outerGapSetting.kind == TomlValueKind.Int:
+      this.outerGap = max(0, outerGapSetting.intVal).uint
+    else:
+      log "outerGap is not an integer value!", lvlWarn
