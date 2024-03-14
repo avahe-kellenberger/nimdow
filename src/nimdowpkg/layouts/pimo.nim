@@ -3,7 +3,6 @@ import
   parsetoml,
   strutils,
   sequtils,
-  math,
   layout,
   ../client,
   ../area,
@@ -281,10 +280,8 @@ proc iterGrow(this: PimoLayout, dir: Direction) =
     sortedEdge =
       if towardsStart: this.trackedClients.sortedByIt(it.client.area.startEdge)
       else: this.trackedClients.sortedByIt((if dir == Right: usableWidth else: usableHeight).int - it.client.area.endEdge)
-  # TODO; Scale down previously expanded windows as well
   for square in this.trackedClients:
     if (horizontal and square.expandX) or (vertical and square.expandY):
-      #stdout.writeLine "Resizing ", square, " from ", square.size
       square.resize(min(0, square.pureRequestedSize.int - square.client.area.size.int))
   var resized = true
   while resized:
@@ -340,22 +337,6 @@ proc iterDistr(this: PimoLayout, dir: Direction) =
         if vertical: square.client.area.y -= (spaceStart - spaceEnd) div 2
         changed = true
     inc i
-
-proc distribLeft(this: PimoLayout) =
-  this.iterGrow(Left)
-  this.iterDistr(Left)
-
-proc distribUp(this: PimoLayout) =
-  this.iterGrow(Up)
-  this.iterDistr(Up)
-
-proc distribRight(this: PimoLayout) =
-  this.iterGrow(Right)
-  this.iterDistr(Right)
-
-proc distribDown(this: PimoLayout) =
-  this.iterGrow(Down)
-  this.iterDistr(Down)
 
 proc collapse(this: PimoLayout, dir: Direction) =
   generalizeForDirection(dir)
@@ -591,122 +572,101 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     client.client.area.height -= client.client.borderWidth * 2'u + this.settings.gapSize
     client.client.adjustToState(display)
 
-template expand(layout: Layout, display: PDisplay, dir: untyped): untyped =
-  var
-    window: Window
-    reverse: cint
-  discard display.XGetInputFocus(window.addr, reverse.addr)
-  for client in layout.trackedClients:
-    if client.client.window == window:
-      client.client.isFloating = false
-      client.`expand dir` = not client.`expand dir`
-      break
+template expand(layout: Layout, tc: TaggedClients, dir: untyped): untyped =
+  tc.withSomeCurrClient(client):
+    for trackedClient in layout.trackedClients:
+      if trackedClient.client.window == client.window:
+        trackedClient.client.isFloating = false
+        trackedClient.`expand dir` = not trackedClient.`expand dir`
+        break
 
-proc expandX(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc expandX(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  expand(layout, display, X)
+  expand(layout, tc, X)
 
-proc expandY(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc expandY(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  expand(layout, display, Y)
+  expand(layout, tc, Y)
 
-template grow(layout: Layout, display: PDisplay, dir, dim: untyped): untyped =
-  var
-    window: Window
-    reverse: cint
-  discard display.XGetInputFocus(window.addr, reverse.addr)
-  for client in layout.trackedClients:
-    if client.client.window == window:
-      client.requested.dim = max(client.client.area.dim, client.requested.dim)
-      client.requested.dim += layout.settings.resizeStep
-      break
-  layout.shuffle(Left)
-  layout.distribRight()
-  # TODO: If size hasn't changed, shrink all "seen" windows in the given dimension?
+template grow(layout: Layout, tc: TaggedClients, dir, dim: untyped): untyped =
+  tc.withSomeCurrClient(client):
+    for trackedClient in layout.trackedClients:
+      if trackedClient.client.window == client.window:
+        trackedClient.requested.dim = max(trackedClient.client.area.dim, trackedClient.requested.dim)
+        trackedClient.requested.dim += layout.settings.resizeStep
+        break
+    # TODO: If size hasn't changed, shrink all "seen" windows in the given dimension?
+    # Problem is that requested size would have to change by doing it this way..
 
-proc growX(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc growX(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  grow(layout, display, x, width)
+  grow(layout, tc, x, width)
 
-proc growY(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc growY(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  grow(layout, display, y, height)
+  grow(layout, tc, y, height)
 
-template shrink(layout: Layout, display: PDisplay, dir, dim: untyped): untyped =
-  var
-    window: Window
-    reverse: cint
-  discard display.XGetInputFocus(window.addr, reverse.addr)
-  for client in layout.trackedClients:
-    if client.client.window == window:
-      if client.`expand dir`:
-        client.`expand dir` = false
-        client.requested.dim = client.client.area.dim
-      client.requested.dim = max(client.requested.dim - layout.settings.resizeStep, 100)
-      break
-  layout.shuffle(Left)
-  layout.distribRight()
+template shrink(layout: Layout, tc: TaggedClients, dir, dim: untyped): untyped =
+  tc.withSomeCurrClient(client):
+    for taggedClient in layout.trackedClients:
+      if taggedClient.client.window == client.window:
+        if taggedClient.`expand dir`:
+          taggedClient.`expand dir` = false
+          taggedClient.requested.dim = taggedClient.client.area.dim
+        taggedClient.requested.dim = max(taggedClient.requested.dim - layout.settings.resizeStep, 100)
+        break
 
-proc shrinkX(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc shrinkX(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  shrink(layout, display, x, width)
+  shrink(layout, tc, x, width)
 
-proc shrinkY(layout: Layout, display: PDisplay, _: TaggedClients) =
+proc shrinkY(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
-  shrink(layout, display, y, height)
+  shrink(layout, tc, y, height)
 
-proc move(layout: Layout, display: PDisplay, dir: Direction) =
-  var
-    window: Window
-    reverse: cint
-  discard display.XGetInputFocus(window.addr, reverse.addr)
-  var layout = cast[PimoLayout](layout)
-  for client in layout.trackedClients:
-    if client.client.window == window:
-      client.client.isFloating = false
-      layout.move(client, dir)
-      break
+proc move(layout: Layout, tc: TaggedClients, dir: Direction) =
+  tc.withSomeCurrClient(client):
+    var layout = cast[PimoLayout](layout)
+    for taggedClient in layout.trackedClients:
+      if taggedClient.client.window == client.window:
+        taggedClient.client.isFloating = false
+        layout.move(taggedClient, dir)
+        break
 
-proc moveRight(layout: Layout, display: PDisplay, _: TaggedClients) =
-  layout.move(display, Right)
+proc moveRight(layout: Layout, tc: TaggedClients) =
+  layout.move(tc, Right)
 
-proc moveLeft(layout: Layout, display: PDisplay, _: TaggedClients) =
-  layout.move(display, Left)
+proc moveLeft(layout: Layout, tc: TaggedClients) =
+  layout.move(tc, Left)
 
-proc moveUp(layout: Layout, display: PDisplay, _: TaggedClients) =
-  layout.move(display, Up)
+proc moveUp(layout: Layout, tc: TaggedClients) =
+  layout.move(tc, Up)
 
-proc moveDown(layout: Layout, display: PDisplay, _: TaggedClients) =
-  layout.move(display, Down)
+proc moveDown(layout: Layout, tc: TaggedClients) =
+  layout.move(tc, Down)
 
-proc focus(layout: PimoLayout, dir: Direction, display: PDisplay, taggedClients: TaggedClients) =
-  var
-    window: Window
-    reverse: cint
-  discard display.XGetInputFocus(window.addr, reverse.addr)
-  for client in layout.trackedClients:
-    if client.client.window == window:
-      let sees = layout.see(client, dir)
-      if sees.len > 0:
-        #echo "Changing focus from ", client.client.window, " to ", sees[0].client.window
-        taggedClients.selectClient(sees[0].client.window)
-        #echo XSetInputFocus(display, sees[0].client.window, RevertToPointerRoot, CurrentTime)
-        #echo XFlush(display)
-      break
+proc focus(layout: PimoLayout, dir: Direction, tc: TaggedClients) =
+  tc.withSomeCurrClient(client):
+    for taggedClient in layout.trackedClients:
+      if taggedClient.client.window == client.window:
+        let sees = layout.see(taggedClient, dir)
+        if sees.len > 0:
+          tc.selectClient(sees[0].client.window)
+        break
 
-proc focusLeft(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
-  cast[PimoLayout](layout).focus(Left, display, taggedClients)
+proc focusLeft(layout: Layout, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Left, taggedClients)
 
-proc focusRight(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
-  cast[PimoLayout](layout).focus(Right, display, taggedClients)
+proc focusRight(layout: Layout, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Right, taggedClients)
 
-proc focusUp(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
-  cast[PimoLayout](layout).focus(Up, display, taggedClients)
+proc focusUp(layout: Layout, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Up, taggedClients)
 
-proc focusDown(layout: Layout, display: PDisplay, taggedClients: TaggedClients) =
-  cast[PimoLayout](layout).focus(Down, display, taggedClients)
+proc focusDown(layout: Layout, taggedClients: TaggedClients) =
+  cast[PimoLayout](layout).focus(Down, taggedClients)
 
-method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay, taggedClients: TaggedClients) {.nimcall.}]] =
+method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, taggedClients: TaggedClients) {.nimcall.}]] =
   result = @[
     ($pFocusLeft, focusLeft),
     ($pFocusRight, focusRight),

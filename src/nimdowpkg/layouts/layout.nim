@@ -25,5 +25,5 @@ method updateSettings*(
 method arrange*(this: Layout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) {.base.} =
   echo "arrange not implemented for base class"
 
-method availableCommands*(this: LayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, display: PDisplay, taggedClients: TaggedClients) {.nimcall.}]] {.base.} =
+method availableCommands*(this: LayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, taggedClients: TaggedClients) {.nimcall.}]] {.base.} =
   echo "availableCommands not implemented for base class"
