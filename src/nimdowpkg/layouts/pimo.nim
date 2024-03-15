@@ -530,13 +530,16 @@ method newLayout*(settings: PimoLayoutSettings,
   ).Layout
 
 method updateSettings*(
-  this: var PimoLayout,
-  settings: LayoutSettings,
-  monitorArea: Area,
-  borderWidth: uint,
-  layoutOffset: LayoutOffset) =
+    this: var PimoLayout,
+    settings: LayoutSettings,
+    monitorArea: Area,
+    borderWidth: uint,
+    layoutOffset: LayoutOffset) =
   # TODO: Implement
-  discard
+  this.settings = settings.PimoLayoutSettings
+  this.monitorArea = monitorArea
+  this.borderWidth = borderWidth
+  this.offset = layoutOffset
 
 method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offset: LayoutOffset) =
   this.offset = offset
@@ -552,10 +555,10 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     block clientCheck:
       for i, removed in removedClients:
         if removed.client.window == client.window:
-          if not client.isFloating and not client.isFullscreen:
+          if not client.isFloating and not client.isFullscreen and not client.isFixedSize:
             removedClients.del(i)
           break clientCheck
-      if not client.isFloating and not client.isFullscreen:
+      if not client.isFloating and not client.isFullscreen and not client.isFixedSize:
         addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
   for client in removedClients:
     this.trackedClients.keepItIf(it.client.window != client.client.window)
