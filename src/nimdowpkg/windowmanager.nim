@@ -723,10 +723,7 @@ proc mapConfigActions*(this: WindowManager) =
         if firstSelectedTag == nil:
           return
 
-        var
-          layout = firstSelectedTag.layout
-          window: Window
-          reverse: cint
+        var layout = firstSelectedTag.layout
         action(layout, this.selectedMonitor.taggedClients)
         this.selectedMonitor.doLayout()
 
