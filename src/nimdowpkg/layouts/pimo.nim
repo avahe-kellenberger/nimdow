@@ -569,8 +569,8 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     this.reDistr(Up, Left)
 
   for client in this.trackedClients:
-    client.client.area.x += client.client.borderWidth.int + this.settings.gapSize.int div 2
-    client.client.area.y += client.client.borderWidth.int + this.settings.gapSize.int div 2
+    client.client.area.x += this.monitorArea.x + client.client.borderWidth.int + this.settings.gapSize.int div 2
+    client.client.area.y += this.monitorArea.y + client.client.borderWidth.int + this.settings.gapSize.int div 2
     client.client.area.width -= client.client.borderWidth * 2'u + this.settings.gapSize
     client.client.area.height -= client.client.borderWidth * 2'u + this.settings.gapSize
     client.client.adjustToState(display)
