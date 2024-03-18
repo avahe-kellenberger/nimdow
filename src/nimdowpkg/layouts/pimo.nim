@@ -260,12 +260,7 @@ proc solveConflict(this: PimoLayout, newSquare: TrackedClient, s: Solution) =
 proc iterGrow(this: PimoLayout, dir: Direction) =
   generalizeForDirection(dir)
   template resize(square: TrackedClient, change: int): untyped =
-    if horizontal:
-      square.client.area.width += change.uint
-      if towardsEnd: square.client.area.x -= change
-    if vertical:
-      square.client.area.height += change.uint
-      if towardsEnd: square.client.area.y -= change
+    square.client.area.size = square.client.area.size + change.uint
   template pureRequestedSize(x: TrackedClient): uint =
     if dir in {Right, Left}: x.requested.width
     else: x.requested.height
@@ -284,6 +279,7 @@ proc iterGrow(this: PimoLayout, dir: Direction) =
     if (horizontal and square.expandX) or (vertical and square.expandY):
       square.resize(min(0, square.pureRequestedSize.int - square.client.area.size.int))
   var resized = true
+  this.shuffle(dir.opposite)
   while resized:
     resized = false
     var oldPos: Table[Window, int]
@@ -339,9 +335,22 @@ proc iterDistr(this: PimoLayout, dir: Direction) =
     inc i
 
 proc collapse(this: PimoLayout, dir: Direction) =
+  var
+    monitorArea = this.monitorArea
+    bounding = calcBounding(this.trackedClients)
+  monitorArea.width -= this.offset.left + this.offset.right
+  monitorArea.height -= this.offset.top + this.offset.bottom
   generalizeForDirection(dir)
-  for square in this.trackedClients:
-    square.client.area.size = 2
+  if bounding.size > monitorArea.size:
+    this.shuffle(dir)
+    var oldPos: Table[Window, int]
+    for square in this.trackedClients:
+      oldPos[square.client.window] = square.client.area.leadingEdge
+    this.shuffle(dir.opposite)
+    let diff = bounding.size.int - monitorArea.size.int
+    for square in this.trackedClients:
+      if (oldPos[square.client.window] - square.client.area.leadingEdge) div 2 == diff:
+        square.client.area.size = square.client.area.size - diff.uint
 
 proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
   this.collapse(dir2)
@@ -535,7 +544,6 @@ method updateSettings*(
     monitorArea: Area,
     borderWidth: uint,
     layoutOffset: LayoutOffset) =
-  # TODO: Implement
   this.settings = settings.PimoLayoutSettings
   this.monitorArea = monitorArea
   this.borderWidth = borderWidth
@@ -551,12 +559,14 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
   var
     removedClients = this.trackedClients
     addedClients: seq[TrackedClient]
+    stayedClients: seq[TrackedClient]
   for client in clients:
     block clientCheck:
       for i, removed in removedClients:
         if removed.client.window == client.window:
           if not client.isFloating and not client.isFullscreen and not client.isFixedSize:
             removedClients.del(i)
+            stayedClients.add(removed)
           break clientCheck
       if not client.isFloating and not client.isFullscreen and not client.isFixedSize:
         addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
@@ -565,6 +575,10 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     this.reDistr(Up, Left)
   for client in addedClients:
     this.addWindow(client)
+  for client in stayedClients:
+    client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
+    client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
+
   if addedClients.len == 0 and removedClients.len == 0:
     this.reDistr(Up, Left)
 
@@ -597,9 +611,16 @@ template grow(layout: Layout, tc: TaggedClients, dir, dim: untyped): untyped =
       if trackedClient.client.window == client.window:
         trackedClient.requested.dim = max(trackedClient.client.area.dim, trackedClient.requested.dim)
         trackedClient.requested.dim += layout.settings.resizeStep
+        let
+          dirForX {.inject.} = [Left, Right]
+          dirForY {.inject.} = [Up, Down]
+        var seen: seq[TrackedClient]
+        for d in `dirFor dir`:
+          seen.add layout.see(trackedClient, d)
+        generalizeForDirection(`dirFor dir`[0])
+        for s in seen:
+          s.client.area.size = s.client.area.size - layout.settings.resizeStep
         break
-    # TODO: If size hasn't changed, shrink all "seen" windows in the given dimension?
-    # Problem is that requested size would have to change by doing it this way..
 
 proc growX(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
