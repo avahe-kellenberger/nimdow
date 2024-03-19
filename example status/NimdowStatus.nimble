@@ -8,9 +8,9 @@ bin           = @["NimdowStatus"]
 
 
 # Dependencies
-requires "nim >= 1.0.0"
+requires "nim >= 2.0.0"
 
 # taks
 task release, "Build with compiler flags.":
-  let nimCmd = "nimble build --boundChecks:off -d:danger -d:ssl -d:flto --opt:speed"
+  let nimCmd = "nimble build -d:release -d:danger -d:lto -d:ssl"
   exec nimCmd
