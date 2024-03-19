@@ -12,7 +12,6 @@ proc getWeather(): string =
       sWeather = WEATHER_ICON & hClient.getContent("http://wttr.in/" & CITY & "?format=%t")
       result = sWeather
     except CatchableError as e:
-      echo "An error: " , e.repr
       sWeather = WEATHER_ICON & " N/A "
       result = sWeather
     finally:
