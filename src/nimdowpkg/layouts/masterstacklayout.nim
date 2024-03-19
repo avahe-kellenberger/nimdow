@@ -1,20 +1,39 @@
 import
-  x11/xlib,
+  x11/[x, xlib],
+  parsetoml,
+  strutils,
   math,
   layout,
   ../client,
   ../area,
-  ../logger
+  ../logger,
+  ../taggedclients
 
 converter intToCint(x: int): cint = x.cint
 converter intToCUint(x: int): cuint = x.cuint
 
 const layoutName: string = "masterstack"
 
-type MasterStackLayout* = ref object of Layout
-  widthDiff*: int
-  defaultWidth*: int
-  outerGap*: uint
+type
+  MasterStackLayout* = ref object of Layout
+    gapSize*: uint
+    widthDiff*: int
+    defaultWidth*: int
+    outerGap*: uint
+    offset: LayoutOffset
+    masterSlots*: uint
+    resizeStep*: uint
+  MasterStackLayoutSettings* = ref object of LayoutSettings
+    gapSize*: uint
+    outerGap*: uint
+    resizeStep*: uint
+    numMasterWindows*: uint
+    defaultMasterWidthPercentage*: int
+  Commands = enum
+    mscIncreaseMasterCount = "increasemastercount",
+    mscDecreaseMasterCount = "decreasemastercount",
+    mscIncreaseMasterWidth = "increasemasterwidth",
+    mscDecreaseMasterWidth = "decreasemasterwidth",
 
 proc layoutSingleClient(
   this: MasterStackLayout,
@@ -33,7 +52,7 @@ proc layoutMultipleClients(
   offset: LayoutOffset
 )
 
-proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset)
+proc setDefaultWidth(this: MasterStackLayout, offset: LayoutOffset)
 proc calculateClientHeight(this: MasterStackLayout, clientsInColumn: uint, screenHeight: uint): uint
 proc calcRoundingErr(this: MasterStackLayout, clientsInColumn, clientHeight, screenHeight: uint): int
 proc calcYPosition(
@@ -43,18 +62,104 @@ proc calcYPosition(
   clientHeight: uint,
   roundingError: int
 ): uint
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint
-func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int
-func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int
-proc getClientsToBeArranged(clients: seq[Client]): seq[Client]
+proc calcClientWidth(this: MasterStackLayout, screenWidth: uint): uint
+func calcScreenWidth(this: MasterStackLayout, offset: LayoutOffset): int
+func calcScreenHeight(this: MasterStackLayout, offset: LayoutOffset): int
 
-proc newMasterStackLayout*(
+method parseLayoutCommand*(this: MasterStackLayoutSettings, command: string): string =
+  try:
+    return $parseEnum[Commands](command.toLower)
+  except:
+    return ""
+
+method populateLayoutSettings*(this: var MasterStackLayoutSettings, settingsTable: TomlTableRef) =
+  if settingsTable == nil:
+    this.numMasterWindows = 1
+    this.gapSize = 12
+    this.outerGap = 0
+    this.resizeStep = 10
+    this.defaultMasterWidthPercentage = 50
+    return
+  if settingsTable.hasKey("gapSize"):
+    let gapSizeSetting = settingsTable["gapSize"]
+    if gapSizeSetting.kind == TomlValueKind.Int:
+      this.gapSize = max(0, gapSizeSetting.intVal).uint
+    else:
+      log "gapSize is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("outerGap"):
+    let outerGapSetting = settingsTable["outerGap"]
+    if outerGapSetting.kind == TomlValueKind.Int:
+      this.outerGap = max(0, outerGapSetting.intVal).uint
+    else:
+      log "outerGap is not an integer value!", lvlWarn
+
+  if settingsTable.hasKey("resizeStep"):
+    let resizeStepSetting = settingsTable["resizeStep"]
+    if resizeStepSetting.kind == TomlValueKind.Int:
+      if resizeStepSetting.intVal > 0:
+        this.resizeStep = resizeStepSetting.intVal.uint
+      else:
+        log "resizeStep is not a positive integer!", lvlWarn
+    else:
+      log "resizeStep is not an integer value!", lvlWarn
+
+  # Check for numMasterWindows
+  if settingsTable.hasKey("numMasterWindows"):
+    let numMasterWindows = settingsTable["numMasterWindows"]
+    if numMasterWindows.kind != TomlValueKind.Int:
+      raise newException(Exception, "Invalid numMasterWindows for tag")
+    this.numMasterWindows = numMasterWindows.intVal.uint
+
+  if settingsTable.hasKey("defaultMasterWidthPercentage"):
+    let masterWidthSetting = settingsTable["defaultMasterWidthPercentage"]
+    if masterWidthSetting.kind == TomlValueKind.Int:
+      this.defaultMasterWidthPercentage = masterWidthSetting.intVal.int.clamp(10, 90)
+      if this.defaultMasterWidthPercentage != masterWidthSetting.intVal:
+        log "Invalid defaultMasterWidthPercentage, clamped to 10-90%", lvlWarn
+    else:
+      raise newException(Exception, "invalid defaultMasterWidthPercentage for tag")
+
+proc increaseMasterCount(layout: Layout, _: TaggedClients) =
+  MasterStackLayout(layout).masterSlots.inc
+
+proc decreaseMasterCount(layout: Layout, _: TaggedClients) =
+  var masterStackLayout = MasterStackLayout(layout)
+  if masterStackLayout.masterSlots.int > 0:
+    masterStackLayout.masterSlots.dec
+
+template modWidthDiff(layout: Layout, diff: int) =
+  let masterStackLayout = cast[MasterStackLayout](layout)
+
+  if
+    (diff > 0 and masterStackLayout.widthDiff < 0) or
+    (diff < 0 and masterStackLayout.widthDiff > 0) or
+    masterStackLayout.calcClientWidth(masterStackLayout.monitorArea.width).int - abs(masterStackLayout.widthDiff).int - abs(
+        diff).int > 0:
+      masterStackLayout.widthDiff += diff
+
+proc increaseMasterWidth(layout: Layout, _: TaggedClients) =
+  layout.modWidthDiff(layout.MasterStackLayout.resizeStep.int)
+
+proc decreaseMasterWidth(layout: Layout, _: TaggedClients) =
+  layout.modWidthDiff(-layout.MasterStackLayout.resizeStep.int)
+
+method availableCommands*(this: MasterStackLayoutSettings): seq[tuple[command: string, action: proc(layout: Layout, taggedClients: TaggedClients) {.nimcall.}]] =
+  result = @[
+    ($mscIncreaseMasterWidth, increaseMasterWidth),
+    ($mscDecreaseMasterWidth, decreaseMasterWidth),
+    ($mscIncreaseMasterCount, increaseMasterCount),
+    ($mscDecreaseMasterCount, decreaseMasterCount)
+  ]
+
+proc newMasterStackLayout(
   monitorArea: Area,
   gapSize: uint,
   defaultWidth: int,
   borderWidth: uint,
   masterSlots: uint,
   layoutOffset: LayoutOffset,
+  resizeStep: uint,
   outerGap: uint = 0
 ): MasterStackLayout =
   ## Creates a new MasterStack layout.
@@ -66,9 +171,32 @@ proc newMasterStackLayout*(
     defaultWidth: defaultWidth,
     borderWidth: borderWidth,
     masterSlots: masterSlots,
-    outerGap: outerGap
+    outerGap: outerGap,
+    offset: layoutOffset,
+    resizeStep: resizeStep
   )
   result.setDefaultWidth(layoutOffset)
+
+method newLayout*(settings: MasterStackLayoutSettings,
+    monitorArea: Area,
+    borderWidth: uint,
+    layoutOffset: LayoutOffset): Layout =
+  newMasterStackLayout(monitorArea, settings.gapSize, settings.defaultMasterWidthPercentage, borderWidth, settings.numMasterWindows, layoutOffset, settings.outerGap, settings.resizeStep)
+
+method updateSettings*(
+    this: var MasterStackLayout,
+    settings: LayoutSettings,
+    monitorArea: Area,
+    borderWidth: uint,
+    layoutOffset: LayoutOffset) =
+  let masterStackSettings = cast[MasterStackLayoutSettings](settings)
+  this.monitorArea = monitorArea
+  this.gapSize = masterStackSettings.gapSize
+  this.defaultWidth = masterStackSettings.defaultMasterWidthPercentage
+  this.borderWidth = borderWidth
+  this.masterSlots = masterStackSettings.numMasterWindows
+  this.outerGap = masterStackSettings.outerGap
+  this.setDefaultWidth(layoutOffset)
 
 method arrange*(
     this: MasterStackLayout,
@@ -184,7 +312,7 @@ proc layoutMultipleClients(
       clientHeight
     )
 
-proc setDefaultWidth*(this: MasterStackLayout, offset: LayoutOffset) =
+proc setDefaultWidth(this: MasterStackLayout, offset: LayoutOffset) =
   let screenWidth = calcScreenWidth(this, offset)
   let pxPercent = math.round(screenWidth.float / 100).int
   this.widthDiff = (this.defaultWidth - 50) * pxPercent
@@ -246,7 +374,7 @@ proc calcYPosition(
 
   return max(0, pos).uint
 
-proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
+proc calcClientWidth(this: MasterStackLayout, screenWidth: uint): uint =
   ## client width per pane excluding borders & gaps
   let outerGap =
     if this.outerGap > 0:
@@ -262,12 +390,5 @@ proc calcClientWidth*(this: MasterStackLayout, screenWidth: uint): uint =
           math.round(this.gapSize.float * 0.5).int
   )
 
-proc getClientsToBeArranged(clients: seq[Client]): seq[Client] =
-  ## Finds all clients that should be arranged in the layout.
-  ## Some windows are excluded, such as fullscreen windows.
-  for client in clients:
-    if not client.isFullscreen and not client.isFloating and not client.isFixedSize:
-      result.add(client)
-
-func calcScreenWidth*(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.width.int - offset.left.int - offset.right.int
-func calcScreenHeight*(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.height.int - offset.top.int - offset.bottom.int
+func calcScreenWidth(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.width.int - offset.left.int - offset.right.int
+func calcScreenHeight(this: MasterStackLayout, offset: LayoutOffset): int = this.monitorArea.height.int - offset.top.int - offset.bottom.int
