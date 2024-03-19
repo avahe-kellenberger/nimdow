@@ -22,57 +22,160 @@ const
   NORD14: string = "163;190;140m" #A3BE8C
   NORD15: string = "180;142;173m" #B48EAD
 
+  PLINE_0: string = FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
+  PLINE_1: string = FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
+  PLINE_2: string = FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
+  PLINE_3: string = FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
+  PLINE_4: string = FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
+  PLINE_5: string = FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
+  PLINE_6: string = FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
+  PLINE_7: string = FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
+  PLINE_8: string = FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
+  PLINE_9: string = FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
+  PLINE_10: string = FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
+  PLINE_11: string = FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
+  PLINE_12: string = FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
+  PLINE_13: string = FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
+  PLINE_14: string = FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
+  PLINE_15: string = FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD
 
-  ARROW_0: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
-  ARROW_1: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
-  ARROW_2: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
-  ARROW_3: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
-  ARROW_4: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
-  ARROW_5: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
-  ARROW_6: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
-  ARROW_7: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
-  ARROW_8: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
-  ARROW_9: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
-  ARROW_10: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
-  ARROW_11: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
-  ARROW_12: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
-  ARROW_13: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
-  ARROW_14: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
-  ARROW_15: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD 
+  CLINE_0: string = FG&NORD0 & "" & RESET & BG&NORD0    #2E3440  
+  CLINE_1: string = FG&NORD1 & "" & RESET & BG&NORD1    #3B4252  
+  CLINE_2: string = FG&NORD2 & "" & RESET & BG&NORD2    #434C5E  
+  CLINE_3: string = FG&NORD3 & "" & RESET & BG&NORD3    #4C566A  
+  CLINE_4: string = FG&NORD4 & "" & RESET & BG&NORD4    #D8DEE9  
+  CLINE_5: string = FG&NORD5 & "" & RESET & BG&NORD5    #E5E9F0  
+  CLINE_6: string = FG&NORD6 & "" & RESET & BG&NORD6    #ECEFF4  
+  CLINE_7: string = FG&NORD7 & "" & RESET & BG&NORD7    #8FBCBB  
+  CLINE_8: string = FG&NORD8 & "" & RESET & BG&NORD8    #88C0D0  
+  CLINE_9: string = FG&NORD9 & "" & RESET & BG&NORD9    #81A1C1  
+  CLINE_10: string = FG&NORD10 & "" & RESET & BG&NORD10 #5E81AC 
+  CLINE_11: string = FG&NORD11 & "" & RESET & BG&NORD11 #BF616A 
+  CLINE_12: string = FG&NORD12 & "" & RESET & BG&NORD12 #D08770 
+  CLINE_13: string = FG&NORD13 & "" & RESET & BG&NORD13 #EBCB8B 
+  CLINE_14: string = FG&NORD14 & "" & RESET & BG&NORD14 #A3BE8C 
+  CLINE_15: string = FG&NORD15 & "" & RESET & BG&NORD15 #B48EAD 
 
-  CIRCLE_0: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0    #2E3440  
-  CIRCLE_1: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1    #3B4252  
-  CIRCLE_2: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2    #434C5E  
-  CIRCLE_3: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3    #4C566A  
-  CIRCLE_4: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4    #D8DEE9  
-  CIRCLE_5: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5    #E5E9F0  
-  CIRCLE_6: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6    #ECEFF4  
-  CIRCLE_7: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7    #8FBCBB  
-  CIRCLE_8: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8    #88C0D0  
-  CIRCLE_9: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9    #81A1C1  
-  CIRCLE_10: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10 #5E81AC 
-  CIRCLE_11: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11 #BF616A 
-  CIRCLE_12: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12 #D08770 
-  CIRCLE_13: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13 #EBCB8B 
-  CIRCLE_14: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14 #A3BE8C 
-  CIRCLE_15: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15 #B48EAD 
+  ALINE_0: string = FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
+  ALINE_1: string = FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
+  ALINE_2: string = FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
+  ALINE_3: string = FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
+  ALINE_4: string = FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
+  ALINE_5: string = FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
+  ALINE_6: string = FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
+  ALINE_7: string = FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
+  ALINE_8: string = FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
+  ALINE_9: string = FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
+  ALINE_10: string = FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
+  ALINE_11: string = FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
+  ALINE_12: string = FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
+  ALINE_13: string = FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
+  ALINE_14: string = FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
+  ALINE_15: string = FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD 
 
-  ANGLE_0: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
-  ANGLE_1: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
-  ANGLE_2: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
-  ANGLE_3: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
-  ANGLE_4: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
-  ANGLE_5: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
-  ANGLE_6: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
-  ANGLE_7: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
-  ANGLE_8: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
-  ANGLE_9: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
-  ANGLE_10: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
-  ANGLE_11: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
-  ANGLE_12: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
-  ANGLE_13: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
-  ANGLE_14: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
-  ANGLE_15: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD 
+
+
+  ARROW_0L: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
+  ARROW_1L: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
+  ARROW_2L: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
+  ARROW_3L: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
+  ARROW_4L: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
+  ARROW_5L: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
+  ARROW_6L: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
+  ARROW_7L: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
+  ARROW_8L: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
+  ARROW_9L: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
+  ARROW_10L: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
+  ARROW_11L: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
+  ARROW_12L: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
+  ARROW_13L: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
+  ARROW_14L: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
+  ARROW_15L: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD 
+
+  ARROW_0R: string = RESET & FG&NORD0 & "" & RESET     #2E3440  
+  ARROW_1R: string = RESET & FG&NORD1 & "" & RESET     #3B4252  
+  ARROW_2R: string = RESET & FG&NORD2 & "" & RESET     #434C5E  
+  ARROW_3R: string = RESET & FG&NORD3 & "" & RESET     #4C566A  
+  ARROW_4R: string = RESET & FG&NORD4 & "" & RESET     #D8DEE9  
+  ARROW_5R: string = RESET & FG&NORD5 & "" & RESET     #E5E9F0  
+  ARROW_6R: string = RESET & FG&NORD6 & "" & RESET     #ECEFF4  
+  ARROW_7R: string = RESET & FG&NORD7 & "" & RESET     #8FBCBB  
+  ARROW_8R: string = RESET & FG&NORD8 & "" & RESET     #88C0D0  
+  ARROW_9R: string = RESET & FG&NORD9 & "" & RESET     #81A1C1  
+  ARROW_10R: string = RESET & FG&NORD10 & "" & RESET   #5E81AC 
+  ARROW_11R: string = RESET & FG&NORD11 & "" & RESET   #BF616A 
+  ARROW_12R: string = RESET & FG&NORD12 & "" & RESET   #D08770 
+  ARROW_13R: string = RESET & FG&NORD13 & "" & RESET   #EBCB8B 
+  ARROW_14R: string = RESET & FG&NORD14 & "" & RESET   #A3BE8C 
+  ARROW_15R: string = RESET & FG&NORD15 & "" & RESET   #B48EAD 
+
+  CIRCLE_0L: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0    #2E3440  
+  CIRCLE_1L: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1    #3B4252  
+  CIRCLE_2L: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2    #434C5E  
+  CIRCLE_3L: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3    #4C566A  
+  CIRCLE_4L: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4    #D8DEE9  
+  CIRCLE_5L: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5    #E5E9F0  
+  CIRCLE_6L: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6    #ECEFF4  
+  CIRCLE_7L: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7    #8FBCBB  
+  CIRCLE_8L: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8    #88C0D0  
+  CIRCLE_9L: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9    #81A1C1  
+  CIRCLE_10L: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10 #5E81AC 
+  CIRCLE_11L: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11 #BF616A 
+  CIRCLE_12L: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12 #D08770 
+  CIRCLE_13L: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13 #EBCB8B 
+  CIRCLE_14L: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14 #A3BE8C 
+  CIRCLE_15L: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15 #B48EAD 
+
+  CIRCLE_0R: string = RESET & FG&NORD0 & "" & RESET    #2E3440  
+  CIRCLE_1R: string = RESET & FG&NORD1 & "" & RESET    #3B4252  
+  CIRCLE_2R: string = RESET & FG&NORD2 & "" & RESET    #434C5E  
+  CIRCLE_3R: string = RESET & FG&NORD3 & "" & RESET    #4C566A  
+  CIRCLE_4R: string = RESET & FG&NORD4 & "" & RESET    #D8DEE9  
+  CIRCLE_5R: string = RESET & FG&NORD5 & "" & RESET    #E5E9F0  
+  CIRCLE_6R: string = RESET & FG&NORD6 & "" & RESET    #ECEFF4  
+  CIRCLE_7R: string = RESET & FG&NORD7 & "" & RESET    #8FBCBB  
+  CIRCLE_8R: string = RESET & FG&NORD8 & "" & RESET    #88C0D0  
+  CIRCLE_9R: string = RESET & FG&NORD9 & "" & RESET    #81A1C1  
+  CIRCLE_10R: string = RESET & FG&NORD10 & "" & RESET  #5E81AC 
+  CIRCLE_11R: string = RESET & FG&NORD11 & "" & RESET  #BF616A 
+  CIRCLE_12R: string = RESET & FG&NORD12 & "" & RESET  #D08770 
+  CIRCLE_13R: string = RESET & FG&NORD13 & "" & RESET  #EBCB8B 
+  CIRCLE_14R: string = RESET & FG&NORD14 & "" & RESET  #A3BE8C 
+  CIRCLE_15R: string = RESET & FG&NORD15 & "" & RESET  #B48EAD 
+
+  ANGLE_0L: string = RESET & FG&NORD0 & "" & RESET & BG&NORD0     #2E3440  
+  ANGLE_1L: string = RESET & FG&NORD1 & "" & RESET & BG&NORD1     #3B4252  
+  ANGLE_2L: string = RESET & FG&NORD2 & "" & RESET & BG&NORD2     #434C5E  
+  ANGLE_3L: string = RESET & FG&NORD3 & "" & RESET & BG&NORD3     #4C566A  
+  ANGLE_4L: string = RESET & FG&NORD4 & "" & RESET & BG&NORD4     #D8DEE9  
+  ANGLE_5L: string = RESET & FG&NORD5 & "" & RESET & BG&NORD5     #E5E9F0  
+  ANGLE_6L: string = RESET & FG&NORD6 & "" & RESET & BG&NORD6     #ECEFF4  
+  ANGLE_7L: string = RESET & FG&NORD7 & "" & RESET & BG&NORD7     #8FBCBB  
+  ANGLE_8L: string = RESET & FG&NORD8 & "" & RESET & BG&NORD8     #88C0D0  
+  ANGLE_9L: string = RESET & FG&NORD9 & "" & RESET & BG&NORD9     #81A1C1  
+  ANGLE_10L: string = RESET & FG&NORD10 & "" & RESET & BG&NORD10  #5E81AC 
+  ANGLE_11L: string = RESET & FG&NORD11 & "" & RESET & BG&NORD11  #BF616A 
+  ANGLE_12L: string = RESET & FG&NORD12 & "" & RESET & BG&NORD12  #D08770 
+  ANGLE_13L: string = RESET & FG&NORD13 & "" & RESET & BG&NORD13  #EBCB8B 
+  ANGLE_14L: string = RESET & FG&NORD14 & "" & RESET & BG&NORD14  #A3BE8C 
+  ANGLE_15L: string = RESET & FG&NORD15 & "" & RESET & BG&NORD15  #B48EAD 
+
+  ANGLE_0R: string = RESET & FG&NORD0 & "" & RESET     #2E3440  
+  ANGLE_1R: string = RESET & FG&NORD1 & "" & RESET     #3B4252  
+  ANGLE_2R: string = RESET & FG&NORD2 & "" & RESET     #434C5E  
+  ANGLE_3R: string = RESET & FG&NORD3 & "" & RESET     #4C566A  
+  ANGLE_4R: string = RESET & FG&NORD4 & "" & RESET     #D8DEE9  
+  ANGLE_5R: string = RESET & FG&NORD5 & "" & RESET     #E5E9F0  
+  ANGLE_6R: string = RESET & FG&NORD6 & "" & RESET     #ECEFF4  
+  ANGLE_7R: string = RESET & FG&NORD7 & "" & RESET     #8FBCBB  
+  ANGLE_8R: string = RESET & FG&NORD8 & "" & RESET     #88C0D0  
+  ANGLE_9R: string = RESET & FG&NORD9 & "" & RESET     #81A1C1  
+  ANGLE_10R: string = RESET & FG&NORD10 & "" & RESET   #5E81AC 
+  ANGLE_11R: string = RESET & FG&NORD11 & "" & RESET   #BF616A 
+  ANGLE_12R: string = RESET & FG&NORD12 & "" & RESET   #D08770 
+  ANGLE_13R: string = RESET & FG&NORD13 & "" & RESET   #EBCB8B 
+  ANGLE_14R: string = RESET & FG&NORD14 & "" & RESET   #A3BE8C 
+  ANGLE_15R: string = RESET & FG&NORD15 & "" & RESET   #B48EAD 
 
 
 #[
@@ -89,8 +192,11 @@ const
   barForegroundColor = "#2e3440"
   barSelectionColor = "#d8dee9"
   barUrgentColor = "#bf616a"
-  barFonts = ["Noto:style=Bold:size=11:antialias=true", 
-              "JetBrainsMono Nerd Font Mono:size=19:antialias=true"]
+  barFonts = [
+    "DejaVu Sans:style=Bold:size=10:antialias=true",
+    "FontAwesome:size=14:antialias=true",
+    "JetBrainsMono Nerd Font:size=16:antialias=true",
+  ]
 
 ]#
 
