@@ -383,7 +383,7 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
       return xOverlap - yOverlap
     return x.overlaps.len - y.overlaps.len
 
-  s.requested = s.client.area
+  s.client.area = s.requested
 
   var solutions: seq[Solution]
   let
@@ -574,12 +574,14 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     this.trackedClients.keepItIf(it.client.window != client.client.window)
     this.reDistr(Up, Left)
   for client in addedClients:
+    client.requested.width += client.client.borderWidth * 2'u + this.settings.gapSize
+    client.requested.height += client.client.borderWidth * 2'u + this.settings.gapSize
     this.addWindow(client)
-  for client in stayedClients:
-    client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
-    client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
 
   if addedClients.len == 0 and removedClients.len == 0:
+    for client in stayedClients:
+      client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
+      client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
     this.reDistr(Up, Left)
 
   for client in this.trackedClients:
