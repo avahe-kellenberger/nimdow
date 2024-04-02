@@ -69,8 +69,8 @@ proc shuffle(this: PimoLayout, dir: Direction): bool {.discardable.} =
   for edge in sortedEdge:
     let square = edge.client.area
     var closestEdge =
-      if towardsStart: this.offsetStart.int
-      else: limit.int - square.size.int + this.offsetEnd.int
+      if towardsStart: this.offsetLeading.int
+      else: limit.int - square.size.int + this.offsetTrailing.int
     for placedEdge in placed:
       let placed = placedEdge.client.area
       if square.sameDir(placed):
@@ -312,8 +312,8 @@ proc iterDistr(this: PimoLayout, dir: Direction) =
     changed = false
     for square in sortedEdge:
       var
-        closestEnd = this.dimensionSize.int
-        closestStart = 0
+        closestEnd = this.dimensionSize.int + this.offsetTot.int - this.offsetEnd.int
+        closestStart = this.offsetStart.int
       for inner in sortedEdge:
         if inner.client.window == square.client.window: continue
         if inner.client.area.sameDir(square.client.area):
@@ -335,6 +335,7 @@ proc iterDistr(this: PimoLayout, dir: Direction) =
     inc i
 
 proc collapse(this: PimoLayout, dir: Direction) =
+  this.shuffle(dir)
   var
     monitorArea = this.monitorArea
     bounding = calcBounding(this.trackedClients)
@@ -342,25 +343,24 @@ proc collapse(this: PimoLayout, dir: Direction) =
   monitorArea.height -= this.offset.top + this.offset.bottom
   generalizeForDirection(dir)
   if bounding.size > monitorArea.size:
-    this.shuffle(dir)
     var oldPos: Table[Window, int]
     for square in this.trackedClients:
       oldPos[square.client.window] = square.client.area.leadingEdge
     this.shuffle(dir.opposite)
     let diff = bounding.size.int - monitorArea.size.int
     for square in this.trackedClients:
-      if (oldPos[square.client.window] - square.client.area.leadingEdge) div 2 == diff:
+      if (oldPos[square.client.window] - square.client.area.leadingEdge) <= diff:
         square.client.area.size = square.client.area.size - diff.uint
 
+proc reDistr(this: PimoLayout, dir: Direction) =
+  this.collapse(dir)
+  this.shuffle(dir)
+  this.iterGrow(dir.opposite)
+  this.iterDistr(dir.opposite)
+
 proc reDistr(this: PimoLayout, dir1, dir2: Direction) =
-  this.collapse(dir2)
-  this.shuffle(dir2)
-  this.iterGrow(dir2.opposite)
-  this.iterDistr(dir2.opposite)
-  this.collapse(dir1)
-  this.shuffle(dir1)
-  this.iterGrow(dir1.opposite)
-  this.iterDistr(dir1.opposite)
+  this.reDistr dir2
+  this.reDistr dir1
 
 proc addWindow(this: PimoLayout, s: TrackedClient) =
   proc cmp(x, y: Solution): int =
@@ -581,8 +581,10 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
   if addedClients.len == 0 and removedClients.len == 0:
     for client in stayedClients:
       client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
+    this.reDistr(Left)
+    for client in stayedClients:
       client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
-    this.reDistr(Up, Left)
+    this.reDistr(Up)
 
   for client in this.trackedClients:
     client.client.area.x += this.monitorArea.x + client.client.borderWidth.int + this.settings.gapSize.int div 2
@@ -638,8 +640,7 @@ template shrink(layout: Layout, tc: TaggedClients, dir, dim: untyped): untyped =
       if taggedClient.client.window == client.window:
         if taggedClient.`expand dir`:
           taggedClient.`expand dir` = false
-          taggedClient.requested.dim = taggedClient.client.area.dim
-        taggedClient.requested.dim = max(taggedClient.requested.dim - layout.settings.resizeStep, 100)
+        taggedClient.requested.dim = max(taggedClient.client.area.dim - layout.settings.resizeStep, 100)
         break
 
 proc shrinkX(layout: Layout, tc: TaggedClients) =

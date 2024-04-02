@@ -160,26 +160,39 @@ template generalizeForDirection*(d: Direction): untyped =
     if d in {Right, Down}: true
     else: false
 
-  template offsetEnd(this: untyped): uint =
+  template offsetTrailing(this: untyped): uint =
     case d
     of Left: this.offset.right
     of Right: this.offset.left
     of Up: this.offset.bottom
     of Down: this.offset.top
 
-  template offsetStart(this: untyped): uint =
+  template offsetLeading(this: untyped): uint =
     case d
     of Left: this.offset.left
     of Right: this.offset.right
     of Up: this.offset.top
     of Down: this.offset.bottom
 
+  template offsetStart(this: untyped): uint =
+    case d
+    of Left, Right: this.offset.left
+    of Up, Down: this.offset.top
+
+  template offsetEnd(this: untyped): uint =
+    case d
+    of Left, Right: this.offset.right
+    of Up, Down: this.offset.bottom
+
   template offsetTot(this: untyped): uint =
     this.offsetEnd + this.offsetStart
 
+  template monitorSize(this: untyped): uint =
+    if d in {Right, Left}: this.monitorArea.width
+    else: this.monitorArea.height
+
   template dimensionSize(this: untyped): uint =
-    (if d in {Right, Left}: this.monitorArea.width
-    else: this.monitorArea.height) - this.offsetTot()
+    this.monitorSize - this.offsetTot()
 
   template horizontal(): bool =
     if d in {Right, Left}: true
