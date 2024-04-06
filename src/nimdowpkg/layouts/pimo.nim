@@ -274,28 +274,32 @@ proc iterGrow(this: PimoLayout, dir: Direction) =
     usableHeight = this.monitorArea.height - this.offset.top - this.offset.bottom
     sortedEdge =
       if towardsStart: this.trackedClients.sortedByIt(it.client.area.startEdge)
-      else: this.trackedClients.sortedByIt((if dir == Right: usableWidth else: usableHeight).int - it.client.area.endEdge)
+      else: this.trackedClients.sortedByIt((if dir in {Right, Left}: usableWidth else: usableHeight).int - it.client.area.endEdge)
   for square in this.trackedClients:
     if (horizontal and square.expandX) or (vertical and square.expandY):
       square.resize(min(0, square.pureRequestedSize.int - square.client.area.size.int))
   var resized = true
   this.shuffle(dir.opposite)
-  while resized:
-    resized = false
-    var oldPos: Table[Window, int]
-    for square in sortedEdge:
-      if square.requestedSize < square.client.area.size:
-        resized = true
-        square.resize(square.requestedSize.int - square.client.area.size.int)
-      oldPos[square.client.window] = square.client.area.leadingEdge
-    this.shuffle(dir)
-    for square in sortedEdge:
-      if square.requestedSize != square.client.area.size:
-        let change = (abs(square.client.area.leadingEdge - oldPos[square.client.window]) * square.client.area.size.int) div this.dimensionSize().int
-        if change != 0:
-          square.resize(change)
+  template growForSize(selectedSize: untyped): untyped =
+    while resized:
+      resized = false
+      var oldPos: Table[Window, int]
+      for square in sortedEdge:
+        if square.selectedSize < square.client.area.size:
           resized = true
-    this.shuffle(dir.opposite)
+          square.resize(square.selectedSize.int - square.client.area.size.int)
+        oldPos[square.client.window] = square.client.area.leadingEdge
+      this.shuffle(dir)
+      for square in sortedEdge:
+        if square.selectedSize != square.client.area.size:
+          let change = (abs(square.client.area.leadingEdge - oldPos[square.client.window]) * square.client.area.size.int) div this.dimensionSize().int
+          if change != 0:
+            square.resize(change)
+            resized = true
+      this.shuffle(dir.opposite)
+  growForSize(pureRequestedSize)
+  resized = true
+  growForSize(requestedSize)
 
 proc iterDistr(this: PimoLayout, dir: Direction) =
   generalizeForDirection(dir)
@@ -350,7 +354,7 @@ proc collapse(this: PimoLayout, dir: Direction) =
     let diff = bounding.size.int - monitorArea.size.int
     for square in this.trackedClients:
       if (oldPos[square.client.window] - square.client.area.leadingEdge) <= diff:
-        square.client.area.size = square.client.area.size - diff.uint
+        square.client.area.size = max(0, square.client.area.size.int - diff).uint
 
 proc reDistr(this: PimoLayout, dir: Direction) =
   this.collapse(dir)
@@ -574,8 +578,8 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
     this.trackedClients.keepItIf(it.client.window != client.client.window)
     this.reDistr(Up, Left)
   for client in addedClients:
-    client.requested.width += client.client.borderWidth * 2'u + this.settings.gapSize
-    client.requested.height += client.client.borderWidth * 2'u + this.settings.gapSize
+    client.requested.width = min(this.monitorArea.width, client.requested.width + client.client.borderWidth * 2'u + this.settings.gapSize)
+    client.requested.height = min(this.monitorArea.height, client.requested.height + client.client.borderWidth * 2'u + this.settings.gapSize)
     this.addWindow(client)
 
   if addedClients.len == 0 and removedClients.len == 0:
