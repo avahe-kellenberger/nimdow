@@ -1175,7 +1175,10 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     client.oldWidth = client.width
     client.height = height
     client.oldHeight = client.height
-    client.borderWidth = this.config.windowSettings.borderWidth
+    if appRule != nil and appRule.borderWidth >= 0:
+      client.borderWidth = appRule.borderWidth
+    else:
+      client.borderWidth = this.config.windowSettings.borderWidth
     client.oldBorderWidth = borderWidth
 
   if client.x - monitor.area.x <= 0 or

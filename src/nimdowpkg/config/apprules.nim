@@ -23,6 +23,7 @@ type
     y*: int
     width*: int
     height*: int
+    borderWidth*: int
 
 proc newAppRule*(): AppRule =
   AppRule(
@@ -35,7 +36,8 @@ proc newAppRule*(): AppRule =
     x: -1,
     y: -1,
     width: 0,
-    height: 0
+    height: 0,
+    borderWidth: -1
   )
 
 proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
@@ -116,6 +118,7 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.y = appRuleTable.getIntProperty("y", -1)
     appRule.width = appRuleTable.getIntProperty("width")
     appRule.height = appRuleTable.getIntProperty("height")
+    appRule.borderWidth = appRuleTable.getIntProperty("borderWidth", -1)
     echo appRule[]
     result.add(appRule)
 
