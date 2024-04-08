@@ -1263,6 +1263,19 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     this.focus(client, shouldWarp)
     monitor.focusClient(client, shouldWarp)
 
+  if appRule != nil:
+    let availableActions = this.config.layoutSettings.availableCommands()
+    for command in availableActions:
+      for action in appRule.actions:
+        if action.toLowerAscii == command.command:
+          let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
+          if firstSelectedTag == nil:
+            return
+
+          var layout = firstSelectedTag.layout
+          command.action(layout, this.selectedMonitor.taggedClients)
+          this.selectedMonitor.doLayout()
+
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
   var windowAttr: XWindowAttributes
 
