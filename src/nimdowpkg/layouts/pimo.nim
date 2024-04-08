@@ -44,6 +44,7 @@ type
   Commands = enum
     pExpandX = "expandx"
     pExpandY = "expandy"
+    pExpandBoth = "expandboth"
     pGrowX = "growx"
     pGrowY = "growy"
     pShrinkX = "shrinkx"
@@ -416,6 +417,12 @@ proc addWindow(this: PimoLayout, s: TrackedClient) =
   if solution.overlaps.len != 0:
     #echo "Solution has overlaps, solving with new window in position: ", s.client.area
     this.solveConflict(s, solution)
+    #case solution.dir2:
+    #of Left: s.client.area.x = this.monitorArea.width.int
+    #of Right: s.client.area.x = -s.client.area.width.int
+    #of Down: s.client.area.y = this.monitorArea.height.int
+    #of Up: s.client.area.y = -s.client.area.height.int
+    #this.trackedClients.add s
   else:
     this.trackedClients.add s
   this.reDistr(solution.dir1, solution.dir2)
@@ -615,6 +622,39 @@ proc expandY(layout: Layout, tc: TaggedClients) =
   var layout = cast[PimoLayout](layout)
   expand(layout, tc, Y)
 
+proc expandBoth(layout: Layout, tc: TaggedClients) =
+  # Expands in both directions. Tries X then Y and Y then X and picks the one which causes the largest window
+  var layout = cast[PimoLayout](layout)
+  var done = false
+  tc.withSomeCurrClient(client):
+    for trackedClient in layout.trackedClients:
+      if trackedClient.client.window == client.window:
+        if trackedClient.expandX and trackedClient.expandY:
+          done = true
+        trackedClient.expandX = false
+        trackedClient.expandY = false
+  if done: return
+  layout.reDistr(Left, Up) # Ensure the above unexpansion is completed
+
+  expandX(layout, tc)
+  layout.reDistr(Up, Left)
+  expandY(layout, tc)
+  layout.reDistr(Left, Up)
+  var size: uint
+  tc.withSomeCurrClient(client):
+    size = client.area.width * client.area.height
+  expandX(layout, tc)
+  layout.reDistr(Up, Left)
+  expandX(layout, tc)
+  layout.reDistr(Up, Left)
+  tc.withSomeCurrClient(client):
+    done = size < client.area.width * client.area.height # Check if the current size is larger than the previous size
+  if done: return
+  expandY(layout, tc)
+  layout.reDistr(Left, Up)
+  expandY(layout, tc)
+  layout.reDistr(Left, Up)
+
 template grow(layout: Layout, tc: TaggedClients, dir, dim: untyped): untyped =
   tc.withSomeCurrClient(client):
     for trackedClient in layout.trackedClients:
@@ -711,6 +751,7 @@ method availableCommands*(this: PimoLayoutSettings): seq[tuple[command: string, 
     ($pMoveDown, moveDown),
     ($pExpandX, expandX),
     ($pExpandY, expandY),
+    ($pExpandBoth, expandBoth),
     ($pGrowX, growX),
     ($pGrowY, growY),
     ($pShrinkX, shrinkX),
