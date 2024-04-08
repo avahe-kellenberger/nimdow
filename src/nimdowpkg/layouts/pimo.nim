@@ -94,15 +94,16 @@ proc calcBounding(squares: seq[TrackedClient]): Area =
   if squares.len == 0:
     return
   result = squares[0].client.area
-  result.width += result.x.uint
-  result.height += result.y.uint
+  var
+    maxX = result.x + result.width.int
+    maxy = result.y + result.height.int
   for i in squares.low+1..squares.high:
     result.x = min(squares[i].client.area.x, result.x)
     result.y = min(squares[i].client.area.y, result.y)
-    result.width = max(squares[i].client.area.x.uint + squares[i].client.area.width, result.width)
-    result.height = max(squares[i].client.area.y.uint + squares[i].client.area.height, result.height)
-  result.width -= result.x.uint
-  result.height -= result.y.uint
+    maxX = max(squares[i].client.area.x + squares[i].client.area.width.int, maxX)
+    maxY = max(squares[i].client.area.y + squares[i].client.area.height.int, maxY)
+  result.width = uint(maxX - result.x)
+  result.height = uint(maxY - result.y)
 
 proc testSolution(this: PimoLayout, newSquare: TrackedClient, dir1, dir2: Direction): Solution =
   result.dir1 = dir1
@@ -223,14 +224,15 @@ proc solveConflict(this: PimoLayout, newSquare: TrackedClient, s: Solution) =
     var
       overflow = path.requested.int + newSquare.client.area.size.int - this.dimensionSize.int
       correction = overflow div (path.path.len + 1)
+      minSize = newSquare.client.borderWidth.int*2 + this.settings.gapSize.int
     overflow -= correction
 
     if dir in {Left, Right}:
-      newSquare.client.area.width -= correction.uint
+      newSquare.client.area.width = max(minSize, newSquare.client.area.width.int - correction).uint
       if towardsStart:
         newSquare.client.area.x += correction
     else:
-      newSquare.client.area.height -= correction.uint
+      newSquare.client.area.height = max(minSize, newSquare.client.area.height.int - correction).uint
       if towardsStart:
         newSquare.client.area.y += correction
 
@@ -238,11 +240,11 @@ proc solveConflict(this: PimoLayout, newSquare: TrackedClient, s: Solution) =
       correction = overflow div (path.path.len - i) # Recalculate each step to avoid remainder
       overflow -= correction
       if dir in {Left, Right}:
-        square.client.area.width -= correction.uint
+        square.client.area.width = max(minSize, square.client.area.width.int - correction).uint
         if towardsEnd:
           square.client.area.x += correction
       else:
-        square.client.area.height -= correction.uint
+        square.client.area.height = max(minSize, square.client.area.height.int - correction).uint
         if towardsEnd:
           square.client.area.y += correction
 
@@ -354,7 +356,7 @@ proc collapse(this: PimoLayout, dir: Direction) =
     let diff = bounding.size.int - monitorArea.size.int
     for square in this.trackedClients:
       if (oldPos[square.client.window] - square.client.area.leadingEdge) <= diff:
-        square.client.area.size = max(0, square.client.area.size.int - diff).uint
+        square.client.area.size = max(square.client.borderWidth.int*2 + this.settings.gapSize.int, square.client.area.size.int - diff).uint
 
 proc reDistr(this: PimoLayout, dir: Direction) =
   this.collapse(dir)
@@ -576,19 +578,19 @@ method arrange*(this: PimoLayout, display: PDisplay, clients: seq[Client], offse
         addedClients.add TrackedClient(client: client, requested: client.oldArea, expandX: false, expandY: false)
   for client in removedClients:
     this.trackedClients.keepItIf(it.client.window != client.client.window)
-    this.reDistr(Up, Left)
+    #this.reDistr(Up, Left)
   for client in addedClients:
     client.requested.width = min(this.monitorArea.width, client.requested.width + client.client.borderWidth * 2'u + this.settings.gapSize)
     client.requested.height = min(this.monitorArea.height, client.requested.height + client.client.borderWidth * 2'u + this.settings.gapSize)
     this.addWindow(client)
 
-  if addedClients.len == 0 and removedClients.len == 0:
-    for client in stayedClients:
-      client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
-    this.reDistr(Left)
-    for client in stayedClients:
-      client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
-    this.reDistr(Up)
+  #if addedClients.len == 0 and removedClients.len == 0:
+  for client in stayedClients:
+    client.client.area.width += client.client.borderWidth * 2'u + this.settings.gapSize
+  this.reDistr(Left)
+  for client in stayedClients:
+    client.client.area.height += client.client.borderWidth * 2'u + this.settings.gapSize
+  this.reDistr(Up)
 
   for client in this.trackedClients:
     client.client.area.x += this.monitorArea.x + client.client.borderWidth.int + this.settings.gapSize.int div 2
