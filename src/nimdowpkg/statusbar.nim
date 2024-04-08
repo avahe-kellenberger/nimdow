@@ -44,6 +44,7 @@ type
     fonts: seq[PXftFont]
     draw: PXftDraw
     visual: PVisual
+    depth: int
     colormap: Colormap
     fgColor*, bgColor*, selectionColor*, urgentColor*: XftColor
     area*: Area
@@ -83,8 +84,19 @@ proc newStatusBar*(
   result.tagSettings = tagSettings
   result.taggedClients = taggedClients
   result.screen = DefaultScreen(display)
-  result.visual = DefaultVisual(display, result.screen)
-  result.colormap = DefaultColormap(display, result.screen)
+  block visualCheck:
+    var vinfo: XVisualInfo
+    if XMatchVisualInfo(display, result.screen, 32, TrueColor, vinfo.addr) == 0:
+      if XMatchVisualInfo(display, result.screen, 24, TrueColor, vinfo.addr) == 0:
+        if XMatchVisualInfo(display, result.screen, 16, DirectColor, vinfo.addr) == 0:
+          if XMatchVisualInfo(display, result.screen, 8, PseudoColor, vinfo.addr) == 0:
+            result.visual = DefaultVisual(display, result.screen)
+            result.colormap = DefaultColormap(display, result.screen)
+            result.depth = DefaultDepth(display, result.screen)
+            break visualCheck
+    result.visual = vinfo.visual
+    result.colormap = XCreateColorMap(display, rootWindow, vinfo.visual, AllocNone)
+    result.depth = vinfo.depth
   result.area = area
   result.barWindow = result.createBar()
   result.draw = XftDrawCreate(display, result.barWindow, result.visual, result.colormap)
@@ -118,8 +130,10 @@ template currentWidth(this: StatusBar): int =
 
 proc createBar(this: StatusBar): Window =
   var windowAttr: XSetWindowAttributes
-  windowAttr.background_pixmap = ParentRelative
   windowAttr.event_mask = ExposureMask or ButtonPressMask
+  windowAttr.colormap = this.colormap
+  windowAttr.background_pixel = 0
+  windowAttr.border_pixel = 0
 
   return XCreateWindow(
     this.display,
@@ -129,10 +143,10 @@ proc createBar(this: StatusBar): Window =
     this.currentWidth,
     this.area.height,
     0,
-    DefaultDepth(this.display, this.screen),
-    CopyFromParent,
+    this.depth,
+    InputOutput,
     this.visual,
-    CWOverrideRedirect or CWBackPixmap or CWEventMask,
+    CWOverrideRedirect or CWEventMask or CWColormap or CWBackPixel or CWBorderPixel,
     windowAttr.addr
   )
 
@@ -263,19 +277,19 @@ proc toRGB(hex: int): RGB =
     hex and 0xff
   )
 
-template configureColor(this: StatusBar, hexColor: int, xftColor: XftColor) =
+template configureColor(this: StatusBar, hexColor: int, xftColor: XftColor, transparency = 255'u8) =
   var
     color: XRenderColor
     rgb = toRGB(hexColor)
-  color.red = rgb.r.cushort shl 8
-  color.green = rgb.g.cushort shl 8
-  color.blue = rgb.b.cushort shl 8
-  color.alpha = 255 shl 8
+  color.red = ((rgb.r * transparency) div 255).cushort shl 8
+  color.green = ((rgb.g * transparency) div 255).cushort shl 8
+  color.blue = ((rgb.b * transparency) div 255).cushort shl 8
+  color.alpha = transparency.cushort shl 8
   this.allocColor(color.addr, xftColor.unsafeAddr)
 
 proc configureColors(this: StatusBar) =
   this.configureColor(this.settings.fgColor, this.fgColor)
-  this.configureColor(this.settings.bgColor, this.bgColor)
+  this.configureColor(this.settings.bgColor, this.bgColor, this.settings.transparency)
   this.configureColor(this.settings.selectionColor, this.selectionColor)
   this.configureColor(this.settings.urgentColor, this.urgentColor)
 
@@ -465,6 +479,9 @@ proc renderStringRightAligned(
     reset currentSgr
 
   for rune in str.runes:
+    if pos notin str.low..str.high:
+      log "Unable to render string in status bar, invalid UTF character encountered"
+      return 0 # Invalid UTF character input
     let runeAddr = cast[PFcChar8](str[pos].unsafeAddr)
     pos += rune.size
     if rune.int32 == escape:
@@ -551,6 +568,16 @@ proc renderStringRightAligned(
   var
     last = xLoc
     current = xLoc
+    tallestBox: XGlyphInfo
+    tallestPos = 0
+  # Find first font with the "Full block" symbol, decide it's height and position
+  # This helps line up other symbols commonly used for block style statusbars
+  for i, font in this.fonts:
+    let rune = "\u2588"
+    if XftCharExists(this.display, font, rune.runeAt(0).int) == 1:
+      XftTextExtenTsUtf8(this.display, font, cast[PFCChar8](rune[0].addr), rune.len, tallestBox.addr)
+      tallestPos = font.ascent + (this.area.height.int - font.height) div 2 - tallestBox.y
+      break
   for pos, (rune, runeAddr, font, fg, bg, glyph) in runeInfo:
     if rune.int32 == unitSeparator:
       this.clickables.add (start: last, stop: current, characters: characters)
@@ -567,7 +594,11 @@ proc renderStringRightAligned(
       if bg == -1:
         bgColorXft = this.bgColor
       let centerY = font.ascent + (this.area.height.int - font.height) div 2
-      XftDrawRect(this.draw, bgColorXft.addr, xLoc, 0, glyph.xOff.int, this.area.height.int)
+      if tallestBox.height == 0:
+        XftDrawRect(this.draw, bgColorXft.addr, xLoc, 0, glyph.xOff.int, this.area.height.int)
+      else:
+        XftDrawRect(this.draw, bgColorXft.addr, xLoc, tallestPos, glyph.xOff.int, tallestBox.height.cuint)
+
       XftDrawStringUtf8(
         this.draw,
         colorXft.addr,
