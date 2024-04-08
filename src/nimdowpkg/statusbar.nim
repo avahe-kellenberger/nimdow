@@ -423,11 +423,13 @@ const
                  0xd0d0d0, 0xdadada, 0xe4e4e4, 0xeeeeee]
   resetCode = 0
   fontStart = 10
-  fontStop = 19
+  fontStop = 20
   fgColorStart = 30
   fgColorStop = 37
+  fgColorReset = 39
   bgColorStart = 40
   bgColorStop = 47
+  bgColorReset = 49
   fgBrightColorStart = 90
   fgBrightColorStop = 97
   bgBrightColorStart = 100
@@ -530,6 +532,7 @@ proc renderStringRightAligned(
             while i < sgr.len:
               if sgr[i] == resetCode:
                 color = -1
+                bgColor = -1
                 selectedFont = -1
                 fontErrorLogged = false
               elif sgr[i] >= fontStart and sgr[i] <= fontStop:
@@ -543,6 +546,10 @@ proc renderStringRightAligned(
                 color = brightColors[sgr[i] - fgBrightColorStart]
               elif sgr[i] >= bgBrightColorStart and sgr[i] <= bgBrightColorStop:
                 bgColor = brightColors[sgr[i] - bgBrightColorStart]
+              elif sgr[i] == fgColorReset:
+                color = -1
+              elif sgr[i] == bgColorReset:
+                bgColor = -1
               elif sgr.len > i + 2 and sgr[i] in {fgColorTable, bgColorTable} and sgr[i + 1] == eightBitColor:
                 if sgr[i] == fgColorTable:
                   color = extraColors[sgr[i + 2]]
