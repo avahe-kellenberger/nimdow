@@ -45,6 +45,7 @@ type
     fonts*: seq[string]
     # Hex values
     fgColor*, bgColor*, selectionColor*, urgentColor*: int
+    transparency*: uint8
   ScratchpadSettings* = object
     width*: int
     height*: int
@@ -397,6 +398,12 @@ proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTa
   let urgentColor = this.loadHexValue(settingsTable, "barUrgentColor")
   if urgentColor != -1:
     barSettings.urgentColor = urgentColor
+
+  barSettings.transparency = 255
+  if settingsTable.hasKey("barTransparency"):
+    let barTransparency = settingsTable["barTransparency"]
+    if barTransparency.kind == TomlValueKind.Int:
+      barSettings.transparency = clamp(barTransparency.intVal, 0, 255).uint8
 
   if settingsTable.hasKey("barHeight"):
     let barHeight = settingsTable["barHeight"]
