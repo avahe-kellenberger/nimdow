@@ -54,6 +54,7 @@ exec = [
   barForegroundColor = "#f8f8f2"
   barSelectionColor = "#50fa7b"
   barUrgentColor = "#ff5555"
+  barTransparency = 255 # 0 to 255
   barFonts = [
     "monospace:size=10:antialias=true",
     "NotoColorEmoji:size=10:antialias=true"
