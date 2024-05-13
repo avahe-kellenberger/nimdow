@@ -263,5 +263,12 @@ proc findPreviousTiled*(clients: openArray[Client], i: int = 0): int =
       client.isNormal and not client.isFloating and not client.isFullscreen
   )
 
+proc getClientsToBeArranged*(clients: seq[Client]): seq[Client] =
+  ## Finds all clients that should be arranged in the layout.
+  ## Some windows are excluded, such as fullscreen windows.
+  for client in clients:
+    if not client.isFullscreen and not client.isFloating and not client.isFixedSize:
+      result.add(client)
+
 proc hash*(this: Client): Hash = !$Hash(this.window)
 

@@ -1,7 +1,7 @@
 import
   hashes,
   taginfo,
-  layouts/layout
+  layouts/layouttype
 
 export taginfo
 

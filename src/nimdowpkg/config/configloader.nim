@@ -14,7 +14,9 @@ import
   ../event/xeventmanager,
   ../logger,
   ../windowtitleposition,
-  ../wmcommands
+  ../wmcommands,
+  ../layouts/layout,
+  ../layouts/layouts
 
 var configLoc*: string
 
@@ -49,14 +51,9 @@ type
   ScratchpadSettings* = object
     width*: int
     height*: int
-  LayoutSettings* = object
-    gapSize*: uint
-    outerGap*: uint
-    resizeStep*: uint
   MonitorSettings* = object
     tagSettings*: TagSettings
     barSettings*: BarSettings
-    layoutSettings*: LayoutSettings
   MonitorSettingsRef* = ref MonitorSettings
 
   MonitorID* = int
@@ -75,6 +72,7 @@ type
     # Specific monitor settings
     monitorSettings*: Table[MonitorID, MonitorSettings]
     appRules*: seq[AppRule]
+    layoutSettings*: LayoutSettings
 
 proc newConfig*(eventManager: XEventManager): Config =
   Config(
@@ -101,7 +99,7 @@ proc newConfig*(eventManager: XEventManager): Config =
 proc configureAction*(this: Config, actionName: string, actionInvokee: Action)
 proc hookConfig*(this: Config)
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef)
-proc populateLayoutSettings*(this: Config, layoutSettings: var LayoutSettings, settingsTable: TomlTableRef)
+proc populateLayoutSettings*(this: Config, settingsTable: TomlTableRef)
 proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable)
 proc populateKeyComboTable*(this: Config, configTable: TomlTable, display: PDisplay)
 proc getKeyCombos(
@@ -209,13 +207,10 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       urgentColor: 0xef2f27
   )
 
-  this.defaultMonitorSettings.layoutSettings = LayoutSettings(
-      gapSize: 12,
-      outerGap: 0,
-      resizeStep: 10
-  )
-
   this.defaultMonitorSettings.tagSettings = createDefaultTagSettings()
+
+  for tag in this.defaultMonitorSettings.tagSettings.mvalues:
+    tag.layoutSettings = deepCopy this.layoutSettings
 
 proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDisplay) =
   this.populateDefaultMonitorSettings(display)
@@ -231,13 +226,11 @@ proc populateMonitorSettings(this: Config, configTable: TomlTable, display: PDis
   if monitorsTable.hasKey("default"):
     let settingsTable = configTable["settings"].tableVal
     this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
-    this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
 
     let changedDefaults = monitorsTable["default"]
     if changedDefaults.hasKey("tags"):
       let tagsTable = changedDefaults["tags"]
       if tagsTable.kind == TomlValueKind.Table:
-        # this.defaultMonitorSettings.populateTagSettings(tagsTable.tableVal, display)
         this.defaultMonitorSettings.tagSettings.populateTagSettings(tagsTable.tableVal)
 
   # Populate settings per-monitor
@@ -342,32 +335,14 @@ proc loadHexValue(this: Config, settingsTable: TomlTableRef, valueName: string):
 
 proc populateLayoutSettings*(
   this: Config,
-  layoutSettings: var LayoutSettings,
   settingsTable: TomlTableRef
 ) =
-  if settingsTable.hasKey("gapSize"):
-    let gapSizeSetting = settingsTable["gapSize"]
-    if gapSizeSetting.kind == TomlValueKind.Int:
-      layoutSettings.gapSize = max(0, gapSizeSetting.intVal).uint
-    else:
-      log "gapSize is not an integer value!", lvlWarn
-
-  if settingsTable.hasKey("outerGap"):
-    let outerGapSetting = settingsTable["outerGap"]
-    if outerGapSetting.kind == TomlValueKind.Int:
-      layoutSettings.outerGap = max(0, outerGapSetting.intVal).uint
-    else:
-      log "outerGap is not an integer value!", lvlWarn
-
-  if settingsTable.hasKey("resizeStep"):
-    let resizeStepSetting = settingsTable["resizeStep"]
-    if resizeStepSetting.kind == TomlValueKind.Int:
-      if resizeStepSetting.intVal > 0:
-        layoutSettings.resizeStep = resizeStepSetting.intVal.uint
-      else:
-        log "resizeStep is not a positive integer!", lvlWarn
-    else:
-      log "resizeStep is not an integer value!", lvlWarn
+  if settingsTable.hasKey("layout"):
+    let layoutSetting = parseLayoutSetting(settingsTable["layout"].stringVal)
+    if layoutSetting.isSome:
+     this.layoutSettings = layoutSetting.get
+  this.layoutSettings.populateLayoutSettings(nil) # Set defaults
+  this.layoutSettings.populateLayoutSettings(settingsTable) # Load settings
 
 proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTable: TomlTableRef) =
   if settingsTable.hasKey("windowTitlePosition"):
@@ -429,7 +404,7 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
 
   let settingsTable = configTable["settings"].tableVal
   this.populateBarSettings(this.defaultMonitorSettings.barSettings, settingsTable)
-  this.populateLayoutSettings(this.defaultMonitorSettings.layoutSettings, settingsTable)
+  this.populateLayoutSettings(settingsTable)
 
   # Window settings
   if settingsTable.hasKey("borderWidth"):
@@ -454,7 +429,6 @@ proc populateGeneralSettings*(this: Config, configTable: TomlTable) =
   # Bar & layout settings
   for monitorSettings in this.monitorSettings.mvalues():
     this.populateBarSettings(monitorSettings.barSettings, settingsTable)
-    this.populateLayoutSettings(monitorSettings.layoutSettings, settingsTable)
 
   # General settings
   if settingsTable.hasKey("loggingEnabled"):
@@ -510,13 +484,27 @@ proc loadConfigFile*(): TomlTable =
     raise newException(Exception, "Invalid config file!")
   return loadedConfig.tableVal[]
 
-proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
+proc setControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
   let keyCombos = this.getKeyCombos(configTable, display, action)
   for keyCombo in keyCombos:
     if this.actionIdentifierTable.hasKey(action):
       this.keyComboTable[keyCombo] = this.actionIdentifierTable[action]
     else:
       raise newException(Exception, "Invalid key config action: \"" & action & "\" does not exist")
+
+proc populateControlAction(this: Config, display: PDisplay, action: string, configTable: TomlTable) =
+  if action == "layout":
+    for action in configTable.keys():
+      let actionTable = configTable[action]
+      if actionTable.kind != TomlValueKind.Table:
+        raise newException(Exception, "Invalid controls config table")
+      let validCommand = this.layoutSettings.parseLayoutCommand(action)
+      if validCommand.len != 0:
+        setControlAction(this, display, validCommand, actionTable.tableVal[])
+      else:
+        log "Invalid layout control: " & action, lvlError
+  else:
+    setControlAction(this, display, action, configTable)
 
 proc getKeyCombos(
   this: Config,

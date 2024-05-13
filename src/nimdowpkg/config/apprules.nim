@@ -23,6 +23,8 @@ type
     y*: int
     width*: int
     height*: int
+    borderWidth*: int
+    actions*: seq[string]
 
 proc newAppRule*(): AppRule =
   AppRule(
@@ -35,7 +37,8 @@ proc newAppRule*(): AppRule =
     x: -1,
     y: -1,
     width: 0,
-    height: 0
+    height: 0,
+    borderWidth: -1
   )
 
 proc getStringProperty(appRuleTable: TomlTableRef, property: string): string =
@@ -116,6 +119,13 @@ proc parseAppRules*(table: TomlTable): seq[AppRule] =
     appRule.y = appRuleTable.getIntProperty("y", -1)
     appRule.width = appRuleTable.getIntProperty("width")
     appRule.height = appRuleTable.getIntProperty("height")
+    appRule.borderWidth = appRuleTable.getIntProperty("borderWidth", -1)
+    if appRuleTable.hasKey("actions") and (var ruleActions = appRuleTable["actions"]; ruleActions.kind == TomlValueKind.Array):
+      for rule in ruleActions.arrayVal:
+        if rule.kind != TomlValueKind.String:
+          raise newException(Exception, "appRule action must be a string!")
+        appRule.actions.add rule.stringVal
+    echo appRule[]
     result.add(appRule)
 
 proc globMatches*(str, sub: string): bool =
