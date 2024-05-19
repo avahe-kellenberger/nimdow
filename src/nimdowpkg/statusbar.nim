@@ -46,7 +46,7 @@ type
     visual: PVisual
     depth: int
     colormap: Colormap
-    fgColor*, bgColor*, selectionColor*, urgentColor*: XftColor
+    fgColor*, bgColor*, selectionColor*, urgentColor*, hasTagsColor*: XftColor
     area*: Area
     systrayWidth: int
     clickables: seq[tuple[start: int, stop: int, characters: seq[int]]]
@@ -269,6 +269,7 @@ proc freeAllColors(this: StatusBar) =
   this.freeColor(this.bgColor.unsafeAddr)
   this.freeColor(this.selectionColor.unsafeAddr)
   this.freeColor(this.urgentColor.unsafeAddr)
+  this.freeColor(this.hasTagsColor.unsafeAddr)
 
 proc toRGB(hex: int): RGB =
   return (
@@ -292,6 +293,7 @@ proc configureColors(this: StatusBar) =
   this.configureColor(this.settings.bgColor, this.bgColor, this.settings.transparency)
   this.configureColor(this.settings.selectionColor, this.selectionColor)
   this.configureColor(this.settings.urgentColor, this.urgentColor)
+  this.configureColor(this.settings.hasTagsColor, this.hasTagsColor)
 
 proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
@@ -740,9 +742,6 @@ proc renderTags(this: var StatusBar): int =
       tagHasCurrentClient = false
       tagIsUrgent = false
 
-    if this.selectedTags.contains(tagID):
-      fgColor = this.selectionColor
-
     for node in this.taggedClients.clientWithTagIter(tagID):
       tagIsEmpty = false
       let client = node.value
@@ -751,6 +750,11 @@ proc renderTags(this: var StatusBar): int =
         tagHasCurrentClient = true
         if tagIsUrgent:
           break
+
+    if this.selectedTags.contains(tagID):
+      fgColor = this.selectionColor
+    elif not tagIsEmpty:
+      fgColor = this.hasTagsColor
 
     let text = tagSettings.displayString
     let stringLength = this.forEachCharacter(text, textXPos, fgColor)
@@ -766,10 +770,11 @@ proc renderTags(this: var StatusBar): int =
           stringLength + boxWidth * 4,
           this.area.height.cuint
         )
-      XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, 4, 4)
-      if not tagHasCurrentClient:
-        var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
-        XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
+      if this.settings.showIndicator:
+        XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, 4, 4)
+        if not tagHasCurrentClient:
+          var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
+          XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
 
     let stringInfo = this.renderString(text, fgColor, textXPos)
     this.clickables.add (start: textXPos - boxWidth*2, stop: textXPos + stringLength + boxWidth*2, characters: stringInfo.characters)

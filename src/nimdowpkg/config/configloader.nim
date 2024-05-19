@@ -43,8 +43,9 @@ type
     height*: uint
     windowTitlePosition*: WindowTitlePosition
     fonts*: seq[string]
+    showIndicator*: bool
     # Hex values
-    fgColor*, bgColor*, selectionColor*, urgentColor*: int
+    fgColor*, bgColor*, selectionColor*, urgentColor*, hasTagsColor*: int
     transparency*: uint8
   ScratchpadSettings* = object
     width*: int
@@ -203,10 +204,12 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
         "monospace:size=10:antialias=true",
         "NotoColorEmoji:size=10:antialias=true"
       ],
+      showIndicator: true,
       fgColor: 0xfce8c3,
       bgColor: 0x1c1b19,
       selectionColor: 0x519f50,
-      urgentColor: 0xef2f27
+      urgentColor: 0xef2f27,
+      hasTagsColor: 0xfce8c3
   )
 
   this.defaultMonitorSettings.layoutSettings = LayoutSettings(
@@ -404,6 +407,15 @@ proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTa
     let barTransparency = settingsTable["barTransparency"]
     if barTransparency.kind == TomlValueKind.Int:
       barSettings.transparency = clamp(barTransparency.intVal, 0, 255).uint8
+
+  let hasTagsColor = this.loadHexValue(settingsTable, "barHasTagsColor")
+  if hasTagsColor != -1:
+    barSettings.hasTagsColor = hasTagsColor
+
+  if settingsTable.hasKey("barShowIndicator"):
+    let showIndicator = settingsTable["barShowIndicator"]
+    if showIndicator.kind == TomlValueKind.Bool:
+      barSettings.showIndicator = showIndicator.boolVal
 
   if settingsTable.hasKey("barHeight"):
     let barHeight = settingsTable["barHeight"]
