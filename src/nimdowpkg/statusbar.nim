@@ -46,7 +46,7 @@ type
     visual: PVisual
     depth: int
     colormap: Colormap
-    fgColor*, bgColor*, selectionColor*, urgentColor*, hasTagsColor*: XftColor
+    fgColor*, bgColor*, selectionColor*, urgentColor*, hasWindowsColor*: XftColor
     area*: Area
     systrayWidth: int
     clickables: seq[tuple[start: int, stop: int, characters: seq[int]]]
@@ -269,7 +269,7 @@ proc freeAllColors(this: StatusBar) =
   this.freeColor(this.bgColor.unsafeAddr)
   this.freeColor(this.selectionColor.unsafeAddr)
   this.freeColor(this.urgentColor.unsafeAddr)
-  this.freeColor(this.hasTagsColor.unsafeAddr)
+  this.freeColor(this.hasWindowsColor.unsafeAddr)
 
 proc toRGB(hex: int): RGB =
   return (
@@ -293,7 +293,7 @@ proc configureColors(this: StatusBar) =
   this.configureColor(this.settings.bgColor, this.bgColor, this.settings.transparency)
   this.configureColor(this.settings.selectionColor, this.selectionColor)
   this.configureColor(this.settings.urgentColor, this.urgentColor)
-  this.configureColor(this.settings.hasTagsColor, this.hasTagsColor)
+  this.configureColor(this.settings.hasWindowsColor, this.hasWindowsColor)
 
 proc configureFont(this: StatusBar, fontString: string): PXftFont =
   result = XftFontOpenXlfd(this.display, this.screen, fontString)
@@ -754,7 +754,7 @@ proc renderTags(this: var StatusBar): int =
     if this.selectedTags.contains(tagID):
       fgColor = this.selectionColor
     elif not tagIsEmpty:
-      fgColor = this.hasTagsColor
+      fgColor = this.hasWindowsColor
 
     let text = tagSettings.displayString
     let stringLength = this.forEachCharacter(text, textXPos, fgColor)

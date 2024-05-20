@@ -45,7 +45,7 @@ type
     fonts*: seq[string]
     showIndicator*: bool
     # Hex values
-    fgColor*, bgColor*, selectionColor*, urgentColor*, hasTagsColor*: int
+    fgColor*, bgColor*, selectionColor*, urgentColor*, hasWindowsColor: int
     transparency*: uint8
   ScratchpadSettings* = object
     width*: int
@@ -209,7 +209,7 @@ proc populateDefaultMonitorSettings(this: Config, display: PDisplay) =
       bgColor: 0x1c1b19,
       selectionColor: 0x519f50,
       urgentColor: 0xef2f27,
-      hasTagsColor: 0xfce8c3
+      hasWindowsColor: 0xfce8c3
   )
 
   this.defaultMonitorSettings.layoutSettings = LayoutSettings(
@@ -408,9 +408,11 @@ proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTa
     if barTransparency.kind == TomlValueKind.Int:
       barSettings.transparency = clamp(barTransparency.intVal, 0, 255).uint8
 
-  let hasTagsColor = this.loadHexValue(settingsTable, "barHasTagsColor")
-  if hasTagsColor != -1:
-    barSettings.hasTagsColor = hasTagsColor
+  let hasWindowsColor= this.loadHexValue(settingsTable, "barHasWindowsColor")
+  if hasWindowsColor!= -1:
+    barSettings.hasWindowsColor= hasWindowsColor
+  else:
+    barSettings.hasWindowsColor = fgColor
 
   if settingsTable.hasKey("barShowIndicator"):
     let showIndicator = settingsTable["barShowIndicator"]
