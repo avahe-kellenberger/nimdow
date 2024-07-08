@@ -45,7 +45,7 @@ type
     fonts*: seq[string]
     showIndicator*: bool
     # Hex values
-    fgColor*, bgColor*, selectionColor*, urgentColor*, hasWindowsColor: int
+    fgColor*, bgColor*, selectionColor*, urgentColor*, hasWindowsColor*: int
     transparency*: uint8
   ScratchpadSettings* = object
     width*: int
