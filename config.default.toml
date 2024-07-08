@@ -54,6 +54,8 @@ exec = [
   barForegroundColor = "#f8f8f2"
   barSelectionColor = "#50fa7b"
   barUrgentColor = "#ff5555"
+  barHasWindowsColor = "#f5eodc"
+  barShowIndicator = false
   barTransparency = 255 # 0 to 255
   barFonts = [
     "monospace:size=10:antialias=true",
