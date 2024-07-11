@@ -16,7 +16,7 @@ requires "safeseq >= 1.0.0"
 
 # Tasks
 task debug, "Create a debug build":
-  exec "nim -o:bin/nimdow --deepcopy:on --linedir:on --debuginfo c src/nimdow.nim"
+  exec "nim -o:bin/nimdow --linedir:on --debuginfo c src/nimdow.nim"
 
 task release, "Build for release":
   exec "./build.sh"
