@@ -409,7 +409,7 @@ proc populateBarSettings*(this: Config, barSettings: var BarSettings, settingsTa
       barSettings.transparency = clamp(barTransparency.intVal, 0, 255).uint8
 
   let hasWindowsColor= this.loadHexValue(settingsTable, "barHasWindowsColor")
-  if hasWindowsColor!= -1:
+  if hasWindowsColor != -1:
     barSettings.hasWindowsColor= hasWindowsColor
   else:
     barSettings.hasWindowsColor = fgColor

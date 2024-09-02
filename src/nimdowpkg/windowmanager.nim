@@ -638,6 +638,14 @@ proc popScratchpad(this: WindowManager) =
 
     client.isFloating = true
     this.moveClientToMonitor(client, selectedMonitorIndex)
+
+    client.borderWidth = this.windowSettings.borderWidth
+    client.adjustToState(this.display)
+    discard XSetWindowBorder(
+      this.display,
+      client.window,
+      this.windowSettings.borderColorFocused
+    )
   else:
     # Floating/fullscreen/etc
     client.x = this.selectedMonitor.area.x +
@@ -777,7 +785,6 @@ proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
       if taggedClient != client:
         this.unfocus(taggedClient)
 
-  this.selectedMonitor.setSelectedClient(client)
   this.selectedMonitor.focusClient(client, warpToClient)
   this.grabButtons(client, true)
   if client.isFloating:
