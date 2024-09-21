@@ -1,5 +1,5 @@
 # Package
-version = "0.7.38"
+version = "0.7.39"
 author = "avahe-kellenberger"
 description = "A window manager written in nim"
 license = "GPL v2"
