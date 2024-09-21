@@ -132,13 +132,14 @@ proc closeFinishedProcesses*(this: XEventManager) =
   ## and removes them from the processes seqeunce.
   for process in this.processes:
     if not process.running():
+      discard process.waitForExit()
       process.close()
       this.processes.remove(process)
 
 proc checkForProcessesToClose*(this: XEventManager) =
   ## Check for closed processes periodically.
   currentTime = epochTime()
-  if timeLastCheckedProcesses - currentTime >= CLOSE_PROCESS_CHECK_INTERVAL:
+  if currentTime - timeLastCheckedProcesses >= CLOSE_PROCESS_CHECK_INTERVAL:
     this.closeFinishedProcesses()
     timeLastCheckedProcesses = currentTime
 
