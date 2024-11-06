@@ -268,6 +268,9 @@ proc keycodeToTagID*(this: Monitor, keycode: int): Option[TagID] =
     log "Invalid tag number from config: " & getCurrentExceptionMsg(), lvlError
 
 proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
+  if warpToClient:
+    this.display.warpTo(client)
+
   this.setSelectedClient(client)
 
   if client.hasBeenMapped:
@@ -279,9 +282,6 @@ proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
     )
 
   client.takeFocus(this.display)
-
-  if warpToClient:
-    this.display.warpTo(client)
 
 proc focusRootWindow(this: Monitor) =
   discard XSetInputFocus(
