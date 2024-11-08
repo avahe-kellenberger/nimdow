@@ -1619,8 +1619,9 @@ proc onEnterNotify(this: WindowManager, e: XCrossingEvent) =
     return
 
   this.selectCorrectMonitor(e.x_root, e.y_root)
-  if this.selectedMonitor.taggedClients.currClientsContains(e.window):
-    discard XSetInputFocus(this.display, e.window, RevertToPointerRoot, CurrentTime)
+
+  let (client, _) = this.windowToClient(e.window)
+  this.focus(client, false)
 
 proc onFocusIn(this: WindowManager, e: XFocusInEvent) =
   if this.mouseAction != Normal or e.detail == NotifyPointer or e.window == this.rootWindow:
