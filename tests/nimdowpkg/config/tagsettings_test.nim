@@ -2,6 +2,8 @@ import
   nimtest,
   tag,
   config/tagsettings,
+  layouts/layout,
+  layouts/masterstacklayout,
   parsetoml
 
 describe "Tag settings":
@@ -14,15 +16,18 @@ describe "Tag settings":
     """
 
     var settings = createDefaultTagSettings()
+    for i in 1 .. tagCount:
+      settings[i].layoutSettings = MasterStackLayoutSettings()
+      settings[i].layoutSettings.populateLayoutSettings(nil)
     let toml = parseString(testToml)
     populateTagSettings(settings, toml.tableVal)
 
     assert settings[1].displayString == "one"
-    assert settings[1].numMasterWindows == 2
+    assert settings[1].layoutSettings.MasterStackLayoutSettings.numMasterWindows == 2
 
     for i in 2 .. tagCount:
       assert settings[i].displayString == $i
-      assert settings[i].numMasterWindows == 1
+      assert settings[i].layoutSettings.MasterStackLayoutSettings.numMasterWindows == 1
 
   it "parses a valid [all] tags table":
     let testToml: string = """
@@ -36,14 +41,17 @@ describe "Tag settings":
     """
 
     var settings = createDefaultTagSettings()
+    for i in 1 .. tagCount:
+      settings[i].layoutSettings = MasterStackLayoutSettings()
+      settings[i].layoutSettings.populateLayoutSettings(nil)
     let toml = parseString(testToml)
     populateTagSettings(settings, toml.tableVal)
 
     for i in 1 .. tagCount:
       if i == 7:
         assert settings[i].displayString == "Seven"
-        assert settings[i].numMasterWindows == 3
+        assert settings[i].layoutSettings.MasterStackLayoutSettings.numMasterWindows == 3
       else:
         assert settings[i].displayString == "[]"
-        assert settings[i].numMasterWindows == 2
+        assert settings[i].layoutSettings.MasterStackLayoutSettings.numMasterWindows == 2
 

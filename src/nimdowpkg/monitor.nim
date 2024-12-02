@@ -11,7 +11,6 @@ import
   xatoms,
   area,
   layouts/layout,
-  layouts/masterstacklayout,
   config/configloader,
   keys/keyutils,
   statusbar,
@@ -72,14 +71,11 @@ proc newMonitor*(
     let tagSetting = result.monitorSettings.tagSettings[i]
     let tag: Tag = newTag(
       id = i,
-      layout = newMasterStackLayout(
+      layout = newLayout(
+        tagSetting.layoutSettings,
         monitorArea = area,
-        gapSize = result.monitorSettings.layoutSettings.gapSize,
-        defaultWidth = tagSetting.defaultMasterWidthPercentage,
         borderWidth = currentConfig.windowSettings.borderWidth,
-        masterSlots = tagSetting.numMasterWindows.uint,
         layoutOffset = result.layoutOffset,
-        outerGap = result.monitorSettings.layoutSettings.outerGap
       )
     )
     result.taggedClients.tags.add(tag)
@@ -185,17 +181,14 @@ proc setConfig*(this: Monitor, config: Config) =
 
   for i, tag in this.tags:
     let tagSetting = this.monitorSettings.tagSettings[i + 1]
-    tag.layout.gapSize = this.monitorSettings.layoutSettings.gapSize
-    tag.layout.borderWidth = this.windowSettings.borderWidth
-    tag.layout.masterSlots = tagSetting.numMasterWindows.uint
-    let masterLayout = cast[MasterStackLayout](tag.layout)
-    masterLayout.outerGap = this.monitorSettings.layoutSettings.outerGap
-    masterLayout.defaultWidth = tagSetting.defaultMasterWidthPercentage
-    masterLayout.setDefaultWidth(this.layoutOffset)
+    tag.layout.updateSettings(
+      tagSetting.layoutSettings,
+      this.area,
+      this.windowSettings.borderWidth,
+      this.layoutOffset)
 
   for client in this.taggedClients.clients:
-    if client.borderWidth != 0 or this.monitorSettings.layoutSettings.outerGap > 0:
-      client.borderWidth = this.windowSettings.borderWidth
+    client.borderWidth = this.windowSettings.borderWidth
     client.oldBorderWidth = this.windowSettings.borderWidth
     if client.isFloating or client.isFixedSize:
       client.adjustToState(this.display)
