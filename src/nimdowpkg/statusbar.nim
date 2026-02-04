@@ -25,8 +25,8 @@ converter uintToCuint(x: uint): cuint = x.cuint
 
 const
   barName = "nimbar"
-  boxWidth = 4
-  rightPadding = 4
+  boxWidth = 8
+  rightPadding = 8
 
 type
   StatusBar* = object
@@ -771,10 +771,12 @@ proc renderTags(this: var StatusBar): int =
           this.area.height.cuint
         )
       if this.settings.showIndicator:
-        XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, 4, 4)
+        XftDrawRect(this.draw, fgColor.addr, boxXLoc, 0, boxWidth, boxWidth)
         if not tagHasCurrentClient:
           var bgColor = if tagIsUrgent: this.urgentColor else: this.bgColor
-          XftDrawRect(this.draw, bgColor.addr, boxXLoc + 1, 1, 2, 2)
+          const offset: cint = cint boxWidth / 4
+          const hole: cuint = cuint boxWidth / 2
+          XftDrawRect(this.draw, bgColor.addr, boxXLoc + offset, offset, hole, hole)
 
     let stringInfo = this.renderString(text, fgColor, textXPos)
     this.clickables.add (start: textXPos - boxWidth*2, stop: textXPos + stringLength + boxWidth*2, characters: stringInfo.characters)

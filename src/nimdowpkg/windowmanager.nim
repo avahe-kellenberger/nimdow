@@ -36,7 +36,7 @@ converter toBool(x: XBool): bool = x.bool
 
 const
   wmName = cstring "nimdow"
-  minimumUpdateInterval = math.round(1000 / 60).int
+  minimumUpdateInterval = math.round(1000 / 244).int
 
   systrayMonitorID = 1
   STATUS_MONITOR_PREFIX = "NIMDOW_MONITOR_INDEX="
@@ -1312,8 +1312,6 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
     monitor.focusClient(client, shouldWarp)
 
 proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
-  var windowAttr: XWindowAttributes
-
   let icon = this.systray.windowToIcon(e.window)
   if icon != nil:
     discard this.display.sendEvent(
@@ -1329,6 +1327,7 @@ proc onMapRequest(this: WindowManager, e: XMapRequestEvent) =
     this.systrayMonitor.statusBar.resizeForSystray(this.systray.getWidth())
     this.updateSystray()
 
+  var windowAttr: XWindowAttributes
   if XGetWindowAttributes(this.display, e.window, windowAttr.addr) == 0:
     return
   if windowAttr.override_redirect:
