@@ -533,7 +533,7 @@ proc goToTag(this: WindowManager, tagID: TagID, warpToClient: bool = true) =
 
   if warpToClient:
     this.selectedMonitor.taggedClients.withSomeCurrClient(client):
-      this.display.warpTo(client)
+      this.focus(client, true)
 
 proc jumpToUrgentWindow(this: WindowManager) =
   var
