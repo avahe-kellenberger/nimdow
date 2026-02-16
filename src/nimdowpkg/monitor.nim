@@ -273,6 +273,9 @@ proc focusClient*(this: Monitor, client: Client, warpToClient: bool) =
 
   this.setSelectedClient(client)
 
+  if client == nil:
+    return
+
   if client.hasBeenMapped:
     discard XSetInputFocus(
       this.display,
