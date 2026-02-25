@@ -11,12 +11,13 @@ import
   systray,
   strutils,
   parseutils,
+  sugar,
   tag,
   area,
   point,
   config / [apprules, configloader],
   event/xeventmanager,
-  layouts/masterstacklayout,
+  layouts/layout,
   keys/keyutils,
   logger,
   utils,
@@ -130,9 +131,9 @@ proc newWindowManager*(
   # Config setup
   try:
     result.config = config
+    result.config.populateGeneralSettings(configTable)
     result.mapConfigActions()
     result.config.populateKeyComboTable(configTable, result.display)
-    result.config.populateGeneralSettings(configTable)
     result.config.hookConfig()
     result.grabKeys()
   except:
@@ -302,9 +303,9 @@ proc reloadConfig*(this: WindowManager) =
   try:
     let configTable = configloader.loadConfigFile()
     this.config.populateAppRules(configTable)
+    this.config.populateGeneralSettings(configTable)
     this.mapConfigActions()
     this.config.populateKeyComboTable(configTable, this.display)
-    this.config.populateGeneralSettings(configTable)
     logger.enabled = this.config.loggingEnabled
   except:
     logger.enabled = oldLoggingEnabled
@@ -485,30 +486,6 @@ proc moveClientToNextMonitor(this: WindowManager) =
   let nextMonitorIndex = this.monitors.valuesToSeq().findNext(this.selectedMonitor)
   this.moveSelectedClientToMonitor(nextMonitorIndex)
 
-proc increaseMasterCount(this: WindowManager) =
-  let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
-  if firstSelectedTag == nil:
-    return
-
-  var layout = firstSelectedTag.layout
-  if layout of MasterStackLayout:
-    # This can wrap the uint but the number is crazy high
-    # so I don't think it "ruins" the user experience.
-    MasterStackLayout(layout).masterSlots.inc
-    this.selectedMonitor.doLayout()
-
-proc decreaseMasterCount(this: WindowManager) =
-  let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
-  if firstSelectedTag == nil:
-    return
-
-  var layout = firstSelectedTag.layout
-  if layout of MasterStackLayout:
-    var masterStackLayout = MasterStackLayout(layout)
-    if masterStackLayout.masterSlots.int > 0:
-      masterStackLayout.masterSlots.dec
-      this.selectedMonitor.doLayout()
-
 proc goToTag(this: WindowManager, tagID: TagID, warpToClient: bool = true) =
   # Check if only the same tag is shown
   let selectedTags = this.selectedMonitor.selectedTags
@@ -578,26 +555,6 @@ proc jumpToUrgentWindow(this: WindowManager) =
   urgentMonitor.setSelectedTags(tagID)
   this.display.warpTo(urgentClient)
 
-template modWidthDiff(this: WindowManager, diff: int) =
-  var layout = this.selectedMonitor.taggedClients.findFirstSelectedTag.layout
-  if layout of MasterStackLayout:
-    let masterStackLayout = cast[MasterStackLayout](layout)
-    let screenWidth = masterStackLayout.calcScreenWidth(this.selectedMonitor.layoutOffset)
-
-    if
-      (diff > 0 and masterStackLayout.widthDiff < 0) or
-      (diff < 0 and masterStackLayout.widthDiff > 0) or
-      masterStackLayout.calcClientWidth(screenWidth).int - abs(masterStackLayout.widthDiff).int - abs(
-          diff).int > 0:
-        masterStackLayout.widthDiff += diff
-        this.selectedMonitor.doLayout()
-
-proc increaseMasterWidth(this: WindowManager) =
-  this.modWidthDiff(this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
-
-proc decreaseMasterWidth(this: WindowManager) =
-  this.modWidthDiff(-this.selectedMonitor.monitorSettings.layoutSettings.resizeStep.int)
-
 proc moveWindowToScratchpad(this: WindowManager) =
   var client = this.selectedMonitor.taggedClients.currClient
   if client != nil:
@@ -663,12 +620,6 @@ proc mapConfigActions*(this: WindowManager) =
   ## Maps available user configuration options to window manager actions.
   createControl(keyCombo, $wmcReloadConfig):
     this.reloadConfig()
-
-  createControl(keyCombo, $wmcIncreaseMasterCount):
-    this.increaseMasterCount()
-
-  createControl(keyCombo, $wmcDecreaseMasterCount):
-    this.decreaseMasterCount()
 
   createControl(keyCombo, $wmcMoveWindowToPreviousMonitor):
     this.moveClientToPreviousMonitor()
@@ -761,12 +712,6 @@ proc mapConfigActions*(this: WindowManager) =
   createControl(keyCombo, $wmcJumpToUrgentWindow):
     this.jumpToUrgentWindow()
 
-  createControl(keyCombo, $wmcIncreaseMasterWidth):
-    this.increaseMasterWidth()
-
-  createControl(keyCombo, $wmcDecreaseMasterWidth):
-    this.decreaseMasterWidth()
-
   createControl(keyCombo, $wmcMoveWindowToScratchpad):
     this.moveWindowToScratchpad()
 
@@ -778,6 +723,17 @@ proc mapConfigActions*(this: WindowManager) =
 
   createControl(keyCombo, $wmcToggleStatusBar):
     this.selectedMonitor.toggleStatusBar()
+
+  for (command, action) in this.config.layoutSettings.availableCommands():
+    capture command, action:
+      createControl(keyCombo, command):
+        let firstSelectedTag = this.selectedMonitor.taggedClients.findFirstSelectedTag()
+        if firstSelectedTag == nil:
+          return
+
+        var layout = firstSelectedTag.layout
+        action(layout)
+        this.selectedMonitor.doLayout()
 
 proc focus*(this: WindowManager, client: Client, warpToClient: bool) =
   for monitor in this.monitors.values():
@@ -1204,17 +1160,17 @@ proc manage(this: WindowManager, window: Window, windowAttr: XWindowAttributes) 
       if appRule.state == wsFloating:
         client.isFloating = true
 
-        # AppRule x and y are default -1 when not set.
-        if appRule.x >= 0:
-          x = appRule.x
-        if appRule.y >= 0:
-          y = appRule.y
+      # AppRule x and y are default -1 when not set.
+      if appRule.x >= 0:
+        x = appRule.x
+      if appRule.y >= 0:
+        y = appRule.y
 
-        # AppRule width and height are default 0 when not set.
-        if appRule.width > 0:
-          width = appRule.width
-        if appRule.height > 0:
-          height = appRule.height
+      # AppRule width and height are default 0 when not set.
+      if appRule.width > 0:
+        width = appRule.width
+      if appRule.height > 0:
+        height = appRule.height
 
     let appRuleDoesNotHaveValidTags = appRule == nil or appRule.tagIDs.len == 0
     monitor.addClient(client, appRuleDoesNotHaveValidTags)
